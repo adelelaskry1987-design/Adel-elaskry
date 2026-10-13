@@ -1,0 +1,869 @@
+import React, { useState } from 'react';
+import { Customer, Transaction, ScreenId } from '../../types';
+import { api } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { ShareModal } from '../ShareModal';
+import {
+  CheckCircle2,
+  Search,
+  UserPlus,
+  Share2,
+  Filter,
+  Calendar,
+  ArrowDownRight,
+  ArrowUpRight,
+  Ban,
+  Database,
+  Download,
+  Upload,
+  RefreshCw,
+  Phone,
+  MessageCircle,
+  Send,
+  Mail,
+  Bluetooth,
+  MoreHorizontal,
+  ChevronLeft,
+  AlertCircle,
+  FileText,
+  Users,
+} from 'lucide-react';
+
+// ================= SCREEN 15: CUSTOMERS LIST =================
+export const Screen15Customers: React.FC<{
+  customers: Customer[];
+  onSelectCustomer: (c: Customer) => void;
+  onNavigate: (s: ScreenId) => void;
+  onRefresh: () => void;
+}> = ({ customers, onSelectCustomer, onNavigate, onRefresh }) => {
+  const [search, setSearch] = useState('');
+
+  const filtered = customers.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.phone.includes(search) ||
+      c.address.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
+      {/* Top Banner */}
+      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-black text-amber-400">العملاء</h2>
+          <p className="text-[11px] text-slate-300">إدارة بيانات العملاء والأرصدة الحالية</p>
+        </div>
+        <button
+          onClick={() => onNavigate('screen-7-customer-add')}
+          className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          <span>إضافة عميل +</span>
+        </button>
+      </div>
+
+      {/* Search Input */}
+      <div className="relative">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="ابحث بالاسم، الهاتف، أو العنوان..."
+          className="w-full pr-9 pl-3 py-2.5 rounded-xl border border-slate-300 text-xs bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        />
+        <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+      </div>
+
+      {/* Customer Cards List */}
+      <div className="space-y-2">
+        {filtered.map((customer) => {
+          const isPositive = customer.balance >= 0;
+          return (
+            <div
+              key={customer.id}
+              onClick={() => {
+                onSelectCustomer(customer);
+                onNavigate('screen-11-customer-details');
+              }}
+              className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm hover:border-blue-400 cursor-pointer transition-all active:scale-99 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 font-bold text-sm flex items-center justify-center border border-blue-200 shrink-0">
+                  {customer.name.slice(0, 1)}
+                </div>
+                <div>
+                  <h3 className="font-bold text-xs text-slate-800 leading-tight">
+                    {customer.name}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                    <span className="font-mono">{customer.phone}</span>
+                    {customer.address && <span>• {customer.address}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Balance Badge with Colors */}
+              <div className="text-left shrink-0">
+                <div
+                  className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono tabular-nums inline-block ${
+                    isPositive
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}
+                >
+                  {customer.balance.toLocaleString()} ج.م
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 text-center">
+                  {customer.transactions_count || 0} عملية
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filtered.length === 0 && (
+          <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 text-slate-400 space-y-2">
+            <Users className="w-10 h-10 mx-auto text-slate-300" />
+            <p className="text-xs font-semibold">
+              {customers.length === 0 ? 'لا يوجد عملاء مضافون في المشروع بعد' : 'لا توجد نتائج مطابقة لبحثك'}
+            </p>
+            {customers.length === 0 && (
+              <button
+                onClick={() => onNavigate('screen-7-customer-add')}
+                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold"
+              >
+                + إضافة أول عميل الآن
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ================= SCREEN 16: CUSTOMER UPDATED SUCCESS =================
+export const Screen16CustomerUpdatedSuccess: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  return (
+    <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+        <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
+      </div>
+
+      <h2 className="text-2xl font-black text-slate-800 mb-2">تم تعديل بيانات العميل بنجاح</h2>
+      <p className="text-slate-500 text-sm max-w-xs mb-8">
+        تم تحديث بيانات العميل بنجاح في قاعدة البيانات. شكراً لاستخدامك التطبيق.
+      </p>
+
+      <button
+        onClick={() => onNavigate('screen-11-customer-details')}
+        className="w-full max-w-xs py-3 px-6 rounded-xl bg-[#1b74e4] hover:bg-[#1563c6] text-white font-bold text-sm shadow-md active:scale-98 transition-all"
+      >
+        حسناً
+      </button>
+    </div>
+  );
+};
+
+// ================= SCREEN 17: SHARE MENU =================
+export const Screen17ShareMenu: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  const shareOptions = [
+    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-500' },
+    { name: 'Telegram', icon: Send, color: 'bg-sky-500' },
+    { name: 'Messenger', icon: MessageCircle, color: 'bg-blue-600' },
+    { name: 'IMO', icon: MessageCircle, color: 'bg-cyan-500' },
+    { name: 'Gmail', icon: Mail, color: 'bg-red-500' },
+    { name: 'الرسائل', icon: MessageCircle, color: 'bg-emerald-600' },
+    { name: 'المزيد', icon: MoreHorizontal, color: 'bg-slate-600' },
+    { name: 'بلوتوث', icon: Bluetooth, color: 'bg-indigo-600' },
+  ];
+
+  const handleDeviceShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'AH2 — تطبيق إدارة العملاء والعمليات المالية',
+          text: 'إدارة عملائك وحساباتك المالية في يدك مع تطبيق AH2 المعتمد.',
+          url: window.location.href,
+        });
+      } catch {
+        // user cancelled
+      }
+    } else {
+      alert('تم نسخ رابط التطبيق للحافظة');
+      navigator.clipboard?.writeText(window.location.href);
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
+      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-black text-amber-400">قائمة المشاركة</h2>
+          <p className="text-[11px] text-slate-300">مشاركة تقرير الحساب أو رابط التطبيق</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <h3 className="text-xs font-black text-slate-700 mb-4 text-center">
+          مشاركة عبر التطبيقات
+        </h3>
+
+        <div className="grid grid-cols-4 gap-4">
+          {shareOptions.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <button
+                key={opt.name}
+                onClick={handleDeviceShare}
+                className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform"
+              >
+                <div
+                  className={`w-12 h-12 rounded-2xl ${opt.color} text-white flex items-center justify-center shadow-md`}
+                >
+                  <Icon className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] font-semibold text-slate-700">{opt.name}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-8 pt-4 border-t border-slate-100">
+          <button
+            onClick={handleDeviceShare}
+            className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all active:scale-98"
+          >
+            مشاركة من الجهاز
+          </button>
+          <p className="text-[10px] text-slate-400 text-center mt-2">
+            سيتم فتح قائمة المشاركة الأصلية الخاصة بنظام جهازك
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ================= SCREEN 18: ALL TRANSACTIONS =================
+export const Screen18AllTransactions: React.FC<{
+  transactions: Transaction[];
+  onNavigate: (s: ScreenId) => void;
+  onRefresh: () => void;
+}> = ({ transactions, onNavigate, onRefresh }) => {
+  const { project } = useAuth();
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [cancelModalTx, setCancelModalTx] = useState<Transaction | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  const filtered = transactions.filter((t) => {
+    if (fromDate && t.date < fromDate) return false;
+    if (toDate && t.date > toDate) return false;
+    return true;
+  });
+
+  const totalPayments = filtered
+    .filter((t) => t.status === 'active' && t.type === 'payment')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const totalWithdrawals = filtered
+    .filter((t) => t.status === 'active' && t.type === 'withdrawal')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const handleCancel = async () => {
+    if (!cancelModalTx) return;
+    setLoading(true);
+    try {
+      await api.cancelTransaction(cancelModalTx.id, cancelReason || 'تم الإلغاء بواسطة المستخدم');
+      setCancelModalTx(null);
+      setCancelReason('');
+      onRefresh();
+    } catch (err: any) {
+      alert(err.message || 'حدث خطأ أثناء إلغاء العملية');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
+      {/* Banner */}
+      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-black text-amber-400">كل العمليات</h2>
+          <p className="text-[11px] text-slate-300">عرض جميع العمليات المالية لكل العملاء</p>
+        </div>
+        <button
+          onClick={() => setShowShareModal(true)}
+          className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+          title="مشاركة"
+        >
+          <Share2 className="w-4 h-4 text-slate-950" />
+          <span>مشاركة</span>
+        </button>
+      </div>
+
+      {/* Date Filter Strip */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <label className="block text-[10px] text-slate-500 font-bold mb-1">من تاريخ</label>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="w-full px-2 py-1.5 border rounded-lg text-xs font-mono"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] text-slate-500 font-bold mb-1">إلى تاريخ</label>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="w-full px-2 py-1.5 border rounded-lg text-xs font-mono"
+          />
+        </div>
+      </div>
+
+      {/* Summary Cards: إجمالي السحب vs إجمالي الإيداع */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-900">
+          <div className="text-[10px] font-bold text-red-600">إجمالي السحب</div>
+          <div className="text-base font-black font-mono tabular-nums mt-0.5">
+            {totalWithdrawals.toLocaleString()} <span className="text-[10px] font-sans">ج.م</span>
+          </div>
+        </div>
+
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-emerald-900">
+          <div className="text-[10px] font-bold text-emerald-600">إجمالي الإيداع / الدفع</div>
+          <div className="text-base font-black font-mono tabular-nums mt-0.5">
+            {totalPayments.toLocaleString()} <span className="text-[10px] font-sans">ج.م</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Transactions List */}
+      <div className="space-y-2">
+        {filtered.map((t) => {
+          const isCancelled = t.status === 'cancelled';
+          const isPayment = t.type === 'payment';
+
+          return (
+            <div
+              key={t.id}
+              className={`bg-white rounded-2xl p-3.5 border shadow-sm transition-all ${
+                isCancelled ? 'border-slate-200 opacity-60 bg-slate-50/80' : 'border-slate-200'
+              }`}
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-xs text-slate-800">
+                      {t.customer_name || 'عميل'}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isCancelled
+                          ? 'bg-slate-200 text-slate-600 line-through'
+                          : isPayment
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {isCancelled ? 'ملغاة' : isPayment ? 'دفع (إيداع)' : 'سحب'}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-slate-500 mt-1 font-mono">
+                    {t.date} • {t.time}
+                  </div>
+
+                  {t.description && (
+                    <div className="text-[11px] text-slate-600 mt-1">
+                      البيان: {t.description}
+                    </div>
+                  )}
+
+                  {isCancelled && t.cancellation_reason && (
+                    <div className="text-[10px] text-red-600 mt-1">
+                      سبب الإلغاء: {t.cancellation_reason}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-left">
+                  <div
+                    className={`text-sm font-black font-mono tabular-nums ${
+                      isCancelled
+                        ? 'text-slate-400 line-through'
+                        : isPayment
+                        ? 'text-emerald-600'
+                        : 'text-red-600'
+                    }`}
+                  >
+                    {isPayment ? '+' : '-'} {t.amount.toLocaleString()} ج.م
+                  </div>
+
+                  {!isCancelled && (
+                    <button
+                      onClick={() => setCancelModalTx(t)}
+                      className="mt-2 text-[10px] text-red-600 hover:text-red-800 font-bold flex items-center gap-1"
+                    >
+                      <Ban className="w-3 h-3" />
+                      إلغاء العملية
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filtered.length === 0 && (
+          <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 text-slate-400">
+            <FileText className="w-8 h-8 mx-auto text-slate-300 mb-1" />
+            <p className="text-xs">لا توجد عمليات مسجلة في هذه الفترة</p>
+          </div>
+        )}
+      </div>
+
+      {/* Cancellation Modal */}
+      {cancelModalTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-2 text-red-600 font-black text-sm mb-2">
+              <AlertCircle className="w-5 h-5" />
+              تأكيد إلغاء العملية المالية
+            </div>
+
+            <p className="text-xs text-slate-600 mb-3">
+              هل أنت متأكد من رغبتك في إلغاء عملية {cancelModalTx.type === 'payment' ? 'دفع' : 'سحب'} بمبلغ{' '}
+              <span className="font-bold font-mono">{cancelModalTx.amount} ج.م</span> للعميل {cancelModalTx.customer_name}؟
+              <br />
+              <span className="text-[11px] text-slate-500">
+                سيتم الاحتفاظ بالعملية في السجل كـ "ملغاة" واستبعادها فوراً من الرصيد.
+              </span>
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                سبب الإلغاء (اختياري)
+              </label>
+              <input
+                type="text"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="مثال: خطأ في المبلغ، إرجاع المبلغ..."
+                className="w-full p-2 border rounded-xl text-xs"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleCancel}
+                disabled={loading}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white font-bold text-xs"
+              >
+                {loading ? 'جاري الإلغاء...' : 'تأكيد الإلغاء'}
+              </button>
+              <button
+                onClick={() => setCancelModalTx(null)}
+                className="py-2 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+              >
+                تراجع
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          data={{
+            type: 'all_transactions',
+            projectName: project?.name || 'متجر OM BASMA للستائر والمفروشات',
+            reportDate: new Date().toISOString().split('T')[0],
+            periodText:
+              fromDate && toDate
+                ? `من ${fromDate} إلى ${toDate}`
+                : fromDate
+                ? `من تاريخ ${fromDate}`
+                : toDate
+                ? `حتى تاريخ ${toDate}`
+                : 'كافة الفترات المسجلة',
+            totalPayments,
+            totalWithdrawals,
+            netMovement: totalPayments - totalWithdrawals,
+            totalCount: filtered.length,
+            activeCount: filtered.filter((t) => t.status === 'active').length,
+            cancelledCount: filtered.filter((t) => t.status === 'cancelled').length,
+            transactions: filtered,
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// ================= SCREEN 19: CUSTOMER TRANSACTIONS =================
+export const Screen19CustomerTransactions: React.FC<{
+  customer: Customer | null;
+  onNavigate: (s: ScreenId) => void;
+}> = ({ customer, onNavigate }) => {
+  const { project } = useAuth();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  const fetchTxs = async () => {
+    if (!customer) return;
+    try {
+      const res = await api.getCustomer(customer.id);
+      setTransactions(res.transactions || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchTxs();
+  }, [customer]);
+
+  if (!customer) {
+    return (
+      <div className="p-8 text-center text-slate-500">
+        <p>يرجى اختيار عميل</p>
+      </div>
+    );
+  }
+
+  const filteredTxs = transactions.filter((t) => {
+    if (fromDate && t.date < fromDate) return false;
+    if (toDate && t.date > toDate) return false;
+    return true;
+  });
+
+  const periodPayments = filteredTxs
+    .filter((t) => t.status === 'active' && t.type === 'payment')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const periodWithdrawals = filteredTxs
+    .filter((t) => t.status === 'active' && t.type === 'withdrawal')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const periodNetMovement = periodPayments - periodWithdrawals;
+
+  return (
+    <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
+      {/* Banner */}
+      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-black text-amber-400">عمليات وكشف حساب العميل</h2>
+          <p className="text-[11px] text-slate-300">{customer.name}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+            title="مشاركة كشف الحساب"
+          >
+            <Share2 className="w-4 h-4 text-slate-950" />
+            <span>مشاركة</span>
+          </button>
+          <button
+            onClick={() => onNavigate('screen-14-new-transaction')}
+            className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl"
+          >
+            + عملية جديدة
+          </button>
+        </div>
+      </div>
+
+      {/* Date Filter Strip */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <label className="block text-[10px] text-slate-500 font-bold mb-1">من تاريخ</label>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="w-full px-2 py-1.5 border rounded-lg text-xs font-mono"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] text-slate-500 font-bold mb-1">إلى تاريخ</label>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="w-full px-2 py-1.5 border rounded-lg text-xs font-mono"
+          />
+        </div>
+      </div>
+
+      {/* Customer Balance Header & Period Movement */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs text-slate-500 font-bold">الرصيد التراكمي الكلي</span>
+            <div
+              className={`text-xl font-black font-mono tabular-nums ${
+                customer.balance >= 0 ? 'text-emerald-600' : 'text-red-600'
+              }`}
+            >
+              {customer.balance.toLocaleString()} ج.م
+            </div>
+          </div>
+          <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg">
+            {customer.phone}
+          </span>
+        </div>
+
+        {/* Period Summary Breakdown */}
+        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center text-xs">
+          <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-xl">
+            <div className="text-[10px] text-emerald-700 font-bold">دفع الفترة</div>
+            <div className="font-black font-mono text-emerald-800 text-xs mt-0.5">
+              {periodPayments.toLocaleString()} ج.م
+            </div>
+          </div>
+          <div className="bg-red-50 border border-red-200 p-2 rounded-xl">
+            <div className="text-[10px] text-red-700 font-bold">سحب الفترة</div>
+            <div className="font-black font-mono text-red-800 text-xs mt-0.5">
+              {periodWithdrawals.toLocaleString()} ج.م
+            </div>
+          </div>
+          <div className="bg-amber-50 border border-amber-300 p-2 rounded-xl">
+            <div className="text-[10px] text-amber-800 font-bold">صافي حركة الفترة</div>
+            <div className="font-black font-mono text-amber-900 text-xs mt-0.5">
+              {periodNetMovement.toLocaleString()} ج.م
+            </div>
+          </div>
+        </div>
+
+        {(fromDate || toDate) && (
+          <div className="text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+            تنبيه: صافي حركة الفترة ({periodNetMovement.toLocaleString()} ج.م) يمثل ناتج العمليات المحددة، بينما الرصيد الكلي ({customer.balance.toLocaleString()} ج.م) يعكس الحساب التراكمي.
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="space-y-2">
+        {filteredTxs.map((t) => {
+          const isCancelled = t.status === 'cancelled';
+          const isPayment = t.type === 'payment';
+          return (
+            <div
+              key={t.id}
+              className={`bg-white rounded-2xl p-3.5 border shadow-sm ${
+                isCancelled ? 'opacity-50 line-through' : ''
+              }`}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isPayment ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {isCancelled ? 'ملغاة' : isPayment ? 'دفع' : 'سحب'}
+                  </span>
+                  <div className="text-[11px] text-slate-400 font-mono mt-1">
+                    {t.date} • {t.time}
+                  </div>
+                  {t.description && (
+                    <div className="text-xs text-slate-600 mt-1">{t.description}</div>
+                  )}
+                </div>
+
+                <div
+                  className={`text-sm font-black font-mono tabular-nums ${
+                    isPayment ? 'text-emerald-600' : 'text-red-600'
+                  }`}
+                >
+                  {isPayment ? '+' : '-'} {t.amount.toLocaleString()} ج.م
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredTxs.length === 0 && !loading && (
+          <div className="text-center py-8 text-xs text-slate-400">
+            لا توجد أي عمليات مسجلة لهذا العميل في هذه الفترة
+          </div>
+        )}
+      </div>
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          data={{
+            type: 'customer_statement',
+            projectName: project?.name || 'متجر OM BASMA للستائر والمفروشات',
+            reportDate: new Date().toISOString().split('T')[0],
+            periodText:
+              fromDate && toDate
+                ? `من ${fromDate} إلى ${toDate}`
+                : fromDate
+                ? `من تاريخ ${fromDate}`
+                : toDate
+                ? `حتى تاريخ ${toDate}`
+                : 'كافة العمليات المسجلة للعميل',
+            customer,
+            currentBalance: customer.balance,
+            periodPayments,
+            periodWithdrawals,
+            periodNetMovement,
+            transactions: filteredTxs,
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// ================= SCREEN 20: BACKUP OVERVIEW =================
+export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  const [autoBackup, setAutoBackup] = useState(true);
+
+  return (
+    <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
+      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
+        <h2 className="text-base font-black text-amber-400">النسخ الاحتياطي</h2>
+        <p className="text-[11px] text-slate-300">حماية البيانات واستعادتها في أي وقت</p>
+      </div>
+
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        {/* Create Backup */}
+        <button
+          onClick={() => onNavigate('screen-21-backup-create')}
+          className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-between shadow-md transition-all active:scale-98"
+        >
+          <div className="flex items-center gap-2">
+            <Download className="w-4 h-4" />
+            <span>إنشاء نسخة احتياطية</span>
+          </div>
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        {/* Restore Backup */}
+        <button
+          onClick={() => onNavigate('screen-22-backup-restore')}
+          className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-between transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Upload className="w-4 h-4 text-blue-600" />
+            <span>استعادة نسخة احتياطية</span>
+          </div>
+          <ChevronLeft className="w-4 h-4 text-slate-400" />
+        </button>
+      </div>
+
+      {/* Auto Backup Toggle */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div>
+          <h3 className="text-xs font-bold text-slate-800">النسخ الاحتياطي التلقائي</h3>
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            إجراء حفظ نسخة احتياطية دورية لحماية بياناتك
+          </p>
+        </div>
+        <button
+          onClick={() => setAutoBackup(!autoBackup)}
+          className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+            autoBackup ? 'bg-blue-600' : 'bg-slate-300'
+          }`}
+        >
+          <div
+            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+              autoBackup ? '-translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ================= SCREEN 21: BACKUP CREATE =================
+export const Screen21BackupCreate: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await api.createBackup();
+      onNavigate('screen-20-backup');
+    } catch (err: any) {
+      setError(err.message || 'حدث خطأ أثناء إنشاء النسخة');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
+      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
+        <h2 className="text-base font-black text-amber-400">إنشاء نسخة احتياطية</h2>
+        <p className="text-[11px] text-slate-300">تأكيد إنشاء نسخة احتياطية جديدة</p>
+      </div>
+
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 mx-auto flex items-center justify-center border-2 border-blue-200">
+          <Database className="w-8 h-8" />
+        </div>
+
+        <h3 className="font-black text-sm text-slate-800">
+          هل تريد إنشاء نسخة احتياطية الآن؟
+        </h3>
+        <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+          سيتم حفظ جميع بيانات العملاء، العمليات المالية، والتقارير في نسخة احتياطية آمنة يمكن استعادتها في أي وقت.
+        </p>
+
+        <div className="bg-slate-50 p-3 rounded-xl border text-xs text-slate-600 space-y-1">
+          <div className="flex justify-between">
+            <span>تاريخ النسخة:</span>
+            <span className="font-mono font-bold">{new Date().toISOString().split('T')[0]}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>الصيغة:</span>
+            <span className="font-bold">JSON آمن ومشفر</span>
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-600 font-bold">{error}</p>}
+
+        <div className="space-y-2 pt-2">
+          <button
+            onClick={handleCreate}
+            disabled={loading}
+            className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all active:scale-98 disabled:opacity-50"
+          >
+            {loading ? 'جاري إنشاء النسخة...' : 'إنشاء النسخة الآن'}
+          </button>
+          <button
+            onClick={() => onNavigate('screen-20-backup')}
+            className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+          >
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

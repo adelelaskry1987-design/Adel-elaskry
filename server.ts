@@ -1,0 +1,1388 @@
+import express, { Request, Response, NextFunction } from 'express';
+import { createServer as createViteServer } from 'vite';
+import path from 'node:path';
+import fs from 'node:fs';
+import {
+  db,
+  initDatabase,
+  hashSecret,
+  verifySecret,
+  generateId,
+  normalizePhoneNumber,
+} from './server/db.js';
+
+initDatabase();
+
+const app = express();
+const PORT = 3000;
+
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+// Auth Middleware
+interface AuthRequest extends Request {
+  user?: any;
+  project?: any;
+  membership?: any;
+}
+
+function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'غير مصرح، يرجى تسجيل الدخول أولاً' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  const tokenRecord = db
+    .prepare('SELECT * FROM auth_tokens WHERE token = ?')
+    .get(token) as any;
+
+  if (!tokenRecord) {
+    return res.status(401).json({ error: 'الجلسة غير صالحة أو منتهية' });
+  }
+
+  if (tokenRecord.expires_at < Date.now()) {
+    db.prepare('DELETE FROM auth_tokens WHERE token = ?').run(token);
+    return res.status(401).json({ error: 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً' });
+  }
+
+  const user = db
+    .prepare('SELECT id, name, phone, email, role, created_at FROM users WHERE id = ?')
+    .get(tokenRecord.user_id) as any;
+
+  if (!user) {
+    return res.status(401).json({ error: 'المستخدم غير موجود' });
+  }
+
+  const project = db
+    .prepare('SELECT id, name, owner_id, project_password_hash, created_at FROM projects WHERE id = ?')
+    .get(tokenRecord.project_id) as any;
+
+  if (!project) {
+    return res.status(401).json({ error: 'المشروع غير موجود' });
+  }
+
+  const membership = db
+    .prepare('SELECT * FROM project_memberships WHERE project_id = ? AND user_id = ?')
+    .get(project.id, user.id) as any;
+
+  req.user = user;
+  req.project = project;
+  req.membership = membership ? { ...membership, permissions: JSON.parse(membership.permissions || '[]') } : null;
+
+  next();
+}
+
+function logActivity(
+  projectId: string,
+  userId: string,
+  userName: string,
+  actionType: string,
+  description: string,
+  entityType: string,
+  entityId: string | null = null
+) {
+  try {
+    db.prepare(`
+      INSERT INTO activity_logs (id, project_id, user_id, user_name, action_type, description, entity_type, entity_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      generateId(),
+      projectId,
+      userId,
+      userName,
+      actionType,
+      description,
+      entityType,
+      entityId,
+      new Date().toISOString()
+    );
+  } catch (err) {
+    console.error('Error logging activity:', err);
+  }
+}
+
+function createNotification(
+  projectId: string,
+  userId: string | null,
+  type: string,
+  title: string,
+  message: string
+) {
+  try {
+    db.prepare(`
+      INSERT INTO notifications (id, project_id, user_id, type, title, message, is_read, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+    `).run(
+      generateId(),
+      projectId,
+      userId,
+      type,
+      title,
+      message,
+      new Date().toISOString()
+    );
+  } catch (err) {
+    console.error('Error creating notification:', err);
+  }
+}
+
+// ================= AUTH ENDPOINTS =================
+
+app.post('/api/auth/register', (req: Request, res: Response) => {
+  try {
+    const { name, projectName, phone, email, password, confirmPassword, projectPassword } = req.body;
+
+    if (!name || !projectName || !phone || !password) {
+      return res.status(400).json({ error: 'يرجى ملء جميع الحقول الإلزامية' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'كلمة المرور يجب أن لا تقل عن 6 أحرف' });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({ error: 'كلمة المرور وتأكيدها غير متطابقين' });
+    }
+
+    const cleanPhone = normalizePhoneNumber(phone);
+    if (!cleanPhone || cleanPhone.length < 8) {
+      return res.status(400).json({ error: 'يرجى إدخال رقم هاتف صحيح' });
+    }
+
+    // Check phone uniqueness across all projects
+    const existingPhone = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanPhone);
+    if (existingPhone) {
+      return res.status(400).json({ error: 'رقم التليفون مستخدم بالفعل، من فضلك استخدم رقمًا آخر' });
+    }
+
+    // Check email uniqueness if provided
+    if (email && email.trim() !== '') {
+      const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim());
+      if (existingEmail) {
+        return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل من قبل حساب آخر' });
+      }
+    }
+
+    const userId = generateId();
+    const projectId = generateId();
+    const passwordHash = hashSecret(password);
+    const projectPasswordHash = hashSecret(projectPassword || password);
+    const now = new Date().toISOString();
+
+    // Insert user with normalized phone
+    db.prepare(`
+      INSERT INTO users (id, name, phone, email, password_hash, role, created_at)
+      VALUES (?, ?, ?, ?, ?, 'owner', ?)
+    `).run(userId, name.trim(), cleanPhone, email ? email.trim() : null, passwordHash, now);
+
+    // Insert project
+    db.prepare(`
+      INSERT INTO projects (id, name, owner_id, project_password_hash, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(projectId, projectName.trim(), userId, projectPasswordHash, now);
+
+    // Insert owner membership with all permissions
+    const allPermissions = [
+      'view_customers',
+      'add_customers',
+      'edit_customers',
+      'delete_customers',
+      'view_transactions',
+      'create_transactions',
+      'cancel_transactions',
+      'view_reports',
+      'manage_employees',
+      'manage_backups',
+      'restore_data',
+      'reset_data'
+    ];
+
+    db.prepare(`
+      INSERT INTO project_memberships (id, project_id, user_id, role, status, permissions, created_at)
+      VALUES (?, ?, ?, 'owner', 'active', ?, ?)
+    `).run(generateId(), projectId, userId, JSON.stringify(allPermissions), now);
+
+    // Create session token
+    const token = generateId() + generateId();
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+    db.prepare(`
+      INSERT INTO auth_tokens (token, user_id, project_id, expires_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, userId, projectId, expiresAt);
+
+    logActivity(projectId, userId, name, 'REGISTER', `تم إنشاء حساب جديد ومشروع: ${projectName}`, 'PROJECT', projectId);
+    createNotification(projectId, userId, 'WELCOME', 'مرحبًا بك في تطبيق AH2', `تم إنشاء مشروع ${projectName} بنجاح، يمكنك الآن البدء بإضافة العملاء وتسجيل العمليات.`);
+
+    const user = { id: userId, name, phone, email: email || null, role: 'owner', created_at: now };
+    const project = { id: projectId, name: projectName, owner_id: userId, created_at: now };
+
+    return res.status(201).json({
+      message: 'تم إنشاء الحساب والمشروع بنجاح',
+      token,
+      user,
+      project,
+      permissions: allPermissions,
+    });
+  } catch (error: any) {
+    if (error?.message && error.message.includes('UNIQUE constraint failed: users.phone')) {
+      return res.status(400).json({ error: 'رقم التليفون مستخدم بالفعل، من فضلك استخدم رقمًا آخر' });
+    }
+    console.error('Register error:', error);
+    return res.status(500).json({ error: 'حدث خطأ غير متوقع أثناء إنشاء الحساب' });
+  }
+});
+
+app.post('/api/auth/login', (req: Request, res: Response) => {
+  try {
+    const { identifier, password } = req.body;
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'يرجى إدخال اسم المستخدم / رقم الهاتف وكلمة المرور' });
+    }
+
+    const cleanIdentifier = identifier.trim();
+    const normIdentifier = normalizePhoneNumber(identifier);
+    const user = db.prepare(`
+      SELECT * FROM users WHERE phone = ? OR phone = ? OR email = ?
+    `).get(normIdentifier, cleanIdentifier, cleanIdentifier) as any;
+
+    if (!user) {
+      return res.status(401).json({ error: 'بيانات الدخول غير صحيحة، يرجى التأكد والمحاولة ثانية' });
+    }
+
+    if (!verifySecret(password, user.password_hash)) {
+      return res.status(401).json({ error: 'بيانات الدخول غير صحيحة، يرجى التأكد والمحاولة ثانية' });
+    }
+
+    // Find user's project
+    let project = db.prepare('SELECT * FROM projects WHERE owner_id = ?').get(user.id) as any;
+
+    if (!project) {
+      const membership = db.prepare('SELECT project_id FROM project_memberships WHERE user_id = ? AND status = "active"').get(user.id) as any;
+      if (membership) {
+        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(membership.project_id) as any;
+      }
+    }
+
+    if (!project) {
+      return res.status(404).json({ error: 'لا يوجد مشروع مرتبط بهذا الحساب' });
+    }
+
+    const membership = db.prepare('SELECT * FROM project_memberships WHERE project_id = ? AND user_id = ?').get(project.id, user.id) as any;
+    const permissions = membership ? JSON.parse(membership.permissions || '[]') : [];
+
+    const token = generateId() + generateId();
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    db.prepare(`
+      INSERT INTO auth_tokens (token, user_id, project_id, expires_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, user.id, project.id, expiresAt);
+
+    logActivity(project.id, user.id, user.name, 'LOGIN', 'تم تسجيل الدخول بنجاح', 'USER', user.id);
+
+    return res.json({
+      message: 'تم تسجيل الدخول بنجاح',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        created_at: user.created_at,
+      },
+      project: {
+        id: project.id,
+        name: project.name,
+        owner_id: project.owner_id,
+        created_at: project.created_at,
+      },
+      permissions,
+    });
+  } catch (error: any) {
+    console.error('Login error:', error);
+    return res.status(500).json({ error: 'حدث خطأ في الخادم أثناء تسجيل الدخول' });
+  }
+});
+
+app.get('/api/auth/me', authMiddleware, (req: AuthRequest, res: Response) => {
+  return res.json({
+    user: req.user,
+    project: {
+      id: req.project.id,
+      name: req.project.name,
+      owner_id: req.project.owner_id,
+      created_at: req.project.created_at,
+    },
+    permissions: req.membership ? req.membership.permissions : [],
+    role: req.membership ? req.membership.role : req.user.role,
+  });
+});
+
+app.post('/api/auth/logout', authMiddleware, (req: AuthRequest, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    db.prepare('DELETE FROM auth_tokens WHERE token = ?').run(token);
+  }
+  return res.json({ message: 'تم تسجيل الخروج بنجاح' });
+});
+
+app.post('/api/auth/change-password', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'يرجى إدخال كلمة المرور القديمة والجديدة' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'كلمة المرور الجديدة يجب أن لا تقل عن 6 أحرف' });
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({ error: 'تأكيد كلمة المرور غير متطابق' });
+    }
+
+    const userRecord = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id) as any;
+    if (!verifySecret(oldPassword, userRecord.password_hash)) {
+      return res.status(400).json({ error: 'كلمة المرور القديمة غير صحيحة' });
+    }
+
+    const newHash = hashSecret(newPassword);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'PASSWORD_CHANGE', 'تم تغيير كلمة المرور بنجاح', 'USER', req.user.id);
+    createNotification(req.project.id, req.user.id, 'SECURITY', 'تم تغيير كلمة المرور', 'تم تحديث كلمة المرور الخاصة بحسابك بنجاح.');
+
+    return res.json({ message: 'تم تحديث كلمة المرور بنجاح' });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء تغيير كلمة المرور' });
+  }
+});
+
+app.post('/api/auth/update-profile', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { name, email, phone } = req.body;
+    if (!name || !phone) {
+      return res.status(400).json({ error: 'الاسم ورقم الهاتف مطلوبان' });
+    }
+
+    const cleanPhone = normalizePhoneNumber(phone);
+    if (!cleanPhone || cleanPhone.length < 8) {
+      return res.status(400).json({ error: 'يرجى إدخال رقم هاتف صحيح' });
+    }
+
+    // Check phone uniqueness across all users/projects (excluding current user)
+    const existingPhone = db.prepare('SELECT id FROM users WHERE phone = ? AND id != ?').get(cleanPhone, req.user.id) as any;
+    if (existingPhone) {
+      return res.status(400).json({ error: 'رقم التليفون مستخدم بالفعل، من فضلك استخدم رقمًا آخر' });
+    }
+
+    if (email && email.trim() !== '') {
+      const existingEmail = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email.trim(), req.user.id) as any;
+      if (existingEmail) {
+        return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل من قبل حساب آخر' });
+      }
+    }
+
+    db.prepare(`
+      UPDATE users SET name = ?, phone = ?, email = ? WHERE id = ?
+    `).run(name.trim(), cleanPhone, email ? email.trim() : null, req.user.id);
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'UPDATE_PROFILE', 'تم تحديث بيانات الملف الشخصي', 'USER', req.user.id);
+
+    return res.json({ message: 'تم تحديث بيانات الملف الشخصي بنجاح' });
+  } catch (error: any) {
+    if (error?.message && error.message.includes('UNIQUE constraint failed: users.phone')) {
+      return res.status(400).json({ error: 'رقم التليفون مستخدم بالفعل، من فضلك استخدم رقمًا آخر' });
+    }
+    return res.status(500).json({ error: 'حدث خطأ أثناء تعديل الملف الشخصي' });
+  }
+});
+
+app.post('/api/auth/verify-project-password', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { projectPassword } = req.body;
+    if (!projectPassword) {
+      return res.status(400).json({ valid: false, error: 'يرجى إدخال كلمة مرور المشروع' });
+    }
+
+    const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
+    if (!project || !project.project_password_hash) {
+      return res.status(400).json({ valid: false, error: 'لم يتم تعيين كلمة مرور للمشروع بعد' });
+    }
+
+    const isValid = verifySecret(projectPassword, project.project_password_hash);
+    if (!isValid) {
+      return res.status(401).json({ valid: false, error: 'كلمة مرور المشروع غير صحيحة' });
+    }
+
+    return res.json({ valid: true });
+  } catch (error) {
+    return res.status(500).json({ valid: false, error: 'حدث خطأ أثناء التحقق من كلمة المرور' });
+  }
+});
+
+app.post('/api/auth/set-project-password', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { currentPassword, newProjectPassword } = req.body;
+    if (!newProjectPassword || newProjectPassword.length < 4) {
+      return res.status(400).json({ error: 'كلمة مرور المشروع يجب ألا تقل عن 4 رموز' });
+    }
+
+    const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
+    if (project.project_password_hash) {
+      if (!currentPassword || !verifySecret(currentPassword, project.project_password_hash)) {
+        return res.status(401).json({ error: 'كلمة مرور المشروع الحالية غير صحيحة' });
+      }
+    }
+
+    const newHash = hashSecret(newProjectPassword);
+    db.prepare('UPDATE projects SET project_password_hash = ? WHERE id = ?').run(newHash, req.project.id);
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'PROJECT_PASSWORD_UPDATE', 'تم تغيير كلمة مرور المشروع', 'PROJECT', req.project.id);
+    createNotification(req.project.id, req.user.id, 'SECURITY', 'كلمة مرور المشروع', 'تم تحديث كلمة مرور المشروع بنجاح.');
+
+    return res.json({ message: 'تم تحديث كلمة مرور المشروع بنجاح' });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ في تعيين كلمة المرور' });
+  }
+});
+
+// ================= CUSTOMERS ENDPOINTS =================
+
+// Helper to calculate exact balances
+function calculateCustomerBalances(projectId: string, customerId?: string) {
+  let query = `
+    SELECT 
+      c.id, c.name, c.phone, c.address, c.type, c.notes, c.created_at, c.updated_at,
+      COALESCE(SUM(CASE WHEN t.status = 'active' AND t.type = 'payment' THEN t.amount ELSE 0 END), 0) AS total_payments,
+      COALESCE(SUM(CASE WHEN t.status = 'active' AND t.type = 'withdrawal' THEN t.amount ELSE 0 END), 0) AS total_withdrawals,
+      COUNT(CASE WHEN t.status = 'active' THEN 1 ELSE NULL END) AS transactions_count
+    FROM customers c
+    LEFT JOIN transactions t ON t.customer_id = c.id
+    WHERE c.project_id = ?
+  `;
+  const params: any[] = [projectId];
+
+  if (customerId) {
+    query += ' AND c.id = ?';
+    params.push(customerId);
+  }
+
+  query += ' GROUP BY c.id ORDER BY c.created_at DESC';
+
+  const rows = db.prepare(query).all(...params) as any[];
+
+  return rows.map((r) => {
+    // Round to 2 decimal places cleanly
+    const totalPayments = Math.round(Number(r.total_payments) * 100) / 100;
+    const totalWithdrawals = Math.round(Number(r.total_withdrawals) * 100) / 100;
+    const balance = Math.round((totalPayments - totalWithdrawals) * 100) / 100;
+
+    return {
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      address: r.address || '',
+      type: r.type,
+      notes: r.notes || '',
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      total_payments: totalPayments,
+      total_withdrawals: totalWithdrawals,
+      balance: balance,
+      transactions_count: Number(r.transactions_count),
+    };
+  });
+}
+
+app.get('/api/customers', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const search = req.query.search as string;
+    let list = calculateCustomerBalances(req.project.id);
+
+    if (search && search.trim() !== '') {
+      const q = search.trim().toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.phone.toLowerCase().includes(q) ||
+          c.address.toLowerCase().includes(q)
+      );
+    }
+
+    return res.json(list);
+  } catch (error) {
+    console.error('Get customers error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة العملاء' });
+  }
+});
+
+app.post('/api/customers', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { name, phone, address, type, notes } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'اسم العميل مطلوب' });
+    }
+    if (!phone || !phone.trim()) {
+      return res.status(400).json({ error: 'رقم الهاتف مطلوب' });
+    }
+
+    const cleanPhone = normalizePhoneNumber(phone);
+    if (!cleanPhone || cleanPhone.length < 6) {
+      return res.status(400).json({ error: 'يرجى إدخال رقم هاتف صحيح للعميل' });
+    }
+
+    // Check customer phone uniqueness within the same project
+    const existingCustomer = db.prepare(`
+      SELECT id, name FROM customers
+      WHERE project_id = ? AND phone = ?
+    `).get(req.project.id, cleanPhone) as any;
+
+    if (existingCustomer) {
+      return res.status(400).json({ error: 'رقم التليفون مسجل بالفعل لعميل آخر' });
+    }
+
+    const id = generateId();
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO customers (id, project_id, name, phone, address, type, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      req.project.id,
+      name.trim(),
+      cleanPhone,
+      address ? address.trim() : '',
+      type === 'company' ? 'company' : 'individual',
+      notes ? notes.trim() : '',
+      now,
+      now
+    );
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'CREATE_CUSTOMER', `تم إضافة عميل جديد: ${name.trim()}`, 'CUSTOMER', id);
+    createNotification(req.project.id, req.user.id, 'CUSTOMER_ADDED', 'عميل جديد', `تم إضافة العميل "${name.trim()}" بنجاح إلى قائمة العملاء.`);
+
+    const created = calculateCustomerBalances(req.project.id, id)[0];
+    return res.status(201).json(created);
+  } catch (error: any) {
+    if (
+      error?.message &&
+      (error.message.includes('idx_customers_project_phone') ||
+        error.message.includes('UNIQUE constraint failed: customers.phone') ||
+        error.message.includes('UNIQUE constraint failed: customers.project_id, customers.phone'))
+    ) {
+      return res.status(400).json({ error: 'رقم التليفون مسجل بالفعل لعميل آخر' });
+    }
+    console.error('Add customer error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء إضافة العميل' });
+  }
+});
+
+app.get('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const customer = calculateCustomerBalances(req.project.id, req.params.id)[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'العميل غير موجود أو لا ينتمي لهذا المشروع' });
+    }
+
+    const transactions = db.prepare(`
+      SELECT * FROM transactions
+      WHERE customer_id = ? AND project_id = ?
+      ORDER BY date DESC, time DESC, created_at DESC
+    `).all(req.params.id, req.project.id) as any[];
+
+    return res.json({ customer, transactions });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب بيانات العميل' });
+  }
+});
+
+app.put('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { name, phone, address, type, notes, projectPassword } = req.body;
+
+    // Verify project password on server
+    const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
+    if (!projectPassword || !verifySecret(projectPassword, project.project_password_hash)) {
+      return res.status(401).json({ error: 'كلمة مرور المشروع غير صحيحة، لا يمكن تعديل بيانات العميل بدونها' });
+    }
+
+    const existing = db.prepare('SELECT id, name, phone FROM customers WHERE id = ? AND project_id = ?').get(req.params.id, req.project.id) as any;
+    if (!existing) {
+      return res.status(404).json({ error: 'العميل غير موجود' });
+    }
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'اسم العميل مطلوب' });
+    }
+    if (!phone || !phone.trim()) {
+      return res.status(400).json({ error: 'رقم الهاتف مطلوب' });
+    }
+
+    const cleanPhone = normalizePhoneNumber(phone);
+    if (!cleanPhone || cleanPhone.length < 6) {
+      return res.status(400).json({ error: 'يرجى إدخال رقم هاتف صحيح للعميل' });
+    }
+
+    // Verify uniqueness: check if another customer in the same project has this phone
+    const duplicateCustomer = db.prepare(`
+      SELECT id, name FROM customers
+      WHERE project_id = ? AND phone = ? AND id != ?
+    `).get(req.project.id, cleanPhone, req.params.id) as any;
+
+    if (duplicateCustomer) {
+      return res.status(400).json({ error: 'رقم التليفون مسجل بالفعل لعميل آخر' });
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE customers 
+      SET name = ?, phone = ?, address = ?, type = ?, notes = ?, updated_at = ?
+      WHERE id = ? AND project_id = ?
+    `).run(
+      name.trim(),
+      cleanPhone,
+      address ? address.trim() : '',
+      type === 'company' ? 'company' : 'individual',
+      notes ? notes.trim() : '',
+      now,
+      req.params.id,
+      req.project.id
+    );
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'UPDATE_CUSTOMER', `تم تعديل بيانات العميل: ${name.trim()}`, 'CUSTOMER', req.params.id);
+    createNotification(req.project.id, req.user.id, 'CUSTOMER_UPDATED', 'تعديل عميل', `تم تعديل بيانات العميل "${name.trim()}" بنجاح.`);
+
+    const updated = calculateCustomerBalances(req.project.id, req.params.id)[0];
+    return res.json(updated);
+  } catch (error: any) {
+    if (
+      error?.message &&
+      (error.message.includes('idx_customers_project_phone') ||
+        error.message.includes('UNIQUE constraint failed: customers.phone') ||
+        error.message.includes('UNIQUE constraint failed: customers.project_id, customers.phone'))
+    ) {
+      return res.status(400).json({ error: 'رقم التليفون مسجل بالفعل لعميل آخر' });
+    }
+    console.error('Update customer error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء تحديث بيانات العميل' });
+  }
+});
+
+app.delete('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { projectPassword } = req.body;
+
+    const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
+    if (!projectPassword || !verifySecret(projectPassword, project.project_password_hash)) {
+      return res.status(401).json({ error: 'كلمة مرور المشروع غير صحيحة، لا يمكن حذف العميل بدونها' });
+    }
+
+    const customer = db.prepare('SELECT id, name FROM customers WHERE id = ? AND project_id = ?').get(req.params.id, req.project.id) as any;
+    if (!customer) {
+      return res.status(404).json({ error: 'العميل غير موجود' });
+    }
+
+    // Delete customer (cascade will remove transactions)
+    db.prepare('DELETE FROM customers WHERE id = ? AND project_id = ?').run(req.params.id, req.project.id);
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'DELETE_CUSTOMER', `تم حذف العميل نهائياً: ${customer.name}`, 'CUSTOMER', req.params.id);
+    createNotification(req.project.id, req.user.id, 'CUSTOMER_DELETED', 'حذف عميل', `تم حذف العميل "${customer.name}" وجميع عملياته نهائياً.`);
+
+    return res.json({ message: 'تم حذف العميل بنجاح من قاعدة البيانات' });
+  } catch (error) {
+    console.error('Delete customer error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء حذف العميل' });
+  }
+});
+
+// ================= TRANSACTIONS ENDPOINTS =================
+
+app.get('/api/transactions', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { customerId, fromDate, toDate, status } = req.query;
+
+    let query = `
+      SELECT t.*, c.name as customer_name, c.phone as customer_phone
+      FROM transactions t
+      JOIN customers c ON c.id = t.customer_id
+      WHERE t.project_id = ?
+    `;
+    const params: any[] = [req.project.id];
+
+    if (customerId) {
+      query += ' AND t.customer_id = ?';
+      params.push(customerId);
+    }
+    if (fromDate) {
+      query += ' AND t.date >= ?';
+      params.push(fromDate);
+    }
+    if (toDate) {
+      query += ' AND t.date <= ?';
+      params.push(toDate);
+    }
+    if (status) {
+      query += ' AND t.status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY t.date DESC, t.time DESC, t.created_at DESC';
+
+    const transactions = db.prepare(query).all(...params) as any[];
+    return res.json(transactions);
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب العمليات المالية' });
+  }
+});
+
+app.post('/api/transactions', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { customerId, type, amount, date, time, description } = req.body;
+
+    if (!customerId) {
+      return res.status(400).json({ error: 'يرجى اختيار العميل' });
+    }
+    if (type !== 'payment' && type !== 'withdrawal') {
+      return res.status(400).json({ error: 'نوع العملية غير صالح (يجب أن يكون دفع أو سحب)' });
+    }
+
+    const parsedAmount = Number(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: 'المبلغ يجب أن يكون رقماً موجباً أكبر من صفر' });
+    }
+
+    const cleanAmount = Math.round(parsedAmount * 100) / 100;
+
+    // Check customer exists in current project
+    const customer = db.prepare('SELECT id, name FROM customers WHERE id = ? AND project_id = ?').get(customerId, req.project.id) as any;
+    if (!customer) {
+      return res.status(404).json({ error: 'العميل غير موجود في هذا المشروع' });
+    }
+
+    const id = generateId();
+    const now = new Date();
+    const txDate = date || now.toISOString().split('T')[0];
+    const txTime = time || now.toTimeString().split(' ')[0].substring(0, 5);
+    const createdAt = now.toISOString();
+
+    db.prepare(`
+      INSERT INTO transactions (id, project_id, customer_id, type, amount, date, time, description, created_by, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+    `).run(
+      id,
+      req.project.id,
+      customerId,
+      type,
+      cleanAmount,
+      txDate,
+      txTime,
+      description ? description.trim() : '',
+      req.user.id,
+      createdAt
+    );
+
+    const typeArabic = type === 'payment' ? 'دفع' : 'سحب';
+    logActivity(
+      req.project.id,
+      req.user.id,
+      req.user.name,
+      'CREATE_TRANSACTION',
+      `تم تسجيل عملية ${typeArabic} بمبلغ ${cleanAmount} ج.م للعميل: ${customer.name}`,
+      'TRANSACTION',
+      id
+    );
+
+    createNotification(
+      req.project.id,
+      req.user.id,
+      'TRANSACTION_CREATED',
+      `عملية ${typeArabic} جديدة`,
+      `تم تسجيل عملية ${typeArabic} بمبلغ ${cleanAmount} ج.م للعميل ${customer.name}.`
+    );
+
+    const tx = db.prepare(`
+      SELECT t.*, c.name as customer_name, c.phone as customer_phone
+      FROM transactions t
+      JOIN customers c ON c.id = t.customer_id
+      WHERE t.id = ?
+    `).get(id) as any;
+
+    // Fetch customer's updated balance
+    const updatedCustomer = calculateCustomerBalances(req.project.id, customerId)[0];
+
+    return res.status(201).json({
+      transaction: tx,
+      customer: updatedCustomer,
+    });
+  } catch (error) {
+    console.error('Create transaction error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء حفظ العملية المالية' });
+  }
+});
+
+app.post('/api/transactions/:id/cancel', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { reason } = req.body;
+
+    const tx = db.prepare(`
+      SELECT t.*, c.name as customer_name
+      FROM transactions t
+      JOIN customers c ON c.id = t.customer_id
+      WHERE t.id = ? AND t.project_id = ?
+    `).get(req.params.id, req.project.id) as any;
+
+    if (!tx) {
+      return res.status(404).json({ error: 'العملية غير موجودة' });
+    }
+
+    if (tx.status === 'cancelled') {
+      return res.status(400).json({ error: 'العملية ملغاة بالفعل مسبقاً' });
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE transactions
+      SET status = 'cancelled', cancelled_by = ?, cancelled_at = ?, cancellation_reason = ?
+      WHERE id = ? AND project_id = ?
+    `).run(req.user.id, now, reason ? reason.trim() : 'تم الإلغاء بواسطة المستخدم', req.params.id, req.project.id);
+
+    logActivity(
+      req.project.id,
+      req.user.id,
+      req.user.name,
+      'CANCEL_TRANSACTION',
+      `تم إلغاء عملية ${tx.type === 'payment' ? 'دفع' : 'سحب'} بمبلغ ${tx.amount} ج.م للعميل ${tx.customer_name}`,
+      'TRANSACTION',
+      req.params.id
+    );
+
+    createNotification(
+      req.project.id,
+      req.user.id,
+      'TRANSACTION_CANCELLED',
+      'إلغاء عملية مالية',
+      `تم إلغاء عملية ${tx.type === 'payment' ? 'دفع' : 'سحب'} بمبلغ ${tx.amount} ج.م للعميل ${tx.customer_name}.`
+    );
+
+    const updatedTx = db.prepare(`
+      SELECT t.*, c.name as customer_name, c.phone as customer_phone
+      FROM transactions t
+      JOIN customers c ON c.id = t.customer_id
+      WHERE t.id = ?
+    `).get(req.params.id);
+
+    const updatedCustomer = calculateCustomerBalances(req.project.id, tx.customer_id)[0];
+
+    return res.json({
+      transaction: updatedTx,
+      customer: updatedCustomer,
+      message: 'تم إلغاء العملية واستبعادها من الرصيد بنجاح',
+    });
+  } catch (error) {
+    console.error('Cancel transaction error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء إلغاء العملية' });
+  }
+});
+
+// ================= REPORTS & STATISTICS =================
+
+app.get('/api/reports/summary', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { fromDate, toDate } = req.query;
+
+    const customers = calculateCustomerBalances(req.project.id);
+    const totalCustomers = customers.length;
+
+    let positiveBalanceSum = 0;
+    let negativeBalanceSum = 0;
+
+    customers.forEach((c) => {
+      if (c.balance > 0) {
+        positiveBalanceSum += c.balance;
+      } else if (c.balance < 0) {
+        negativeBalanceSum += Math.abs(c.balance);
+      }
+    });
+
+    positiveBalanceSum = Math.round(positiveBalanceSum * 100) / 100;
+    negativeBalanceSum = Math.round(negativeBalanceSum * 100) / 100;
+
+    // Filtered transaction totals
+    let txQuery = `
+      SELECT 
+        COUNT(CASE WHEN status = 'active' THEN 1 ELSE NULL END) as total_tx_count,
+        COALESCE(SUM(CASE WHEN status = 'active' AND type = 'payment' THEN amount ELSE 0 END), 0) as total_payments,
+        COALESCE(SUM(CASE WHEN status = 'active' AND type = 'withdrawal' THEN amount ELSE 0 END), 0) as total_withdrawals
+      FROM transactions
+      WHERE project_id = ?
+    `;
+    const params: any[] = [req.project.id];
+
+    if (fromDate) {
+      txQuery += ' AND date >= ?';
+      params.push(fromDate);
+    }
+    if (toDate) {
+      txQuery += ' AND date <= ?';
+      params.push(toDate);
+    }
+
+    const txTotals = db.prepare(txQuery).get(...params) as any;
+
+    const totalPayments = Math.round(Number(txTotals.total_payments) * 100) / 100;
+    const totalWithdrawals = Math.round(Number(txTotals.total_withdrawals) * 100) / 100;
+    const totalTransactions = Number(txTotals.total_tx_count);
+
+    return res.json({
+      totalCustomers,
+      totalTransactions,
+      positiveBalanceSum,
+      negativeBalanceSum,
+      totalPayments,
+      totalWithdrawals,
+      netBalance: Math.round((positiveBalanceSum - negativeBalanceSum) * 100) / 100,
+    });
+  } catch (error) {
+    console.error('Reports summary error:', error);
+    return res.status(500).json({ error: 'حدث خطأ في جلب بيانات التقارير' });
+  }
+});
+
+// ================= NOTIFICATIONS & ACTIVITY LOGS =================
+
+app.get('/api/notifications', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const notifications = db.prepare(`
+      SELECT * FROM notifications
+      WHERE project_id = ?
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all(req.project.id);
+    return res.json(notifications);
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب الإشعارات' });
+  }
+});
+
+app.post('/api/notifications/:id/read', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND project_id = ?').run(req.params.id, req.project.id);
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ' });
+  }
+});
+
+app.post('/api/notifications/read-all', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    db.prepare('UPDATE notifications SET is_read = 1 WHERE project_id = ?').run(req.project.id);
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ' });
+  }
+});
+
+app.get('/api/activity-logs', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const logs = db.prepare(`
+      SELECT * FROM activity_logs
+      WHERE project_id = ?
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all(req.project.id);
+    return res.json(logs);
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب سجل النشاط' });
+  }
+});
+
+// ================= BACKUPS & DATA MANAGEMENT =================
+
+app.get('/api/backups', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const backups = db.prepare(`
+      SELECT id, filename, file_size, created_at
+      FROM backups
+      WHERE project_id = ?
+      ORDER BY created_at DESC
+    `).all(req.project.id);
+    return res.json(backups);
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة النسخ الاحتياطية' });
+  }
+});
+
+app.post('/api/backups/create', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const customers = db.prepare('SELECT * FROM customers WHERE project_id = ?').all(req.project.id);
+    const transactions = db.prepare('SELECT * FROM transactions WHERE project_id = ?').all(req.project.id);
+    const notifications = db.prepare('SELECT * FROM notifications WHERE project_id = ?').all(req.project.id);
+    const logs = db.prepare('SELECT * FROM activity_logs WHERE project_id = ?').all(req.project.id);
+
+    const backupPayload = {
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+      projectId: req.project.id,
+      projectName: req.project.name,
+      createdBy: req.user.name,
+      data: {
+        customers,
+        transactions,
+        notifications,
+        logs,
+      },
+    };
+
+    const jsonString = JSON.stringify(backupPayload, null, 2);
+    const fileSize = Buffer.byteLength(jsonString, 'utf8');
+    const dateStr = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+    const filename = `backup_ah2_${dateStr}.json`;
+    const backupId = generateId();
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO backups (id, project_id, created_by, filename, file_size, data_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(backupId, req.project.id, req.user.id, filename, fileSize, jsonString, now);
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'CREATE_BACKUP', `تم إنشاء نسخة احتياطية: ${filename}`, 'BACKUP', backupId);
+    createNotification(req.project.id, req.user.id, 'BACKUP_CREATED', 'نسخة احتياطية جديدة', `تم إنشاء نسخة احتياطية بنجاح بحجم ${(fileSize / 1024).toFixed(1)} ك.ب.`);
+
+    return res.status(201).json({
+      id: backupId,
+      filename,
+      file_size: fileSize,
+      created_at: now,
+      message: 'تم إنشاء النسخة الاحتياطية بنجاح',
+    });
+  } catch (error) {
+    console.error('Create backup error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء إنشاء النسخة الاحتياطية' });
+  }
+});
+
+app.post('/api/backups/restore/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { projectPassword } = req.body;
+    const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
+    if (!projectPassword || !verifySecret(projectPassword, project.project_password_hash)) {
+      return res.status(401).json({ error: 'كلمة مرور المشروع غير صحيحة، لا يمكن استعادة النسخة بدونها' });
+    }
+
+    const backup = db.prepare('SELECT * FROM backups WHERE id = ? AND project_id = ?').get(req.params.id, req.project.id) as any;
+    if (!backup) {
+      return res.status(404).json({ error: 'النسخة الاحتياطية غير موجودة' });
+    }
+
+    const payload = JSON.parse(backup.data_json);
+    if (!payload.data) {
+      return res.status(400).json({ error: 'ملف النسخة الاحتياطية تالف أو غير متوافق' });
+    }
+
+    // Atomic restore
+    db.exec('BEGIN TRANSACTION;');
+    try {
+      db.prepare('DELETE FROM transactions WHERE project_id = ?').run(req.project.id);
+      db.prepare('DELETE FROM customers WHERE project_id = ?').run(req.project.id);
+
+      const insertCustomer = db.prepare(`
+        INSERT INTO customers (id, project_id, name, phone, address, type, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const c of payload.data.customers || []) {
+        insertCustomer.run(c.id, req.project.id, c.name, c.phone, c.address || '', c.type || 'individual', c.notes || '', c.created_at, c.updated_at || c.created_at);
+      }
+
+      const insertTx = db.prepare(`
+        INSERT INTO transactions (id, project_id, customer_id, type, amount, date, time, description, created_by, status, cancelled_by, cancelled_at, cancellation_reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const t of payload.data.transactions || []) {
+        insertTx.run(
+          t.id,
+          req.project.id,
+          t.customer_id,
+          t.type,
+          t.amount,
+          t.date,
+          t.time,
+          t.description || '',
+          t.created_by || req.user.id,
+          t.status || 'active',
+          t.cancelled_by || null,
+          t.cancelled_at || null,
+          t.cancellation_reason || null,
+          t.created_at
+        );
+      }
+
+      db.exec('COMMIT;');
+    } catch (restoreErr) {
+      db.exec('ROLLBACK;');
+      throw restoreErr;
+    }
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'RESTORE_BACKUP', `تم استعادة النسخة الاحتياطية: ${backup.filename}`, 'BACKUP', backup.id);
+    createNotification(req.project.id, req.user.id, 'BACKUP_RESTORED', 'استعادة البيانات', `تم استعادة بيانات المشروع من النسخة ${backup.filename} بنجاح.`);
+
+    return res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح' });
+  } catch (error) {
+    console.error('Restore backup error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء استعادة النسخة الاحتياطية' });
+  }
+});
+
+app.post('/api/data/export', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { includeCustomers = true, includeTransactions = true, includeReports = true } = req.body;
+
+    const exportData: any = {
+      project_name: req.project.name,
+      export_date: new Date().toISOString(),
+      app_version: '1.0.0',
+    };
+
+    if (includeCustomers) {
+      exportData.customers = calculateCustomerBalances(req.project.id);
+    }
+    if (includeTransactions) {
+      exportData.transactions = db.prepare('SELECT * FROM transactions WHERE project_id = ?').all(req.project.id);
+    }
+    if (includeReports) {
+      const summary = db.prepare(`
+        SELECT 
+          COUNT(CASE WHEN status = 'active' THEN 1 ELSE NULL END) as total_tx,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'payment' THEN amount ELSE 0 END), 0) as total_payments,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'withdrawal' THEN amount ELSE 0 END), 0) as total_withdrawals
+        FROM transactions WHERE project_id = ?
+      `).get(req.project.id);
+      exportData.reports_summary = summary;
+    }
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'EXPORT_DATA', 'تم تصدير بيانات المشروع', 'DATA');
+    return res.json(exportData);
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء تصدير البيانات' });
+  }
+});
+
+app.post('/api/data/import', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { backupData } = req.body;
+    if (!backupData) {
+      return res.status(400).json({ error: 'يرجى تقديم بيانات الاستيراد' });
+    }
+
+    const parsed = typeof backupData === 'string' ? JSON.parse(backupData) : backupData;
+    const customers = parsed.customers || (parsed.data && parsed.data.customers) || [];
+    const transactions = parsed.transactions || (parsed.data && parsed.data.transactions) || [];
+
+    db.exec('BEGIN TRANSACTION;');
+    try {
+      const insertCustomer = db.prepare(`
+        INSERT OR REPLACE INTO customers (id, project_id, name, phone, address, type, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const c of customers) {
+        insertCustomer.run(
+          c.id || generateId(),
+          req.project.id,
+          c.name,
+          normalizePhoneNumber(c.phone),
+          c.address || '',
+          c.type || 'individual',
+          c.notes || '',
+          c.created_at || new Date().toISOString(),
+          c.updated_at || new Date().toISOString()
+        );
+      }
+
+      const insertTx = db.prepare(`
+        INSERT OR REPLACE INTO transactions (id, project_id, customer_id, type, amount, date, time, description, created_by, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const t of transactions) {
+        insertTx.run(
+          t.id || generateId(),
+          req.project.id,
+          t.customer_id,
+          t.type,
+          t.amount,
+          t.date,
+          t.time || '12:00',
+          t.description || '',
+          req.user.id,
+          t.status || 'active',
+          t.created_at || new Date().toISOString()
+        );
+      }
+
+      db.exec('COMMIT;');
+    } catch (err) {
+      db.exec('ROLLBACK;');
+      throw err;
+    }
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'IMPORT_DATA', `تم استيراد ${customers.length} عميل و ${transactions.length} عملية`, 'DATA');
+    createNotification(req.project.id, req.user.id, 'DATA_IMPORTED', 'استيراد البيانات', `تم استيراد ${customers.length} عميل و ${transactions.length} عملية بنجاح.`);
+
+    return res.json({
+      message: 'تم استيراد البيانات بنجاح',
+      customersCount: customers.length,
+      transactionsCount: transactions.length,
+    });
+  } catch (error) {
+    console.error('Import error:', error);
+    return res.status(500).json({ error: 'فشل استيراد الملف، تأكد من صحة التنسيق' });
+  }
+});
+
+app.post('/api/data/reset', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { projectPassword } = req.body;
+    const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
+    if (!projectPassword || !verifySecret(projectPassword, project.project_password_hash)) {
+      return res.status(401).json({ error: 'كلمة مرور المشروع غير صحيحة، لا يمكن إعادة تعيين البيانات بدونها' });
+    }
+
+    db.exec('BEGIN TRANSACTION;');
+    try {
+      db.prepare('DELETE FROM transactions WHERE project_id = ?').run(req.project.id);
+      db.prepare('DELETE FROM customers WHERE project_id = ?').run(req.project.id);
+      db.prepare('DELETE FROM notifications WHERE project_id = ?').run(req.project.id);
+      db.exec('COMMIT;');
+    } catch (err) {
+      db.exec('ROLLBACK;');
+      throw err;
+    }
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'RESET_DATA', 'تم حذف جميع بيانات المشروع وإعادة التعيين للوضع الافتراضي', 'DATA');
+
+    return res.json({ message: 'تم حذف جميع البيانات وإعادة تعيين النظام بنجاح' });
+  } catch (error) {
+    console.error('Reset error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء إعادة تعيين البيانات' });
+  }
+});
+
+// ================= EMPLOYEES & PERMISSIONS =================
+
+app.get('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const employees = db.prepare(`
+      SELECT pm.id as membership_id, pm.role, pm.status, pm.permissions, pm.created_at,
+             u.id as user_id, u.name, u.phone, u.email
+      FROM project_memberships pm
+      JOIN users u ON u.id = pm.user_id
+      WHERE pm.project_id = ?
+      ORDER BY pm.created_at ASC
+    `).all(req.project.id) as any[];
+
+    return res.json(
+      employees.map((e) => ({
+        ...e,
+        permissions: JSON.parse(e.permissions || '[]'),
+      }))
+    );
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب قائمة الموظفين' });
+  }
+});
+
+app.post('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const { name, phone, email, password, permissions = [] } = req.body;
+    if (!name || !phone || !password) {
+      return res.status(400).json({ error: 'اسم الموظف، الهاتف، وكلمة المرور مطلوبة' });
+    }
+
+    // Check if phone already registered
+    let user = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone.trim()) as any;
+    let userId: string;
+
+    if (user) {
+      userId = user.id;
+      // Check if already in this project
+      const existingMembership = db.prepare('SELECT id FROM project_memberships WHERE project_id = ? AND user_id = ?').get(req.project.id, userId);
+      if (existingMembership) {
+        return res.status(400).json({ error: 'الموظف مسجل بالفعل في هذا المشروع' });
+      }
+    } else {
+      userId = generateId();
+      const passwordHash = hashSecret(password);
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO users (id, name, phone, email, password_hash, role, created_at)
+        VALUES (?, ?, ?, ?, ?, 'employee', ?)
+      `).run(userId, name.trim(), phone.trim(), email ? email.trim() : null, passwordHash, now);
+    }
+
+    const membershipId = generateId();
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO project_memberships (id, project_id, user_id, role, status, permissions, created_at)
+      VALUES (?, ?, ?, 'employee', 'active', ?, ?)
+    `).run(membershipId, req.project.id, userId, JSON.stringify(permissions), now);
+
+    logActivity(req.project.id, req.user.id, req.user.name, 'ADD_EMPLOYEE', `تم إضافة موظف جديد: ${name.trim()}`, 'EMPLOYEE', userId);
+    createNotification(req.project.id, req.user.id, 'EMPLOYEE_ADDED', 'موظف جديد', `تم إضافة الموظف "${name.trim()}" إلى فريق عمل المشروع.`);
+
+    return res.status(201).json({ message: 'تم إضافة الموظف وتحديد صلاحياته بنجاح' });
+  } catch (error) {
+    console.error('Add employee error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء إضافة الموظف' });
+  }
+});
+
+app.delete('/api/employees/:membershipId', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const membership = db.prepare('SELECT * FROM project_memberships WHERE id = ? AND project_id = ?').get(req.params.membershipId, req.project.id) as any;
+    if (!membership) {
+      return res.status(404).json({ error: 'العضوية غير موجودة' });
+    }
+    if (membership.role === 'owner') {
+      return res.status(400).json({ error: 'لا يمكن حذف صاحب المشروع' });
+    }
+
+    db.prepare('DELETE FROM project_memberships WHERE id = ?').run(req.params.membershipId);
+    logActivity(req.project.id, req.user.id, req.user.name, 'REMOVE_EMPLOYEE', 'تم إزالة موظف من المشروع', 'EMPLOYEE');
+
+    return res.json({ message: 'تم إزالة الموظف من المشروع بنجاح' });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء إزالة الموظف' });
+  }
+});
+
+// Vite Middleware for Fullstack React App
+async function startServer() {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (!isProd) {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`AH2 Backend & UI server running at http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();

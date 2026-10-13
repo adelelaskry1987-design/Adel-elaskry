@@ -1,0 +1,6 @@
+{
+  "name": "AH2 — إيه إتش تو",
+  "description": "تطبيق تجاري متكامل لإدارة العملاء والحسابات والعمليات المالية والمشاريع",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
