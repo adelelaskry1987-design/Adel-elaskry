@@ -4,6 +4,8 @@ import { ShopOwnerLogo } from '../ShopOwnerLogo';
 import { ShareModal } from '../ShareModal';
 import { Customer, Transaction, ScreenId } from '../../types';
 import { api } from '../../services/api';
+import { PageTitle } from '../PageTitle';
+import { CustomerBalanceBadge } from '../CustomerBalanceBadge';
 import { useAuth } from '../../context/AuthContext';
 import {
   CheckCircle2,
@@ -30,14 +32,11 @@ import {
 export const Screen8PasswordChangedSuccess: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم تغيير كلمة المرور بنجاح" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم تغيير كلمة المرور بنجاح</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-8">
-        تم تحديث كلمة المرور الخاصة بك بنجاح. يمكنك الآن استخدام كلمة المرور الجديدة لتسجيل الدخول إلى حسابك.
-      </p>
 
       <button
         onClick={() => onNavigate('screen-32-settings')}
@@ -85,14 +84,11 @@ export const Screen9AppLogo: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
 export const Screen10CustomerDeletedSuccess: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم حذف العميل" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم حذف العميل</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-8">
-        تم حذف العميل بنجاح من قاعدة البيانات مع تسجيل العملية في سجل الأنشطة.
-      </p>
 
       <button
         onClick={() => onNavigate('screen-15-customers')}
@@ -127,7 +123,6 @@ export const Screen11CustomerDetails: React.FC<{
   const [showInvoice, setShowInvoice] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [customerTxs, setCustomerTxs] = useState<Transaction[]>([]);
-  const isPositive = customer.balance >= 0;
 
   useEffect(() => {
     if (customer?.id) {
@@ -140,22 +135,19 @@ export const Screen11CustomerDetails: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
       {/* Title banner */}
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">بيانات العميل</h2>
-          <span className="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full text-slate-300">
-            {customer.type === 'company' ? 'شركة / مؤسسة' : 'فرد'}
-          </span>
-        </div>
-        <button
-          onClick={() => setShowShareModal(true)}
-          className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-          title="مشاركة كشف الحساب"
-        >
-          <Share2 className="w-4 h-4 text-slate-950" />
-          <span>مشاركة</span>
-        </button>
-      </div>
+      <PageTitle
+        title="بيانات العميل"
+        action={
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+            title="مشاركة كشف الحساب"
+          >
+            <Share2 className="w-4 h-4 text-slate-950" />
+            <span>مشاركة</span>
+          </button>
+        }
+      />
 
       {/* Main info card */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
@@ -190,32 +182,8 @@ export const Screen11CustomerDetails: React.FC<{
         </div>
       </div>
 
-      {/* Balance Card */}
-      <div
-        className={`rounded-2xl p-4 border shadow-sm flex items-center justify-between ${
-          isPositive
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-            : 'bg-red-50 border-red-200 text-red-900'
-        }`}
-      >
-        <div>
-          <span className="text-xs font-bold">الرصيد الحالي للعميل</span>
-          <div className="text-2xl font-black font-mono tabular-nums mt-0.5">
-            {customer.balance.toLocaleString()} <span className="text-xs font-bold font-sans">ج.م</span>
-          </div>
-          <span className="text-[10px] opacity-80">
-            {isPositive ? 'رصيد موجب (مطلوب من العميل)' : 'رصيد سالب (مستحق للعميل)'}
-          </span>
-        </div>
-
-        <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg ${
-            isPositive ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
-          }`}
-        >
-          {isPositive ? '+' : '-'}
-        </div>
-      </div>
+      {/* Balance Hero Card */}
+      <CustomerBalanceBadge balance={customer.balance} variant="hero" />
 
       {/* Action Buttons */}
       <div className="space-y-2.5 pt-1">
@@ -328,15 +296,9 @@ export const Screen11CustomerDetails: React.FC<{
                   <span className="text-slate-600">إجمالي العمليات:</span>
                   <span className="font-bold font-mono">{customer.transactions_count || 0}</span>
                 </div>
-                <div className="flex justify-between border-t pt-1.5 font-bold">
-                  <span className="text-slate-800">الرصيد النهائي:</span>
-                  <span
-                    className={`font-black font-mono text-sm ${
-                      customer.balance >= 0 ? 'text-emerald-700' : 'text-red-700'
-                    }`}
-                  >
-                    {customer.balance.toLocaleString()} ج.م
-                  </span>
+                <div className="flex justify-between items-center border-t pt-1.5 font-bold">
+                  <span className="text-slate-800">الرصيد الحالي:</span>
+                  <CustomerBalanceBadge balance={customer.balance} variant="inline" />
                 </div>
               </div>
 
@@ -372,7 +334,7 @@ export const Screen11CustomerDetails: React.FC<{
           onClose={() => setShowShareModal(false)}
           data={{
             type: 'customer_statement',
-            projectName: project?.name || 'متجر OM BASMA للستائر والمفروشات',
+            projectName: project?.name || 'مشروع إدارة الحسابات',
             reportDate: new Date().toISOString().split('T')[0],
             periodText: 'كافة العمليات المسجلة للعميل',
             customer,
@@ -425,10 +387,7 @@ export const Screen12ChangePassword: React.FC<{ onNavigate: (s: ScreenId) => voi
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">تغيير كلمة المرور</h2>
-        <p className="text-[11px] text-slate-300">قم بتحديث كلمة المرور الخاصة بك لحماية حسابك</p>
-      </div>
+      <PageTitle title="تغيير كلمة المرور" />
 
       {error && (
         <div className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-700 text-xs">
@@ -513,14 +472,11 @@ export const Screen12ChangePassword: React.FC<{ onNavigate: (s: ScreenId) => voi
 export const Screen13TransactionSavedSuccess: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم حفظ العملية بنجاح" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم حفظ العملية بنجاح</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-8">
-        تم تسجيل العملية وتحديث رصيد العميل وحسابات المشروع بدقة.
-      </p>
 
       <div className="w-full max-w-xs space-y-3">
         <button
@@ -603,12 +559,7 @@ export const Screen14NewTransaction: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
       {/* Official Name Header as per User Modification #1: "عملية جديدة" */}
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">عملية جديدة</h2>
-          <p className="text-[11px] text-slate-300">تسجيل دفعة أو سحب لحساب العميل</p>
-        </div>
-      </div>
+      <PageTitle title="عملية جديدة" />
 
       {/* Customer summary card */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
@@ -619,14 +570,8 @@ export const Screen14NewTransaction: React.FC<{
         </div>
 
         <div className="text-left">
-          <span className="text-[10px] text-slate-400 font-semibold">الرصيد الحالي</span>
-          <div
-            className={`font-black font-mono text-sm ${
-              customer.balance >= 0 ? 'text-emerald-600' : 'text-red-600'
-            }`}
-          >
-            {customer.balance.toLocaleString()} ج.م
-          </div>
+          <span className="text-[10px] text-slate-400 font-semibold block mb-0.5">الرصيد الحالي</span>
+          <CustomerBalanceBadge balance={customer.balance} variant="badge" />
         </div>
       </div>
 

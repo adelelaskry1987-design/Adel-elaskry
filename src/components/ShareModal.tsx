@@ -12,10 +12,22 @@ import {
   ExternalLink,
   ChevronDown,
   Sparkles,
+  Building2,
+  User,
+  Phone,
+  Calendar,
+  Clock,
+  Briefcase,
+  Scale,
+  ArrowUpRight,
+  ArrowDownRight,
+  CheckCircle2,
 } from 'lucide-react';
+import shopLogoAsset from '../assets/shop_owner_logo.jpg';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
 import { Ah2Logo } from './Ah2Logo';
 import { Customer, Transaction } from '../types';
+import { getCustomerBalanceInfo, getPeriodMovementInfo } from '../utils/balanceUtils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -63,11 +75,47 @@ interface ShareModalProps {
   data: ShareData;
 }
 
+/**
+ * Format date string (e.g. 2026-10-14) to formal Arabic text (e.g. 14 أكتوبر 2026)
+ */
+function formatArabicDate(dateStr: string): string {
+  if (!dateStr) return '';
+  try {
+    const clean = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      const year = parts[0];
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const arabicMonths = [
+        'يناير',
+        'فبراير',
+        'مارس',
+        'أبريل',
+        'مايو',
+        'يونيو',
+        'يوليو',
+        'أغسطس',
+        'سبتمبر',
+        'أكتوبر',
+        'نوفمبر',
+        'ديسمبر',
+      ];
+      if (monthIdx >= 0 && monthIdx < 12) {
+        return `${day} ${arabicMonths[monthIdx]} ${year}`;
+      }
+    }
+    return dateStr;
+  } catch {
+    return dateStr;
+  }
+}
+
 export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data }) => {
   const [copied, setCopied] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [showPreviewSheet, setShowPreviewSheet] = useState(false);
+  const [showPreviewSheet, setShowPreviewSheet] = useState(true);
   const printableRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
@@ -111,39 +159,42 @@ ${divider}
     }
 
     if (data.type === 'customer_statement') {
+      // Clean, concise WhatsApp statement per requirement 6
       const txLines = data.transactions
         .map((t, idx) => {
           const isCancelled = t.status === 'cancelled';
           const typeLabel = t.type === 'payment' ? 'دفع (+)' : 'سحب (-)';
-          const statusText = isCancelled
-            ? `[⚠️ ملغاة - غير محتسبة${t.cancellation_reason ? `: ${t.cancellation_reason}` : ''}]`
-            : '[نشطة]';
-          return `${idx + 1}) ${typeLabel} ${t.amount.toLocaleString()} ج.م
-   • التاريخ: ${t.date} ${t.time}
-   • التفاصيل: ${t.description || 'بدون بيان'}
-   • الحالة: ${statusText}`;
+          const statusSuffix = isCancelled ? ' [ملغاة]' : '';
+          const desc = t.description ? ` - ${t.description}` : '';
+          return `${idx + 1}. ${typeLabel} ${t.amount.toLocaleString()} ج.م (${t.date} ${t.time})${desc}${statusSuffix}`;
         })
-        .join('\n\n');
+        .join('\n');
+
+      const balInfo = getCustomerBalanceInfo(data.currentBalance);
+      let balanceDisplayLine = '';
+      if (balInfo.state === 'positive') {
+        balanceDisplayLine = `🟢 الرصيد الحالي: ${balInfo.formattedAmount} (رصيد لصالح العميل)`;
+      } else if (balInfo.state === 'negative') {
+        balanceDisplayLine = `🔴 الرصيد الحالي: ${balInfo.formattedAmount} (مبلغ مستحق للمحل)`;
+      } else {
+        balanceDisplayLine = `⚪ الرصيد الحالي: 0 ج.م (الحساب متعادل)`;
+      }
+      const periodMovementInfo = getPeriodMovementInfo(data.periodNetMovement);
 
       return `📄 كشف حساب عميل
 🏢 المشروع: ${data.projectName}
 👤 العميل: ${data.customer.name}
 📞 الهاتف: ${data.customer.phone}
-📅 تاريخ الإصدار: ${data.reportDate}
-⏱ الفترة المحددة: ${data.periodText}
+📅 تاريخ الإصدار: ${formatArabicDate(data.reportDate)}
+${data.periodText && data.periodText !== 'كافة العمليات المسجلة للعميل' ? `⏱ الفترة: ${data.periodText}\n` : ''}${divider}
+💼 الموقف المالي للعميل:
+${balanceDisplayLine}
+⬆️ إجمالي الدفع: ${data.periodPayments.toLocaleString()} ج.م
+⬇️ إجمالي السحب: ${data.periodWithdrawals.toLocaleString()} ج.م
+⚖️ صافي حركة الفترة: ${periodMovementInfo.text}
 ${divider}
-💰 الموقف المالي للعميل:
-💎 الرصيد الحالي الكلي: ${data.currentBalance.toLocaleString()} ج.م
-🔹 إجمالي الدفع خلال الفترة: ${data.periodPayments.toLocaleString()} ج.م
-🔻 إجمالي السحب خلال الفترة: ${data.periodWithdrawals.toLocaleString()} ج.م
-⚖️ صافي الحركة خلال الفترة: ${data.periodNetMovement.toLocaleString()} ج.م
-📌 تنبيه: الرصيد الحالي الكلي يعكس حساب العميل التراكمي، بينما صافي الحركة يمثل حركة الفترة المحددة فقط.
-⚠️ تنبيه: العمليات الملغاة موضحة ولا تُحتسب في الرصيد.
-${divider}
-📝 سجل عمليات العميل:
-${txLines || 'لا توجد عمليات لهذا العميل خلال الفترة المحددة.'}
-${divider}
-متجر OM BASMA للستائر والمفروشات • نظام AH2 المعتمد`;
+📑 العمليات:
+${txLines || 'لا توجد عمليات مسجلة خلال هذه الفترة.'}`;
     }
 
     // reports_summary
@@ -167,7 +218,13 @@ ${divider}
     const text = generateFormattedText();
     const encoded = encodeURIComponent(text);
     const url = `https://api.whatsapp.com/send?text=${encoded}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     setStatusMessage('تم فتح واتساب لمشاركة التقرير');
     setTimeout(() => setStatusMessage(null), 3000);
   };
@@ -179,10 +236,9 @@ ${divider}
     setStatusMessage('جاري إعداد وتوليد ملف PDF...');
 
     try {
-      // Temporarily ensure element is visible for capture
       const element = printableRef.current;
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 2.2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
@@ -214,7 +270,7 @@ ${divider}
 
       const fileTitle =
         data.type === 'customer_statement'
-          ? `كشف_حساب_${data.customer.name.replace(/\s+/g, '_')}`
+          ? `كشف_حساب_${data.customer.name.trim().replace(/\s+/g, '_')}`
           : data.type === 'all_transactions'
           ? 'تقرير_كل_العمليات_المالية'
           : 'تقرير_الاحصائيات_المالية';
@@ -233,7 +289,7 @@ ${divider}
           await navigator.share({
             files: [pdfFile],
             title: fileTitle,
-            text: `تقرير معتمد من نظام AH2 • ${data.projectName}`,
+            text: `كشف حساب معتمد • ${data.projectName}`,
           });
           setStatusMessage('تمت مشاركة ملف PDF بنجاح');
           setTimeout(() => setStatusMessage(null), 3000);
@@ -244,7 +300,6 @@ ${divider}
             setIsGeneratingPdf(false);
             return;
           }
-          // Fallback to downloading
         }
       }
 
@@ -254,7 +309,6 @@ ${divider}
       setTimeout(() => setStatusMessage(null), 3500);
     } catch (err) {
       console.error('PDF error:', err);
-      // Fallback: window print
       window.print();
       setStatusMessage('تم تجهيز المستند للطباعة والحفظ كـ PDF');
       setTimeout(() => setStatusMessage(null), 3000);
@@ -287,26 +341,14 @@ ${divider}
       }
     }
 
-    // Fallback: copy to clipboard
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setStatusMessage('تم نسخ التقرير كاملاً للحافظة لمشاركته في أي تطبيق');
-      setTimeout(() => {
-        setCopied(false);
-        setStatusMessage(null);
-      }, 3500);
-    } catch {
-      setStatusMessage('يرجى نسخ التقرير يدوياً');
-    }
+    handleCopyText();
   };
 
   const handleCopyText = async () => {
-    const text = generateFormattedText();
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(generateFormattedText());
       setCopied(true);
-      setStatusMessage('تم نسخ التقرير بنجاح');
+      setStatusMessage('تم نسخ نص التقرير إلى الحافظة');
       setTimeout(() => {
         setCopied(false);
         setStatusMessage(null);
@@ -327,9 +369,11 @@ ${divider}
       ? 'تقرير كل العمليات المالية'
       : 'تقرير التقارير والإحصائيات';
 
+  const logoUrl = shopLogoAsset || '/shop_owner_logo.jpg';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm select-none">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm select-none">
+      <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 max-h-[94vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
         {/* Header */}
         <div className="bg-[#0f233c] text-white p-4 flex items-center justify-between border-b border-slate-700">
           <div className="flex items-center gap-2.5">
@@ -337,7 +381,7 @@ ${divider}
               <Share2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-amber-400">خيارات المشاركة</h2>
+              <h2 className="text-sm font-black text-amber-400">خيارات المشاركة والـ PDF</h2>
               <p className="text-[11px] text-slate-300">{reportTitle}</p>
             </div>
           </div>
@@ -371,7 +415,7 @@ ${divider}
               </div>
               <span className="text-xs font-black">مشاركة على واتساب</span>
               <span className="text-[10px] text-emerald-100 opacity-90">
-                تقرير نصي منسق ومفصل
+                تقرير نصي مختصر واحترافي
               </span>
             </button>
 
@@ -385,10 +429,10 @@ ${divider}
                 <FileText className="w-6 h-6 text-white" />
               </div>
               <span className="text-xs font-black">
-                {isGeneratingPdf ? 'جاري التحميل...' : 'مشاركة PDF'}
+                {isGeneratingPdf ? 'جاري إنشاء PDF...' : 'مشاركة وتنزيل PDF'}
               </span>
               <span className="text-[10px] text-red-100 opacity-90">
-                ملف PDF رسمي بهوية المحل
+                ملف PDF رسمي ومطابق للتصميم
               </span>
             </button>
 
@@ -402,7 +446,7 @@ ${divider}
               </div>
               <span className="text-xs font-black">عبر التطبيقات الأخرى</span>
               <span className="text-[10px] text-blue-100 opacity-90">
-                مشاركة النظام أو النسخ
+                مشاركة النظام أو الإرسال
               </span>
             </button>
           </div>
@@ -443,7 +487,7 @@ ${divider}
             >
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-amber-600" />
-                <span>معاينة مستند التقرير و PDF المعتمد</span>
+                <span>معاينة المستند المعتمد وتصميم الـ PDF</span>
               </div>
               <ChevronDown
                 className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
@@ -454,173 +498,372 @@ ${divider}
 
             {/* Document Sheet for Capture and Preview */}
             <div
-              className={`p-3 bg-slate-100 transition-all ${
-                showPreviewSheet ? 'block' : 'hidden sm:block'
+              className={`p-2 sm:p-4 bg-slate-200/90 overflow-x-auto transition-all ${
+                showPreviewSheet ? 'block' : 'hidden'
               }`}
             >
               <div
                 ref={printableRef}
-                className="bg-white p-5 rounded-2xl border-2 border-amber-400/80 shadow-md space-y-4 text-slate-800 font-sans"
+                className={`bg-white p-5 sm:p-7 rounded-2xl shadow-lg text-slate-800 font-sans relative overflow-hidden mx-auto ${
+                  data.type === 'customer_statement'
+                    ? 'max-w-[680px] min-w-[540px] sm:min-w-[620px] border border-slate-200/80 space-y-4'
+                    : 'max-w-2xl border-2 border-amber-400/80 space-y-4'
+                }`}
                 style={{ direction: 'rtl' }}
               >
-                {/* Official Header with Shop Owner Logo and AH2 emblem */}
-                <div className="flex items-center justify-between border-b-2 border-amber-400/40 pb-3">
-                  <ShopOwnerLogo variant="report" />
-                  <div className="text-left font-mono text-[11px] text-slate-600">
-                    <div className="font-bold text-slate-900 font-sans">
-                      {data.type === 'customer_statement'
-                        ? 'كشف حساب عميل معتمد'
-                        : data.type === 'all_transactions'
-                        ? 'سجل العمليات المالية'
-                        : 'تقرير الأداء والإحصائيات'}
-                    </div>
-                    <div>التاريخ: {data.reportDate}</div>
-                    <div className="text-[10px] text-amber-700 font-sans font-bold">
-                      {data.periodText}
-                    </div>
-                  </div>
-                </div>
+                {/* ---------------- CUSTOMER STATEMENT MATCHING REFERENCE DESIGN ---------------- */}
+                {data.type === 'customer_statement' && (() => {
+                  const bal = getCustomerBalanceInfo(data.currentBalance);
 
-                {/* Specific Details based on report type */}
-                {data.type === 'customer_statement' && (
-                  <>
-                    {/* Customer Info Card */}
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-black text-slate-900 text-sm">
-                          {data.customer.name}
-                        </div>
-                        <div className="text-slate-500 font-mono mt-0.5">
-                          رقم الهاتف: {data.customer.phone}
-                        </div>
-                      </div>
-                      <div className="text-left">
-                        <span className="text-[10px] text-slate-500 block">
-                          الرصيد الكلي الحالي
-                        </span>
-                        <span
-                          className={`font-black font-mono text-base ${
-                            data.currentBalance >= 0
-                              ? 'text-emerald-700'
-                              : 'text-red-700'
-                          }`}
-                        >
-                          {data.currentBalance.toLocaleString()} ج.م
-                        </span>
-                      </div>
-                    </div>
+                  return (
+                    <div className="space-y-4 relative">
+                      {/* Decorative Top Corner Waves matching reference image */}
+                      <svg
+                        className="absolute -top-5 -right-5 sm:-top-7 sm:-right-7 w-28 sm:w-36 h-28 sm:h-36 pointer-events-none"
+                        viewBox="0 0 160 160"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M0 0 L160 0 C160 60 120 120 60 150 C30 165 0 140 0 140 Z"
+                          fill="#0f233c"
+                        />
+                        <path
+                          d="M160 10 C160 68 122 125 64 153"
+                          stroke="#c59a3f"
+                          strokeWidth="3.5"
+                          fill="none"
+                        />
+                        <path
+                          d="M160 22 C160 74 128 128 72 156"
+                          stroke="#c59a3f"
+                          strokeWidth="1.5"
+                          strokeOpacity="0.6"
+                          fill="none"
+                        />
+                      </svg>
 
-                    {/* Period Movement Grid */}
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-xl">
-                        <div className="text-[10px] text-emerald-700 font-bold">
-                          إجمالي الدفع
-                        </div>
-                        <div className="font-black font-mono text-emerald-800 text-xs mt-0.5">
-                          {data.periodPayments.toLocaleString()} ج.م
-                        </div>
-                      </div>
-                      <div className="bg-red-50 border border-red-200 p-2 rounded-xl">
-                        <div className="text-[10px] text-red-700 font-bold">
-                          إجمالي السحب
-                        </div>
-                        <div className="font-black font-mono text-red-800 text-xs mt-0.5">
-                          {data.periodWithdrawals.toLocaleString()} ج.م
-                        </div>
-                      </div>
-                      <div className="bg-amber-50 border border-amber-300 p-2 rounded-xl">
-                        <div className="text-[10px] text-amber-800 font-bold">
-                          صافي حركة الفترة
-                        </div>
-                        <div className="font-black font-mono text-amber-900 text-xs mt-0.5">
-                          {data.periodNetMovement.toLocaleString()} ج.م
-                        </div>
-                      </div>
-                    </div>
+                      <svg
+                        className="absolute -top-5 -left-5 sm:-top-7 sm:-left-7 w-28 sm:w-36 h-28 sm:h-36 pointer-events-none"
+                        viewBox="0 0 160 160"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M160 0 L0 0 C0 60 40 120 100 150 C130 165 160 140 160 140 Z"
+                          fill="#0f233c"
+                        />
+                        <path
+                          d="M0 10 C0 68 38 125 96 153"
+                          stroke="#c59a3f"
+                          strokeWidth="3.5"
+                          fill="none"
+                        />
+                        <path
+                          d="M0 22 C0 74 32 128 88 156"
+                          stroke="#c59a3f"
+                          strokeWidth="1.5"
+                          strokeOpacity="0.6"
+                          fill="none"
+                        />
+                      </svg>
 
-                    {/* Clarification banner */}
-                    <div className="text-[10px] text-slate-500 bg-blue-50/70 p-2 rounded-lg border border-blue-200">
-                      ℹ️ صافي حركة الفترة ({data.periodNetMovement.toLocaleString()} ج.م) يمثل الحركة خلال الفترة المحددة، بينما الرصيد الكلي ({data.currentBalance.toLocaleString()} ج.م) يمثل إجمالي الحساب التراكمي.
-                    </div>
-
-                    {/* Table of transactions */}
-                    <div>
-                      <div className="text-[11px] font-black text-slate-700 mb-1.5">
-                        العمليات المسجلة ({data.transactions.length})
+                      {/* 1. Integrated OM BASMA Logo at the top */}
+                      <div className="pt-2 pb-1 text-center flex flex-col items-center justify-center">
+                        <img
+                          src={logoUrl}
+                          alt="OM BASMA للستائر والمفروشات"
+                          className="h-28 sm:h-32 w-auto object-contain mx-auto drop-shadow-sm"
+                          loading="eager"
+                        />
                       </div>
-                      <div className="border border-slate-200 rounded-xl overflow-hidden text-[11px]">
-                        <table className="w-full text-right border-collapse">
-                          <thead className="bg-slate-100 text-slate-700 font-bold text-[10px]">
-                            <tr>
-                              <th className="p-2 border-b">النوع</th>
-                              <th className="p-2 border-b">المبلغ</th>
-                              <th className="p-2 border-b">التاريخ / الوقت</th>
-                              <th className="p-2 border-b">البيان</th>
-                              <th className="p-2 border-b">الحالة</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {data.transactions.map((t) => {
-                              const isCancelled = t.status === 'cancelled';
-                              const isPayment = t.type === 'payment';
-                              return (
-                                <tr
-                                  key={t.id}
-                                  className={
-                                    isCancelled
-                                      ? 'bg-red-50/40 text-slate-400 line-through'
-                                      : 'hover:bg-slate-50'
-                                  }
-                                >
-                                  <td className="p-2 font-bold whitespace-nowrap">
-                                    <span
-                                      className={`px-1.5 py-0.5 rounded text-[9px] ${
-                                        isPayment
-                                          ? 'bg-emerald-100 text-emerald-800'
-                                          : 'bg-red-100 text-red-800'
-                                      }`}
-                                    >
-                                      {isPayment ? 'دفع (+)' : 'سحب (-)'}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 font-mono font-bold whitespace-nowrap">
-                                    {t.amount.toLocaleString()} ج.م
-                                  </td>
-                                  <td className="p-2 font-mono text-[10px] text-slate-500 whitespace-nowrap">
-                                    {t.date} {t.time}
-                                  </td>
-                                  <td className="p-2 text-slate-600 max-w-[120px] truncate">
-                                    {t.description || '-'}
-                                  </td>
-                                  <td className="p-2 text-[10px] whitespace-nowrap font-sans">
-                                    {isCancelled ? (
-                                      <span className="text-red-600 font-bold no-underline">
-                                        ملغاة (غير محتسبة)
-                                      </span>
-                                    ) : (
-                                      <span className="text-emerald-600 font-bold">
-                                        نشطة
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                        {data.transactions.length === 0 && (
-                          <div className="p-4 text-center text-xs text-slate-400">
-                            لا توجد أي عمليات في هذه الفترة
+
+                      {/* 2. Statement Title flanked by thin golden lines */}
+                      <div className="flex items-center justify-center gap-3 sm:gap-4 my-3 sm:my-4">
+                        <div className="flex-1 h-[2px] bg-[#c59a3f]"></div>
+                        <h1 className="text-2xl sm:text-3xl font-black text-[#0f233c] tracking-tight whitespace-nowrap font-sans">
+                          كشف حساب
+                        </h1>
+                        <div className="flex-1 h-[2px] bg-[#c59a3f]"></div>
+                      </div>
+
+                      {/* 3. Project and Customer Information Card */}
+                      <div className="bg-[#f8fafd] border border-[#e2e8f0] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2 sm:space-y-2.5">
+                        {/* Project Name */}
+                        <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                          <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
+                            <Building2 className="w-4 h-4 text-[#1e3a5f]" />
+                            <span>اسم المشروع</span>
+                          </div>
+                          <div className="font-black text-sm sm:text-base text-[#0f233c]">
+                            {data.projectName}
+                          </div>
+                        </div>
+
+                        {/* Customer Name */}
+                        <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                          <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
+                            <User className="w-4 h-4 text-[#1e3a5f]" />
+                            <span>العميل</span>
+                          </div>
+                          <div className="font-black text-sm sm:text-base text-[#0f233c]">
+                            {data.customer.name}
+                          </div>
+                        </div>
+
+                        {/* Customer Phone */}
+                        <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                          <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
+                            <Phone className="w-4 h-4 text-[#1e3a5f]" />
+                            <span>رقم الهاتف</span>
+                          </div>
+                          <div className="font-bold text-sm sm:text-base font-mono text-[#0f233c] dir-ltr">
+                            {data.customer.phone}
+                          </div>
+                        </div>
+
+                        {/* Report Date */}
+                        <div className="flex items-center justify-between py-1">
+                          <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
+                            <Calendar className="w-4 h-4 text-[#1e3a5f]" />
+                            <span>تاريخ الإصدار</span>
+                          </div>
+                          <div className="font-bold text-sm sm:text-base text-[#0f233c]">
+                            {formatArabicDate(data.reportDate)}
+                          </div>
+                        </div>
+
+                        {/* Covered Period (if non-default) */}
+                        {data.periodText && data.periodText !== 'كافة العمليات المسجلة للعميل' && (
+                          <div className="flex items-center justify-between py-1 border-t border-slate-100">
+                            <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
+                              <Clock className="w-4 h-4 text-[#1e3a5f]" />
+                              <span>الفترة المغطاة</span>
+                            </div>
+                            <div className="font-bold text-xs sm:text-sm text-[#0f233c]">
+                              {data.periodText}
+                            </div>
                           </div>
                         )}
                       </div>
-                    </div>
-                  </>
-                )}
 
+                      {/* 4. Financial Status Card */}
+                      <div className="bg-[#f8fafd] border border-[#e2e8f0] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                        <div className="flex items-center gap-2 text-sm sm:text-base font-black text-[#0f233c]">
+                          <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#1e3a5f]" />
+                          <span>الموقف المالي للعميل</span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-1">
+                          {/* Right Box (Current Balance Display) */}
+                          <div className="flex flex-col items-center justify-center shrink-0 min-w-[140px] sm:min-w-[170px]">
+                            <div
+                              className={`w-full p-4 rounded-2xl shadow-sm text-center text-white ${
+                                bal.state === 'positive'
+                                  ? 'bg-[#00875a]'
+                                  : bal.state === 'negative'
+                                  ? 'bg-[#dc2626]'
+                                  : 'bg-slate-600'
+                              }`}
+                            >
+                              <span className="text-xs font-bold opacity-90 block mb-1">
+                                الرصيد الحالي
+                              </span>
+                              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight tabular-nums">
+                                {bal.formattedAmount}
+                              </div>
+                            </div>
+                            <div className="mt-2 flex items-center justify-center gap-1.5 font-bold text-xs">
+                              {bal.state === 'positive' ? (
+                                <span className="text-[#00875a] flex items-center gap-1">
+                                  <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                                  <span>رصيد لصالح العميل</span>
+                                </span>
+                              ) : bal.state === 'negative' ? (
+                                <span className="text-red-600 flex items-center gap-1">
+                                  <AlertCircle className="w-4 h-4 stroke-[2.5]" />
+                                  <span>مبلغ مستحق للمحل</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-600 flex items-center gap-1">
+                                  <Scale className="w-4 h-4" />
+                                  <span>الحساب متعادل</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Vertical Divider */}
+                          <div className="hidden sm:block w-[1px] bg-slate-200 self-stretch my-1"></div>
+
+                          {/* Breakdown list */}
+                          <div className="flex-1 space-y-2.5 text-xs sm:text-sm">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-slate-600 font-medium">
+                                <ArrowUpRight className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                                <span>إجمالي الدفع خلال الفترة</span>
+                              </div>
+                              <div className="font-black font-mono text-slate-800">
+                                {data.periodPayments.toLocaleString()} ج.م
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-slate-600 font-medium">
+                                <ArrowDownRight className="w-4 h-4 text-red-600 stroke-[2.5]" />
+                                <span>إجمالي السحب خلال الفترة</span>
+                              </div>
+                              <div className="font-black font-mono text-slate-800">
+                                {data.periodWithdrawals.toLocaleString()} ج.م
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-200">
+                              <div className="flex items-center gap-2 text-slate-700 font-bold">
+                                <Scale className="w-4 h-4 text-[#00875a]" />
+                                <span>صافي حركة الفترة</span>
+                              </div>
+                              <div
+                                className={`font-black font-mono ${
+                                  data.periodNetMovement > 0
+                                    ? 'text-[#00875a]'
+                                    : data.periodNetMovement < 0
+                                    ? 'text-red-600'
+                                    : 'text-slate-600'
+                                }`}
+                              >
+                                {data.periodNetMovement > 0
+                                  ? `+${data.periodNetMovement.toLocaleString()} ج.م`
+                                  : data.periodNetMovement < 0
+                                  ? `-${Math.abs(data.periodNetMovement).toLocaleString()} ج.م`
+                                  : '0 ج.م'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 5. Customer Transactions List */}
+                      <div className="space-y-2.5">
+                        <div className="flex items-center gap-2 text-sm sm:text-base font-black text-[#0f233c]">
+                          <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[#1e3a5f]" />
+                          <span>عمليات العميل</span>
+                        </div>
+
+                        {data.transactions.length === 0 ? (
+                          <div className="bg-[#f8fafd] border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-xs">
+                            لا توجد عمليات مسجلة لهذا العميل خلال الفترة المحددة.
+                          </div>
+                        ) : (
+                          data.transactions.map((t) => {
+                            const isCancelled = t.status === 'cancelled';
+                            const isPayment = t.type === 'payment';
+                            return (
+                              <div
+                                key={t.id}
+                                className={`bg-white border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-2.5 sm:gap-3 shadow-sm transition-all ${
+                                  isCancelled
+                                    ? 'border-red-200 bg-red-50/20 opacity-75'
+                                    : 'border-slate-200'
+                                }`}
+                              >
+                                {/* Left: Amount Pill */}
+                                <div
+                                  className={`font-black font-mono text-xs sm:text-sm px-3 py-1.5 rounded-xl shrink-0 ${
+                                    isCancelled
+                                      ? 'bg-slate-100 text-slate-400 line-through'
+                                      : isPayment
+                                      ? 'bg-[#dcfce7] text-[#16a34a]'
+                                      : 'bg-[#fee2e2] text-[#dc2626]'
+                                  }`}
+                                >
+                                  {isPayment
+                                    ? `+${t.amount.toLocaleString()} ج.م`
+                                    : `-${t.amount.toLocaleString()} ج.م`}
+                                </div>
+
+                                {/* Center: Type with arrow and description */}
+                                <div className="flex-1 text-center sm:text-right">
+                                  <div className="flex items-center justify-center sm:justify-start gap-1 font-black text-xs sm:text-sm text-slate-800">
+                                    <span>{isPayment ? 'دفع' : 'سحب'}</span>
+                                    {isPayment ? (
+                                      <ArrowUpRight className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                                    ) : (
+                                      <ArrowDownRight className="w-4 h-4 text-red-600 stroke-[3]" />
+                                    )}
+                                  </div>
+                                  {t.description && (
+                                    <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[180px] sm:max-w-[260px]">
+                                      {t.description}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Right: Date, Time & Status badge */}
+                                <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-left sm:text-right">
+                                  <div className="text-[10px] sm:text-[11px] text-slate-500 font-mono text-left">
+                                    <div>{formatArabicDate(t.date)}</div>
+                                    <div className="text-slate-400">{t.time}</div>
+                                  </div>
+                                  <span
+                                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap ${
+                                      isCancelled
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-[#dcfce7] text-[#15803d]'
+                                    }`}
+                                  >
+                                    {isCancelled ? 'ملغاة' : 'نشطة'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* 6. Informative note matching reference image */}
+                      <div className="bg-[#eff6ff]/80 border border-[#bfdbfe] rounded-2xl p-3 flex items-center gap-3 text-xs text-slate-600">
+                        <div className="w-6 h-6 rounded-full bg-[#1e40af] text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                          i
+                        </div>
+                        <div className="text-[11px] sm:text-xs leading-relaxed text-slate-600">
+                          الرصيد الموجب يعني أن المبلغ لصالح العميل، والرصيد السالب يعني أن المبلغ مستحق للمحل.
+                        </div>
+                      </div>
+
+                      {/* 7. Footer matching reference image */}
+                      <div className="pt-4 border-t border-[#c59a3f]/70 text-center space-y-1.5">
+                        <div className="flex items-center justify-center">
+                          <img
+                            src={logoUrl}
+                            alt="OM BASMA للستائر والمفروشات"
+                            className="h-10 sm:h-12 w-auto object-contain mx-auto"
+                          />
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-500">
+                          نظام AH2 المعتمد
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* ---------------- ALL TRANSACTIONS REPORT (PRESERVED) ---------------- */}
                 {data.type === 'all_transactions' && (
                   <>
-                    {/* Period Movement Grid */}
+                    <div className="flex items-center justify-between border-b-2 border-amber-400/40 pb-3">
+                      <ShopOwnerLogo variant="report" />
+                      <div className="text-left font-mono text-[11px] text-slate-600">
+                        <div className="font-bold text-slate-900 font-sans">
+                          سجل العمليات المالية
+                        </div>
+                        <div>التاريخ: {data.reportDate}</div>
+                        <div className="text-[10px] text-amber-700 font-sans font-bold">
+                          {data.periodText}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-4 gap-2 text-center text-xs">
                       <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-xl">
                         <div className="text-[10px] text-emerald-700 font-bold">
@@ -660,7 +903,6 @@ ${divider}
                       ⚠️ العمليات الملغاة موضحة بحالتها ومستبعدة تماماً من إجمالي الدفع والسحب وصافي الحركة.
                     </div>
 
-                    {/* Table of all transactions */}
                     <div>
                       <div className="text-[11px] font-black text-slate-700 mb-1.5">
                         سجل العمليات التفصيلي
@@ -731,11 +973,33 @@ ${divider}
                         </table>
                       </div>
                     </div>
+
+                    <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>متجر OM BASMA للستائر والمفروشات</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>نظام AH2 المعتمد</span>
+                        <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
+                      </div>
+                    </div>
                   </>
                 )}
 
+                {/* ---------------- REPORTS SUMMARY (PRESERVED) ---------------- */}
                 {data.type === 'reports_summary' && (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b-2 border-amber-400/40 pb-3">
+                      <ShopOwnerLogo variant="report" />
+                      <div className="text-left font-mono text-[11px] text-slate-600">
+                        <div className="font-bold text-slate-900 font-sans">
+                          تقرير الأداء والإحصائيات
+                        </div>
+                        <div>التاريخ: {data.reportDate}</div>
+                        <div className="text-[10px] text-amber-700 font-sans font-bold">
+                          {data.periodText}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-bold block">
@@ -784,17 +1048,16 @@ ${divider}
                         مطابق لقاعدة البيانات
                       </div>
                     </div>
+
+                    <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>متجر OM BASMA للستائر والمفروشات</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>نظام AH2 المعتمد</span>
+                        <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
+                      </div>
+                    </div>
                   </div>
                 )}
-
-                {/* Footer with Shop Owner and AH2 certification */}
-                <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-[10px] text-slate-500">
-                  <span>متجر OM BASMA للستائر والمفروشات</span>
-                  <div className="flex items-center gap-1.5">
-                    <span>نظام AH2 المعتمد</span>
-                    <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -802,12 +1065,12 @@ ${divider}
 
         {/* Footer */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500">
+          <div className="text-[11px] text-slate-500 truncate max-w-[280px]">
             {data.projectName} • {data.reportDate}
           </div>
           <button
             onClick={onClose}
-            className="py-1.5 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs"
+            className="py-1.5 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-colors"
           >
             إغلاق
           </button>

@@ -3,6 +3,9 @@ import { Customer, Transaction, ScreenId } from '../../types';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { ShareModal } from '../ShareModal';
+import { PageTitle } from '../PageTitle';
+import { CustomerBalanceBadge } from '../CustomerBalanceBadge';
+import { getCustomerBalanceInfo } from '../../utils/balanceUtils';
 import {
   CheckCircle2,
   Search,
@@ -48,19 +51,18 @@ export const Screen15Customers: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       {/* Top Banner */}
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">العملاء</h2>
-          <p className="text-[11px] text-slate-300">إدارة بيانات العملاء والأرصدة الحالية</p>
-        </div>
-        <button
-          onClick={() => onNavigate('screen-7-customer-add')}
-          className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          <span>إضافة عميل +</span>
-        </button>
-      </div>
+      <PageTitle
+        title="العملاء"
+        action={
+          <button
+            onClick={() => onNavigate('screen-7-customer-add')}
+            className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>إضافة عميل +</span>
+          </button>
+        }
+      />
 
       {/* Search Input */}
       <div className="relative">
@@ -77,7 +79,6 @@ export const Screen15Customers: React.FC<{
       {/* Customer Cards List */}
       <div className="space-y-2">
         {filtered.map((customer) => {
-          const isPositive = customer.balance >= 0;
           return (
             <div
               key={customer.id}
@@ -104,15 +105,7 @@ export const Screen15Customers: React.FC<{
 
               {/* Balance Badge with Colors */}
               <div className="text-left shrink-0">
-                <div
-                  className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono tabular-nums inline-block ${
-                    isPositive
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}
-                >
-                  {customer.balance.toLocaleString()} ج.م
-                </div>
+                <CustomerBalanceBadge balance={customer.balance} variant="badge" />
                 <div className="text-[10px] text-slate-400 mt-0.5 text-center">
                   {customer.transactions_count || 0} عملية
                 </div>
@@ -146,14 +139,11 @@ export const Screen15Customers: React.FC<{
 export const Screen16CustomerUpdatedSuccess: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم تعديل بيانات العميل بنجاح" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم تعديل بيانات العميل بنجاح</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-8">
-        تم تحديث بيانات العميل بنجاح في قاعدة البيانات. شكراً لاستخدامك التطبيق.
-      </p>
 
       <button
         onClick={() => onNavigate('screen-11-customer-details')}
@@ -178,6 +168,8 @@ export const Screen17ShareMenu: React.FC<{ onNavigate: (s: ScreenId) => void }> 
     { name: 'بلوتوث', icon: Bluetooth, color: 'bg-indigo-600' },
   ];
 
+  const [copiedLink, setCopiedLink] = useState(false);
+
   const handleDeviceShare = async () => {
     if (navigator.share) {
       try {
@@ -190,19 +182,15 @@ export const Screen17ShareMenu: React.FC<{ onNavigate: (s: ScreenId) => void }> 
         // user cancelled
       }
     } else {
-      alert('تم نسخ رابط التطبيق للحافظة');
       navigator.clipboard?.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
     }
   };
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">قائمة المشاركة</h2>
-          <p className="text-[11px] text-slate-300">مشاركة تقرير الحساب أو رابط التطبيق</p>
-        </div>
-      </div>
+      <PageTitle title="قائمة المشاركة" />
 
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
         <h3 className="text-xs font-black text-slate-700 mb-4 text-center">
@@ -230,6 +218,11 @@ export const Screen17ShareMenu: React.FC<{ onNavigate: (s: ScreenId) => void }> 
         </div>
 
         <div className="mt-8 pt-4 border-t border-slate-100">
+          {copiedLink && (
+            <div className="mb-2 p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl text-center font-bold">
+              ✓ تم نسخ رابط التطبيق بنجاح إلى الحافظة
+            </div>
+          )}
           <button
             onClick={handleDeviceShare}
             className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all active:scale-98"
@@ -273,16 +266,19 @@ export const Screen18AllTransactions: React.FC<{
     .filter((t) => t.status === 'active' && t.type === 'withdrawal')
     .reduce((acc, t) => acc + t.amount, 0);
 
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
   const handleCancel = async () => {
     if (!cancelModalTx) return;
     setLoading(true);
+    setCancelError(null);
     try {
       await api.cancelTransaction(cancelModalTx.id, cancelReason || 'تم الإلغاء بواسطة المستخدم');
       setCancelModalTx(null);
       setCancelReason('');
       onRefresh();
     } catch (err: any) {
-      alert(err.message || 'حدث خطأ أثناء إلغاء العملية');
+      setCancelError(err.message || 'حدث خطأ أثناء إلغاء العملية');
     } finally {
       setLoading(false);
     }
@@ -291,20 +287,19 @@ export const Screen18AllTransactions: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       {/* Banner */}
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">كل العمليات</h2>
-          <p className="text-[11px] text-slate-300">عرض جميع العمليات المالية لكل العملاء</p>
-        </div>
-        <button
-          onClick={() => setShowShareModal(true)}
-          className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-          title="مشاركة"
-        >
-          <Share2 className="w-4 h-4 text-slate-950" />
-          <span>مشاركة</span>
-        </button>
-      </div>
+      <PageTitle
+        title="كل العمليات"
+        action={
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+            title="مشاركة"
+          >
+            <Share2 className="w-4 h-4 text-slate-950" />
+            <span>مشاركة</span>
+          </button>
+        }
+      />
 
       {/* Date Filter Strip */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">
@@ -461,6 +456,12 @@ export const Screen18AllTransactions: React.FC<{
               />
             </div>
 
+            {cancelError && (
+              <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
+                {cancelError}
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button
                 onClick={handleCancel}
@@ -470,7 +471,10 @@ export const Screen18AllTransactions: React.FC<{
                 {loading ? 'جاري الإلغاء...' : 'تأكيد الإلغاء'}
               </button>
               <button
-                onClick={() => setCancelModalTx(null)}
+                onClick={() => {
+                  setCancelModalTx(null);
+                  setCancelError(null);
+                }}
                 className="py-2 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
               >
                 تراجع
@@ -566,28 +570,27 @@ export const Screen19CustomerTransactions: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       {/* Banner */}
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">عمليات وكشف حساب العميل</h2>
-          <p className="text-[11px] text-slate-300">{customer.name}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-            title="مشاركة كشف الحساب"
-          >
-            <Share2 className="w-4 h-4 text-slate-950" />
-            <span>مشاركة</span>
-          </button>
-          <button
-            onClick={() => onNavigate('screen-14-new-transaction')}
-            className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl"
-          >
-            + عملية جديدة
-          </button>
-        </div>
-      </div>
+      <PageTitle
+        title="عمليات وكشف حساب العميل"
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+              title="مشاركة كشف الحساب"
+            >
+              <Share2 className="w-4 h-4 text-slate-950" />
+              <span>مشاركة</span>
+            </button>
+            <button
+              onClick={() => onNavigate('screen-14-new-transaction')}
+              className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+            >
+              + عملية جديدة
+            </button>
+          </div>
+        }
+      />
 
       {/* Date Filter Strip */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">
@@ -615,14 +618,8 @@ export const Screen19CustomerTransactions: React.FC<{
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xs text-slate-500 font-bold">الرصيد التراكمي الكلي</span>
-            <div
-              className={`text-xl font-black font-mono tabular-nums ${
-                customer.balance >= 0 ? 'text-emerald-600' : 'text-red-600'
-              }`}
-            >
-              {customer.balance.toLocaleString()} ج.م
-            </div>
+            <span className="text-xs text-slate-500 font-bold block mb-1">الرصيد التراكمي للعميل</span>
+            <CustomerBalanceBadge balance={customer.balance} variant="badge" />
           </div>
           <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded-lg">
             {customer.phone}
@@ -651,11 +648,19 @@ export const Screen19CustomerTransactions: React.FC<{
           </div>
         </div>
 
-        {(fromDate || toDate) && (
-          <div className="text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
-            تنبيه: صافي حركة الفترة ({periodNetMovement.toLocaleString()} ج.م) يمثل ناتج العمليات المحددة، بينما الرصيد الكلي ({customer.balance.toLocaleString()} ج.م) يعكس الحساب التراكمي.
-          </div>
-        )}
+        {(fromDate || toDate) && (() => {
+          const bal = getCustomerBalanceInfo(customer.balance);
+          return (
+            <div className="text-[10px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-center space-y-0.5">
+              <div>
+                تنبيه محاسبي: صافي حركة الفترة (<span className="font-bold font-mono">{periodNetMovement.toLocaleString()} ج.م</span>) يمثل ناتج العمليات المحددة فقط.
+              </div>
+              <div className="text-slate-500">
+                بينما الرصيد الكلي الحالي (<span className={`font-bold font-mono ${bal.textClass}`}>{bal.formattedAmount}</span> - <span className="font-bold">{bal.statusText}</span>) يعكس الحساب التراكمي المعتمد.
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* List */}
@@ -713,7 +718,7 @@ export const Screen19CustomerTransactions: React.FC<{
           onClose={() => setShowShareModal(false)}
           data={{
             type: 'customer_statement',
-            projectName: project?.name || 'متجر OM BASMA للستائر والمفروشات',
+            projectName: project?.name || 'مشروع إدارة الحسابات',
             reportDate: new Date().toISOString().split('T')[0],
             periodText:
               fromDate && toDate
@@ -742,10 +747,7 @@ export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">النسخ الاحتياطي</h2>
-        <p className="text-[11px] text-slate-300">حماية البيانات واستعادتها في أي وقت</p>
-      </div>
+      <PageTitle title="النسخ الاحتياطي" />
 
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
         {/* Create Backup */}
@@ -818,10 +820,7 @@ export const Screen21BackupCreate: React.FC<{ onNavigate: (s: ScreenId) => void 
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">إنشاء نسخة احتياطية</h2>
-        <p className="text-[11px] text-slate-300">تأكيد إنشاء نسخة احتياطية جديدة</p>
-      </div>
+      <PageTitle title="إنشاء نسخة احتياطية" />
 
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center space-y-4">
         <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 mx-auto flex items-center justify-center border-2 border-blue-200">

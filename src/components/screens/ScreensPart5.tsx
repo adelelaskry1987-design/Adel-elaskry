@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Ah2Logo } from '../Ah2Logo';
 import { ShopOwnerLogo } from '../ShopOwnerLogo';
 import { ShareModal } from '../ShareModal';
+import { PageTitle } from '../PageTitle';
 import { Customer, NotificationItem, ReportsSummary, ScreenId } from '../../types';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -74,20 +75,19 @@ export const Screen29Notifications: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">الإشعارات</h2>
-          <p className="text-[11px] text-slate-300">إعدادات الإشعارات والتنبيهات المباشرة</p>
-        </div>
-        {notifications.some((n) => !n.is_read) && (
-          <button
-            onClick={handleMarkAllRead}
-            className="text-[11px] bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 rounded-xl transition-all"
-          >
-            تحديد الكل كمقروء
-          </button>
-        )}
-      </div>
+      <PageTitle
+        title="الإشعارات"
+        action={
+          notifications.some((n) => !n.is_read) ? (
+            <button
+              onClick={handleMarkAllRead}
+              className="text-[11px] bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-xl transition-all shadow-sm"
+            >
+              تحديد الكل كمقروء
+            </button>
+          ) : undefined
+        }
+      />
 
       {/* Settings Card */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
@@ -172,10 +172,7 @@ export const Screen29Notifications: React.FC<{
 export const Screen30About: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">حول التطبيق</h2>
-        <p className="text-[11px] text-slate-300">معلومات عن التطبيق والتطوير والإصدار</p>
-      </div>
+      <PageTitle title="حول التطبيق" />
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center flex flex-col items-center">
         <Ah2Logo variant="emblem" size="md" showSubtitle={true} />
@@ -295,10 +292,7 @@ export const Screen31CustomerEdit: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">تعديل بيانات العميل</h2>
-        <p className="text-[11px] text-slate-300">تحديث بيانات العميل مع التحقق الأمني</p>
-      </div>
+      <PageTitle title="تعديل بيانات العميل" />
 
       {error && (
         <div className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-700 text-xs">
@@ -419,12 +413,7 @@ export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> =
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">الإعدادات</h2>
-          <p className="text-[11px] text-slate-300">إدارة الحساب والمشروع والتفضيلات العامة</p>
-        </div>
-      </div>
+      <PageTitle title="الإعدادات" />
 
       {/* Menu items */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden text-xs">
@@ -582,29 +571,28 @@ export const Screen33Reports: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">التقارير والإحصائيات</h2>
-          <p className="text-[11px] text-slate-300">مؤشرات الأداء المالي وإجماليات الحسابات</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-            title="مشاركة التقرير"
-          >
-            <Share2 className="w-4 h-4 text-slate-950" />
-            <span>مشاركة</span>
-          </button>
-          <button
-            onClick={() => setShowPrintModal(true)}
-            className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white"
-            title="معاينة وطباعة"
-          >
-            <Printer className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <PageTitle
+        title="التقارير والإحصائيات"
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+              title="مشاركة التقرير"
+            >
+              <Share2 className="w-4 h-4 text-slate-950" />
+              <span>مشاركة</span>
+            </button>
+            <button
+              onClick={() => setShowPrintModal(true)}
+              className="p-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 transition-all"
+              title="معاينة وطباعة"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+          </div>
+        }
+      />
 
       {/* Date Filter */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">
@@ -846,10 +834,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">إدارة البيانات</h2>
-        <p className="text-[11px] text-slate-300">إدارة وتنظيم بيانات التطبيق بكل سهولة وأمان</p>
-      </div>
+      <PageTitle title="إدارة البيانات" />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
         {items.map((item, idx) => {
@@ -888,7 +873,7 @@ export const Screen35Support: React.FC<{ onNavigate: (s: ScreenId) => void }> = 
   const faqs = [
     {
       q: 'كيف يتم احتساب رصيد العميل؟',
-      a: 'الرصيد = إجمالي مبالغ الدفع (الموجبة) - إجمالي مبالغ السحب (السالبة). الدفع يرفع رصيد العميل، والسحب يخفضه.',
+      a: 'الرصيد = إجمالي الدفع الفعلي − إجمالي السحب الفعلي مع استبعاد العمليات الملغاة. الرصيد الموجب يعني أن المبلغ لصالح العميل (المحل مدين للعميل به)، والرصيد السالب يعني أن المبلغ مستحق للمحل على العميل، والرصيد صفر يعني أن الحساب متعادل.',
     },
     {
       q: 'ماذا يحدث عند إلغاء عملية مالية؟',
@@ -906,10 +891,7 @@ export const Screen35Support: React.FC<{ onNavigate: (s: ScreenId) => void }> = 
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">الدعم والمساعدة</h2>
-        <p className="text-[11px] text-slate-300">نحن هنا لمساعدتك دائماً في استخدام تطبيق AH2</p>
-      </div>
+      <PageTitle title="الدعم والمساعدة" />
 
       {/* Main Support Options */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">

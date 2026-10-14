@@ -4,6 +4,8 @@ import { ShopOwnerLogo } from '../ShopOwnerLogo';
 import { Customer, ScreenId } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import { PageTitle } from '../PageTitle';
+import { CustomerBalanceBadge } from '../CustomerBalanceBadge';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -26,6 +28,10 @@ import {
   Building,
   MapPin,
   FileText,
+  Edit3,
+  Save,
+  X,
+  Loader2,
 } from 'lucide-react';
 
 // ================= SCREEN 1: SPLASH =================
@@ -82,14 +88,11 @@ export const Screen1Splash: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({
 export const Screen2CustomerAddedSuccess: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم إضافة عميل بنجاح" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم إضافة عميل بنجاح</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-8">
-        تم إضافة العميل بنجاح إلى قائمة العملاء وقاعدة البيانات.
-      </p>
 
       <div className="w-full max-w-xs space-y-3">
         <button
@@ -111,84 +114,338 @@ export const Screen2CustomerAddedSuccess: React.FC<{ onNavigate: (s: ScreenId) =
 
 // ================= SCREEN 3: PROFILE =================
 export const Screen3Profile: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
-  const { user, project } = useAuth();
+  const { user, project, refresh } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [projectName, setProjectName] = useState(project?.name || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Synchronize state when user or project changes
+  React.useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setPhone(user.phone || '');
+      setEmail(user.email || '');
+    }
+    if (project) {
+      setProjectName(project.name || '');
+    }
+  }, [user, project]);
+
+  const handleStartEdit = () => {
+    setName(user?.name || '');
+    setPhone(user?.phone || '');
+    setEmail(user?.email || '');
+    setProjectName(project?.name || '');
+    setError(null);
+    setSuccess(null);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setName(user?.name || '');
+    setPhone(user?.phone || '');
+    setEmail(user?.email || '');
+    setProjectName(project?.name || '');
+    setError(null);
+    setIsEditing(false);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!name.trim()) {
+      setError('يرجى إدخال الاسم بالكامل');
+      return;
+    }
+    if (!phone.trim() || phone.trim().length < 8) {
+      setError('يرجى إدخال رقم هاتف صحيح لا يقل عن 8 أرقام');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await api.updateProfile({
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        projectName: project && user?.role === 'owner' ? projectName.trim() : undefined,
+      });
+
+      await refresh();
+      setSuccess('تم حفظ وتحديث بيانات الملف الشخصي بنجاح');
+      setIsEditing(false);
+    } catch (err: any) {
+      setError(err?.message || 'حدث خطأ أثناء تعديل الملف الشخصي');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24">
-      {/* User Header Card */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col items-center text-center">
-        <div className="w-20 h-20 rounded-full bg-blue-100 border-2 border-blue-500 flex items-center justify-center text-blue-600 mb-3 shadow-inner">
-          <User className="w-10 h-10" />
-        </div>
-        <h2 className="text-lg font-black text-slate-800">{user?.name || 'صاحب المشروع'}</h2>
-        <span className="mt-1 inline-block text-[11px] font-bold px-3 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-          {user?.role === 'owner' ? 'مدير النظام (صاحب المشروع)' : 'موظف في المشروع'}
-        </span>
-      </div>
+      <PageTitle title="الملف الشخصي" />
 
-      {/* Info fields card */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-        <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
-          <span className="text-slate-500 flex items-center gap-2">
-            <User className="w-4 h-4 text-blue-500" />
-            الاسم بالكامل
-          </span>
-          <span className="font-bold text-slate-800">{user?.name}</span>
+      {/* Success alert */}
+      {success && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3.5 rounded-xl flex items-center justify-between gap-2 shadow-sm animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="font-bold">{success}</span>
+          </div>
+          <button
+            onClick={() => setSuccess(null)}
+            className="text-emerald-500 hover:text-emerald-700 p-0.5"
+            title="إغلاق"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
+      )}
 
-        <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
-          <span className="text-slate-500 flex items-center gap-2">
-            <Phone className="w-4 h-4 text-blue-500" />
-            رقم الهاتف
-          </span>
-          <span className="font-bold text-slate-800 font-mono">{user?.phone}</span>
+      {/* Error alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3.5 rounded-xl flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <span className="font-bold">{error}</span>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-500 hover:text-red-700 p-0.5"
+            title="إغلاق"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
+      )}
 
-        <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
-          <span className="text-slate-500 flex items-center gap-2">
-            <Mail className="w-4 h-4 text-blue-500" />
-            البريد الإلكتروني
-          </span>
-          <span className="font-bold text-slate-800">{user?.email || 'غير مسجل'}</span>
-        </div>
+      {isEditing ? (
+        /* Edit Profile Form */
+        <form onSubmit={handleSaveProfile} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+          <div className="border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 text-slate-800 font-black text-sm">
+              <Edit3 className="w-4 h-4 text-blue-600" />
+              <span>تعديل بيانات الملف الشخصي</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              تعديل الاسم ورقم الهاتف والبيانات الشخصية
+            </p>
+          </div>
 
-        <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
-          <span className="text-slate-500 flex items-center gap-2">
-            <Building className="w-4 h-4 text-blue-500" />
-            اسم المشروع
-          </span>
-          <span className="font-bold text-slate-800">{project?.name}</span>
-        </div>
+          <div className="space-y-3.5">
+            {/* Name */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                الاسم بالكامل <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="أدخل الاسم بالكامل"
+                  className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  required
+                />
+                <User className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              </div>
+            </div>
 
-        <div className="flex items-center justify-between py-2 text-xs">
-          <span className="text-slate-500 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-blue-500" />
-            تاريخ التسجيل
-          </span>
-          <span className="font-bold text-slate-800 font-mono">
-            {user?.created_at ? user.created_at.split('T')[0] : '2026-09-01'}
-          </span>
-        </div>
-      </div>
+            {/* Phone */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                رقم الهاتف <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="01xxxxxxxxx"
+                  className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono text-slate-800 text-right focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  required
+                />
+                <Phone className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              </div>
+            </div>
 
-      <button
-        onClick={() => onNavigate('screen-12-change-password')}
-        className="w-full py-3 rounded-xl bg-[#1b74e4] hover:bg-[#1563c6] text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all"
-      >
-        <Lock className="w-4 h-4" />
-        تغيير كلمة المرور
-      </button>
+            {/* Email */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                البريد الإلكتروني <span className="text-slate-400 text-[10px] font-normal">(اختياري)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  dir="ltr"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 text-right focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                />
+                <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              </div>
+            </div>
 
-      {/* App Info Card */}
-      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 space-y-1.5">
-        <div className="flex items-center gap-1.5 font-bold text-slate-800">
-          <Shield className="w-4 h-4 text-amber-500" />
-          بيانات التطبيق والأمان
-        </div>
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          نظام AH2 يعمل بقواعد بيانات دائمة ومشفرة مع عزل تام لكل مشروع وصلاحيات محكمة.
-        </p>
-      </div>
+            {/* Project Name (Editable for Owner) */}
+            {user?.role === 'owner' ? (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  اسم المشروع
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="أدخل اسم المشروع"
+                    className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  />
+                  <Building className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  يمكن لمالك النظام تعديل اسم المشروع المسجل
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  اسم المشروع
+                </label>
+                <div className="p-2.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-600 flex items-center justify-between">
+                  <span>{project?.name}</span>
+                  <span className="text-[10px] text-slate-400">(صلاحية التعديل للمالك فقط)</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>جاري الحفظ...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>حفظ التعديلات</span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              disabled={saving}
+              className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>إلغاء</span>
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          {/* User Header Card */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col items-center text-center">
+            <div className="w-20 h-20 rounded-full bg-blue-100 border-2 border-blue-500 flex items-center justify-center text-blue-600 mb-3 shadow-inner">
+              <User className="w-10 h-10" />
+            </div>
+            <h2 className="text-lg font-black text-slate-800">{user?.name || 'صاحب المشروع'}</h2>
+            <span className="mt-1 inline-block text-[11px] font-bold px-3 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              {user?.role === 'owner' ? 'مدير النظام (صاحب المشروع)' : 'موظف في المشروع'}
+            </span>
+          </div>
+
+          {/* Info fields card */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
+              <span className="text-slate-500 flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-500" />
+                الاسم بالكامل
+              </span>
+              <span className="font-bold text-slate-800">{user?.name}</span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
+              <span className="text-slate-500 flex items-center gap-2">
+                <Phone className="w-4 h-4 text-blue-500" />
+                رقم الهاتف
+              </span>
+              <span className="font-bold text-slate-800 font-mono">{user?.phone}</span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
+              <span className="text-slate-500 flex items-center gap-2">
+                <Mail className="w-4 h-4 text-blue-500" />
+                البريد الإلكتروني
+              </span>
+              <span className="font-bold text-slate-800">{user?.email || 'غير مسجل'}</span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-xs">
+              <span className="text-slate-500 flex items-center gap-2">
+                <Building className="w-4 h-4 text-blue-500" />
+                اسم المشروع
+              </span>
+              <span className="font-bold text-slate-800">{project?.name}</span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 text-xs">
+              <span className="text-slate-500 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-500" />
+                تاريخ التسجيل
+              </span>
+              <span className="font-bold text-slate-800 font-mono">
+                {user?.created_at ? user.created_at.split('T')[0] : '2026-09-01'}
+              </span>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              onClick={handleStartEdit}
+              className="py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <Edit3 className="w-4 h-4" />
+              تعديل الملف الشخصي
+            </button>
+            <button
+              onClick={() => onNavigate('screen-12-change-password')}
+              className="py-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <Lock className="w-4 h-4" />
+              تغيير كلمة المرور
+            </button>
+          </div>
+
+          {/* App Info Card */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs text-slate-600 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800">
+              <Shield className="w-4 h-4 text-amber-500" />
+              بيانات التطبيق والأمان
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              نظام AH2 يعمل بقواعد بيانات دائمة ومشفرة مع عزل تام لكل مشروع وصلاحيات محكمة.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -496,17 +753,7 @@ export const Screen5Home: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
       {/* Title banner */}
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h1 className="text-base font-black text-amber-400 leading-tight">إدارة العملاء والحسابات</h1>
-          <p className="text-[11px] text-slate-300">
-            {project?.name || 'مشروع AH2'} — مرحباً {user?.name || ''}
-          </p>
-        </div>
-        <span className="text-[10px] font-bold bg-amber-400/20 text-amber-300 px-2.5 py-1 rounded-full border border-amber-400/30 font-mono">
-          2026
-        </span>
-      </div>
+      <PageTitle title="إدارة العملاء والحسابات" />
 
       {/* Two Balance Cards (Negative & Positive) */}
       <div className="grid grid-cols-2 gap-3">
@@ -522,7 +769,7 @@ export const Screen5Home: React.FC<{
             <div className="text-xl font-black text-red-700 font-mono tabular-nums">
               {negative.toLocaleString()} <span className="text-xs font-bold font-sans">ج.م</span>
             </div>
-            <div className="text-[10px] text-red-600 mt-0.5">مستحقات للعملاء / سحوبات</div>
+            <div className="text-[10px] text-red-600 mt-0.5">مبالغ مستحقة للمحل على العملاء</div>
           </div>
         </div>
 
@@ -538,7 +785,7 @@ export const Screen5Home: React.FC<{
             <div className="text-xl font-black text-emerald-800 font-mono tabular-nums">
               {positive.toLocaleString()} <span className="text-xs font-bold font-sans">ج.م</span>
             </div>
-            <div className="text-[10px] text-emerald-700 mt-0.5">مطلوب من العملاء / مدفوعات</div>
+            <div className="text-[10px] text-emerald-700 mt-0.5">أرصدة لصالح العملاء (المحل مدين بها)</div>
           </div>
         </div>
       </div>
@@ -646,12 +893,13 @@ export const Screen6CustomerDelete: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
+      <PageTitle title="حذف العميل" />
+
       <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
         <div className="w-16 h-16 rounded-full bg-red-100 border-2 border-red-500 text-red-600 mx-auto flex items-center justify-center mb-2">
           <AlertTriangle className="w-8 h-8" />
         </div>
-        <h2 className="text-lg font-black text-red-700">حذف العميل</h2>
-        <p className="text-xs text-red-600 mt-1">
+        <p className="text-xs text-red-600 font-bold">
           سيتم حذف بيانات العميل نهائياً من قاعدة البيانات
         </p>
       </div>
@@ -671,15 +919,9 @@ export const Screen6CustomerDelete: React.FC<{
           <span className="text-slate-500">العنوان:</span>
           <span className="font-bold text-slate-800">{customer?.address || 'غير محدد'}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <span className="text-slate-500">الرصيد الحالي:</span>
-          <span
-            className={`font-black font-mono ${
-              (customer?.balance || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'
-            }`}
-          >
-            {customer?.balance?.toLocaleString()} ج.م
-          </span>
+          <CustomerBalanceBadge balance={customer?.balance} variant="inline" />
         </div>
       </div>
 
@@ -776,12 +1018,7 @@ export const Screen7CustomerAdd: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">إضافة عميل +</h2>
-          <p className="text-[11px] text-slate-300">أدخل بيانات العميل الجديد لحفظه بقاعدة البيانات</p>
-        </div>
-      </div>
+      <PageTitle title="إضافة عميل +" />
 
       {error && (
         <div className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-700 text-xs">

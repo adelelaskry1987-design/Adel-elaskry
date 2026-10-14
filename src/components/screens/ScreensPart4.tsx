@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BackupItem, ScreenId } from '../../types';
 import { api } from '../../services/api';
+import { PageTitle } from '../PageTitle';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -55,7 +56,6 @@ export const Screen22BackupRestore: React.FC<{
       setSelectedBackup(null);
       setProjectPassword('');
       onRestored();
-      alert('تم استعادة النسخة الاحتياطية بنجاح!');
       onNavigate('screen-5-home');
     } catch (err: any) {
       setError(err.message || 'فشلت الاستعادة، تحقق من كلمة المرور');
@@ -66,12 +66,7 @@ export const Screen22BackupRestore: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-black text-amber-400">استعادة النسخة الاحتياطية</h2>
-          <p className="text-[11px] text-slate-300">اختر نسخة سابقة لاستعادة البيانات منها</p>
-        </div>
-      </div>
+      <PageTitle title="استعادة النسخة الاحتياطية" />
 
       <div className="space-y-2">
         {backups.map((b) => (
@@ -167,14 +162,11 @@ export const Screen22BackupRestore: React.FC<{
 export const Screen23ResetDataSuccess: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم إعادة تعيين البيانات بنجاح" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم إعادة تعيين البيانات بنجاح</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-8">
-        تم حذف جميع بيانات المشروع وإعادة ضبط التطبيق للوضع الافتراضي النظيف.
-      </p>
 
       <button
         onClick={() => onNavigate('screen-5-home')}
@@ -216,10 +208,7 @@ export const Screen24ResetData: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">إعادة تعيين البيانات</h2>
-        <p className="text-[11px] text-slate-300">حذف جميع بيانات المشروع وإعادة ضبط النظام</p>
-      </div>
+      <PageTitle title="إعادة تعيين البيانات" />
 
       <div className="bg-red-50 border border-red-300 rounded-2xl p-4 text-center space-y-3">
         <div className="w-16 h-16 rounded-full bg-red-100 border-2 border-red-500 text-red-600 mx-auto flex items-center justify-center">
@@ -325,10 +314,7 @@ export const Screen25DataImport: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">استيراد البيانات</h2>
-        <p className="text-[11px] text-slate-300">قم باستيراد البيانات من ملف خارجي بصيغة مدعومة</p>
-      </div>
+      <PageTitle title="استيراد البيانات" />
 
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm text-center space-y-4">
         {/* Upload Box */}
@@ -384,14 +370,11 @@ export const Screen26DataImportSuccess: React.FC<{
 }> = ({ onNavigate, importCounts }) => {
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم استيراد البيانات بنجاح" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم استيراد البيانات بنجاح</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-3">
-        تم استيراد البيانات إلى التطبيق وتحديث سجلات المشروع بنجاح.
-      </p>
 
       {importCounts && (
         <div className="bg-slate-50 p-3 rounded-xl border mb-6 text-xs text-slate-700 w-full max-w-xs space-y-1">
@@ -425,9 +408,11 @@ export const Screen27DataExport: React.FC<{
   const [includeTransactions, setIncludeTransactions] = useState(true);
   const [includeReports, setIncludeReports] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const handleExport = async () => {
     setLoading(true);
+    setExportError(null);
     try {
       const data = await api.exportData({
         includeCustomers,
@@ -437,7 +422,7 @@ export const Screen27DataExport: React.FC<{
       onExportDone(data);
       onNavigate('screen-28-data-export-success');
     } catch (err: any) {
-      alert(err.message || 'حدث خطأ أثناء تصدير البيانات');
+      setExportError(err.message || 'حدث خطأ أثناء تصدير البيانات');
     } finally {
       setLoading(false);
     }
@@ -445,10 +430,13 @@ export const Screen27DataExport: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
-      <div className="bg-[#0f233c] text-white p-3.5 rounded-2xl border border-slate-700 shadow-sm">
-        <h2 className="text-base font-black text-amber-400">تصدير البيانات</h2>
-        <p className="text-[11px] text-slate-300">اختر البيانات التي تريد تصديرها</p>
-      </div>
+      <PageTitle title="تصدير البيانات" />
+
+      {exportError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-bold">
+          {exportError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
         {/* Checkboxes */}
@@ -523,14 +511,11 @@ export const Screen28DataExportSuccess: React.FC<{
 
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center p-6 text-center select-none">
-      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+      <PageTitle title="تم تصدير البيانات بنجاح" />
+
+      <div className="w-24 h-24 rounded-full bg-emerald-50 border-4 border-emerald-500 flex items-center justify-center my-6 shadow-lg shadow-emerald-500/10">
         <CheckCircle2 className="w-14 h-14 text-emerald-500 stroke-[2.5]" />
       </div>
-
-      <h2 className="text-2xl font-black text-slate-800 mb-2">تم تصدير البيانات بنجاح</h2>
-      <p className="text-slate-500 text-sm max-w-xs mb-6">
-        تم تجهيز البيانات المطلوبة بنجاح ويمكنك تنزيل ملف التصدير الآن.
-      </p>
 
       <div className="w-full max-w-xs space-y-3">
         <button

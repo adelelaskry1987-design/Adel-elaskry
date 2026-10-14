@@ -362,7 +362,7 @@ app.post('/api/auth/change-password', authMiddleware, (req: AuthRequest, res: Re
 
 app.post('/api/auth/update-profile', authMiddleware, (req: AuthRequest, res: Response) => {
   try {
-    const { name, email, phone } = req.body;
+    const { name, email, phone, projectName } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ error: 'الاسم ورقم الهاتف مطلوبان' });
     }
@@ -387,7 +387,11 @@ app.post('/api/auth/update-profile', authMiddleware, (req: AuthRequest, res: Res
 
     db.prepare(`
       UPDATE users SET name = ?, phone = ?, email = ? WHERE id = ?
-    `).run(name.trim(), cleanPhone, email ? email.trim() : null, req.user.id);
+    `).run(name.trim(), cleanPhone, email && email.trim() ? email.trim() : null, req.user.id);
+
+    if (projectName && projectName.trim() && req.user.role === 'owner') {
+      db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(projectName.trim(), req.project.id);
+    }
 
     logActivity(req.project.id, req.user.id, req.user.name, 'UPDATE_PROFILE', 'تم تحديث بيانات الملف الشخصي', 'USER', req.user.id);
 
