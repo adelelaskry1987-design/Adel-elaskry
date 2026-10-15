@@ -3,7 +3,7 @@ import shopLogoAsset from '../assets/shop_owner_logo.jpg';
 
 interface ShopOwnerLogoProps {
   variant?: 'default' | 'header' | 'card' | 'report' | 'badge';
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
   showTitle?: boolean;
 }
@@ -17,17 +17,28 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
   showTitle = false,
 }) => {
   const sizeClasses = {
-    xs: 'w-7 h-7',
-    sm: 'w-10 h-10',
-    md: 'w-16 h-16',
-    lg: 'w-24 h-24',
+    xs: 'w-10 h-10',
+    sm: 'w-16 h-16',
+    md: 'w-28 h-28',
+    lg: 'w-32 h-32',
     xl: 'w-36 h-36',
+    '2xl': 'w-40 h-40',
   }[size];
 
   if (variant === 'header') {
+    const headerSizes = {
+      xs: 'w-10 h-10',
+      sm: 'w-12 h-12',
+      md: 'w-16 h-16',
+      lg: 'w-18 h-18',
+      xl: 'w-20 h-20',
+      '2xl': 'w-24 h-24',
+    };
+    const headerSize = (size && headerSizes[size as keyof typeof headerSizes]) || 'w-16 h-16';
+
     return (
       <div className={`flex items-center gap-1.5 shrink-0 ${className}`} title="لوجو صاحب المحل - OM BASMA">
-        <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-amber-400/90 bg-white shadow-sm shrink-0 flex items-center justify-center p-0.5">
+        <div className={`${headerSize} rounded-full overflow-hidden border-2 border-amber-400/90 bg-white shadow-md shadow-black/40 shrink-0 flex items-center justify-center p-0.5 ring-2 ring-amber-400/40`}>
           <img
             src={logoSrc}
             alt="لوجو صاحب المحل - OM BASMA"
@@ -42,7 +53,7 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
   if (variant === 'report') {
     return (
       <div className={`flex items-center gap-3 ${className}`}>
-        <div className="w-16 h-16 rounded-xl overflow-hidden border border-amber-400 bg-white shadow-sm shrink-0 flex items-center justify-center p-0.5">
+        <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-amber-400 bg-white shadow-md shrink-0 flex items-center justify-center p-1">
           <img
             src={logoSrc}
             alt="لوجو المحل - OM BASMA للستائر والمفروشات"
@@ -51,13 +62,13 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
           />
         </div>
         <div>
-          <div className="font-black text-sm text-slate-900 tracking-wide font-sans">
+          <div className="font-black text-base text-slate-900 tracking-wide font-sans">
             OM BASMA
           </div>
-          <div className="text-[11px] font-bold text-amber-700 font-sans mt-0.5">
+          <div className="text-xs font-bold text-amber-700 font-sans mt-0.5">
             للستائر والمفروشات
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
+          <div className="text-[11px] text-slate-500 mt-0.5">
             هوية المتجر المعتمدة
           </div>
         </div>

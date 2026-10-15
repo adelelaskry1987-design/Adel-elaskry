@@ -61,7 +61,7 @@ import {
   Screen35Support,
 } from './components/screens/ScreensPart5';
 
-import { WifiOff, Layers } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
 
 function MainApp() {
   const { user, isLoading } = useAuth();
@@ -367,18 +367,6 @@ function MainApp() {
         {/* SCREEN 35: SUPPORT */}
         {currentScreen === 'screen-35-support' && <Screen35Support onNavigate={navigateTo} />}
       </main>
-
-      {/* Floating 35-Screen Navigator Trigger Button (Hidden on Splash, Login, and Logo screens) */}
-      {currentScreen !== 'screen-1-splash' && currentScreen !== 'screen-4-login' && currentScreen !== 'screen-9-app-logo' && (
-        <button
-          onClick={() => setIsSwitcherOpen(true)}
-          className="fixed bottom-20 left-4 z-40 bg-[#0f233c] hover:bg-[#1a385f] text-amber-400 border border-amber-400/50 p-2.5 rounded-full shadow-xl flex items-center gap-1.5 text-xs font-bold active:scale-95 transition-all select-none"
-          title="خريطة شاشات AH2 الـ35"
-        >
-          <Layers className="w-4 h-4 text-amber-400" />
-          <span className="hidden sm:inline text-[11px] text-white">خريطة الـ35 شاشة</span>
-        </button>
-      )}
 
       {/* 5-Tab Bottom Navigation Bar */}
       <BottomNav currentScreen={currentScreen} onNavigate={navigateTo} />

@@ -175,9 +175,12 @@ export const Screen30About: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({
       <PageTitle title="حول التطبيق" />
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center flex flex-col items-center">
-        <Ah2Logo variant="emblem" size="md" showSubtitle={true} />
-        <p className="text-xs text-slate-600 mt-3 max-w-xs leading-relaxed">
-          تطبيق AH2 التجاري المتكامل لإدارة العملاء والحسابات والعمليات المالية بكل دقة وسهولة.
+        <div className="flex flex-col items-center gap-3 mb-3">
+          <ShopOwnerLogo variant="default" size="xl" showTitle={false} />
+          <Ah2Logo variant="emblem" size="sm" showSubtitle={true} />
+        </div>
+        <p className="text-xs text-slate-600 mt-2 max-w-xs leading-relaxed">
+          متجر OM BASMA للستائر والمفروشات • نظام AH2 لإدارة العملاء والعمليات المالية والحسابات
         </p>
 
         {/* Release Metadata Card (Exact user requirement) */}

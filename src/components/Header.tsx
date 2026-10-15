@@ -40,9 +40,9 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Main Header Bar */}
-      <div className="flex items-center justify-between px-3 py-2">
-        {/* Right slot (in RTL = Start) */}
-        <div className="flex items-center gap-2 min-w-[70px]">
+      <div className="relative flex items-center justify-between px-3 py-1.5 min-h-[58px]">
+        {/* Right slot (in RTL = Start): Menu/Back button + AH2 Project Logo */}
+        <div className="flex items-center gap-2 min-w-[70px] z-10">
           {isHome ? (
             <button
               onClick={onOpenScreenSwitcher}
@@ -61,13 +61,23 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Miniature shop owner logo (OM BASMA) */}
-          <ShopOwnerLogo variant="header" size="xs" />
+          {/* Project Logo (AH2) - Swapped with Shop Logo */}
+          <div
+            className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
+            onClick={() => onNavigate('screen-5-home')}
+            title="نظام AH2"
+          >
+            <Ah2Logo variant="header" className="scale-90 origin-right" />
+          </div>
         </div>
 
-        {/* Center slot: Official AH2 Brand Emblem */}
-        <div className="flex items-center justify-center cursor-pointer" onClick={() => onNavigate('screen-5-home')}>
-          <Ah2Logo variant="header" />
+        {/* Center slot: Official Shop Owner Logo (OM BASMA) - Swapped to Center & Scaled by 100% */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 active:scale-95 z-10"
+          onClick={() => onNavigate('screen-5-home')}
+          title="متجر OM BASMA للستائر والمفروشات - الرئيسية"
+        >
+          <ShopOwnerLogo variant="header" size="md" />
         </div>
 
         {/* Left slot (in RTL = End) */}

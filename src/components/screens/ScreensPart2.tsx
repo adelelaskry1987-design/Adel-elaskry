@@ -59,10 +59,13 @@ export const Screen9AppLogo: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
         </span>
       </div>
 
-      <div className="my-auto flex flex-col items-center">
-        <Ah2Logo variant="splash" size="xl" showSubtitle={true} />
-        <p className="mt-6 text-xs text-slate-300 max-w-xs leading-relaxed">
-          الشعار الرسمي لتطبيق AH2 — إيه إتش تو لإدارة العملاء والعمليات المالية والحسابات
+      <div className="my-auto flex flex-col items-center gap-6">
+        <div className="flex flex-col items-center bg-white/5 border-2 border-amber-400/60 rounded-3xl p-4 backdrop-blur-sm shadow-2xl">
+          <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
+        </div>
+        <Ah2Logo variant="splash" size="md" showSubtitle={true} />
+        <p className="mt-2 text-xs text-slate-300 max-w-xs leading-relaxed">
+          هوية متجر OM BASMA المعتمدة على تطبيق AH2 لإدارة العملاء والعمليات المالية والحسابات
         </p>
 
         <button

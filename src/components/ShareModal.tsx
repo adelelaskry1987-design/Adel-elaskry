@@ -22,10 +22,17 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   CheckCircle2,
+  Send,
+  Mail,
+  Bluetooth,
+  MoreHorizontal,
+  ArrowRight,
+  Loader2,
 } from 'lucide-react';
 import shopLogoAsset from '../assets/shop_owner_logo.jpg';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
 import { Ah2Logo } from './Ah2Logo';
+import { PageTitle } from './PageTitle';
 import { Customer, Transaction } from '../types';
 import { getCustomerBalanceInfo, getPeriodMovementInfo } from '../utils/balanceUtils';
 import jsPDF from 'jspdf';
@@ -115,7 +122,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data })
   const [copied, setCopied] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [showPreviewSheet, setShowPreviewSheet] = useState(true);
+  const [showPreviewSheet, setShowPreviewSheet] = useState(false);
   const printableRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
@@ -362,6 +369,44 @@ ${divider}
     window.print();
   };
 
+  // Telegram share
+  const handleTelegramShare = () => {
+    const text = generateFormattedText();
+    const url = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+    setStatusMessage('تم فتح تيليجرام للمشاركة');
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  // Gmail share
+  const handleGmailShare = () => {
+    const text = generateFormattedText();
+    const subject =
+      data.type === 'customer_statement'
+        ? `كشف حساب العميل: ${data.customer.name}`
+        : data.type === 'all_transactions'
+        ? 'تقرير كل العمليات المالية'
+        : 'تقرير التقارير والإحصائيات';
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  };
+
+  // SMS share
+  const handleSmsShare = () => {
+    const text = generateFormattedText();
+    window.location.href = `sms:?body=${encodeURIComponent(text)}`;
+  };
+
+  const shareOptions = [
+    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-500', action: handleWhatsAppShare },
+    { name: 'Telegram', icon: Send, color: 'bg-sky-500', action: handleTelegramShare },
+    { name: 'Messenger', icon: MessageCircle, color: 'bg-blue-600', action: handleOtherAppsShare },
+    { name: 'IMO', icon: MessageCircle, color: 'bg-cyan-500', action: handleOtherAppsShare },
+    { name: 'Gmail', icon: Mail, color: 'bg-red-500', action: handleGmailShare },
+    { name: 'الرسائل', icon: MessageCircle, color: 'bg-emerald-600', action: handleSmsShare },
+    { name: 'المزيد', icon: MoreHorizontal, color: 'bg-slate-600', action: handleOtherAppsShare },
+    { name: 'بلوتوث', icon: Bluetooth, color: 'bg-indigo-600', action: handleOtherAppsShare },
+  ];
+
   const reportTitle =
     data.type === 'customer_statement'
       ? `كشف حساب: ${data.customer.name}`
@@ -372,121 +417,174 @@ ${divider}
   const logoUrl = shopLogoAsset || '/shop_owner_logo.jpg';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm select-none">
-      <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 max-h-[94vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
-        {/* Header */}
-        <div className="bg-[#0f233c] text-white p-4 flex items-center justify-between border-b border-slate-700">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center border border-amber-400/30">
-              <Share2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-black text-amber-400">خيارات المشاركة والـ PDF</h2>
-              <p className="text-[11px] text-slate-300">{reportTitle}</p>
-            </div>
-          </div>
+    <div className="fixed inset-0 z-50 bg-slate-100 overflow-y-auto p-4 select-none animate-in fade-in duration-150">
+      <div className="max-w-md mx-auto space-y-4 pb-24">
+        {/* Page Title: STRICTLY FIRST element per project guidelines */}
+        <PageTitle title="قائمة المشاركة" />
+
+        {/* Back and Subtitle bar */}
+        <div className="flex items-center justify-between">
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors active:scale-98 cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <ArrowRight className="w-4 h-4 text-slate-500" />
+            <span>رجوع</span>
           </button>
+          <span className="text-[11px] font-bold text-slate-500 truncate max-w-[200px]">
+            {reportTitle}
+          </span>
         </div>
 
         {/* Status Toast */}
         {statusMessage && (
-          <div className="bg-amber-500 text-slate-950 text-xs font-bold px-4 py-2 flex items-center justify-between shadow-sm animate-in slide-in-from-top-1">
-            <span>{statusMessage}</span>
-            <Sparkles className="w-4 h-4 shrink-0" />
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold p-3 rounded-xl flex items-center justify-between shadow-sm animate-in slide-in-from-top-1">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{statusMessage}</span>
+            </div>
+            <button
+              onClick={() => setStatusMessage(null)}
+              className="text-emerald-500 hover:text-emerald-700 p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Main 3 Sharing Options Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {/* 1. WhatsApp */}
-            <button
-              onClick={handleWhatsAppShare}
-              className="p-3.5 rounded-2xl bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-md flex flex-col items-center justify-center text-center gap-2 group transition-all active:scale-97 border border-emerald-400/30"
-            >
-              <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
-                <MessageCircle className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-black">مشاركة على واتساب</span>
-              <span className="text-[10px] text-emerald-100 opacity-90">
-                تقرير نصي مختصر واحترافي
-              </span>
-            </button>
+        {/* 1. Main 35-Screens Card: مشاركة عبر التطبيقات */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <h3 className="text-xs font-black text-slate-700 mb-4 text-center">
+            مشاركة عبر التطبيقات
+          </h3>
 
-            {/* 2. PDF */}
+          <div className="grid grid-cols-4 gap-4">
+            {shareOptions.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.name}
+                  onClick={opt.action}
+                  className="flex flex-col items-center gap-1.5 active:scale-95 transition-transform cursor-pointer"
+                >
+                  <div
+                    className={`w-12 h-12 rounded-2xl ${opt.color} text-white flex items-center justify-center shadow-md`}
+                  >
+                    <Icon className="w-6 h-6" />
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-700">{opt.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 pt-4 border-t border-slate-100">
+            <button
+              onClick={handleOtherAppsShare}
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all active:scale-98 cursor-pointer"
+            >
+              مشاركة من الجهاز
+            </button>
+            <p className="text-[10px] text-slate-400 text-center mt-2">
+              سيتم فتح قائمة المشاركة الأصلية الخاصة بنظام جهازك
+            </p>
+          </div>
+        </div>
+
+        {/* 2. Document & PDF Actions Card */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-amber-600" />
+              خيارات المستند والـ PDF
+            </span>
+            {data.type === 'customer_statement' && (
+              <span className="text-[11px] font-bold text-slate-500">
+                {data.customer.name}
+              </span>
+            )}
+          </div>
+
+          {/* Customer Balance Info if customer statement */}
+          {data.type === 'customer_statement' && (() => {
+            const bal = getCustomerBalanceInfo(data.currentBalance);
+            return (
+              <div
+                className={`p-3 rounded-xl border flex items-center justify-between ${
+                  bal.state === 'positive'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : bal.state === 'negative'
+                    ? 'bg-rose-50 border-rose-200 text-rose-800'
+                    : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}
+              >
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-500">الرصيد الحالي</div>
+                  <div className="text-sm font-black font-mono">{bal.formattedAmount}</div>
+                </div>
+                <div className="text-left text-xs font-bold">
+                  {bal.statusText}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Action Buttons */}
+          <div className="space-y-2 pt-1">
             <button
               onClick={handlePdfShare}
               disabled={isGeneratingPdf}
-              className="p-3.5 rounded-2xl bg-gradient-to-b from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-md flex flex-col items-center justify-center text-center gap-2 group transition-all active:scale-97 border border-red-500/30 disabled:opacity-50"
+              className="w-full py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
             >
-              <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
-                <FileText className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-black">
-                {isGeneratingPdf ? 'جاري إنشاء PDF...' : 'مشاركة وتنزيل PDF'}
-              </span>
-              <span className="text-[10px] text-red-100 opacity-90">
-                ملف PDF رسمي ومطابق للتصميم
-              </span>
-            </button>
-
-            {/* 3. Other Apps */}
-            <button
-              onClick={handleOtherAppsShare}
-              className="p-3.5 rounded-2xl bg-gradient-to-b from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md flex flex-col items-center justify-center text-center gap-2 group transition-all active:scale-97 border border-blue-500/30"
-            >
-              <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
-                <Share2 className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xs font-black">عبر التطبيقات الأخرى</span>
-              <span className="text-[10px] text-blue-100 opacity-90">
-                مشاركة النظام أو الإرسال
-              </span>
-            </button>
-          </div>
-
-          {/* Quick Action Buttons: Copy Text & Print */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              onClick={handleCopyText}
-              className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 border border-slate-200"
-            >
-              {copied ? (
+              {isGeneratingPdf ? (
                 <>
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span className="text-emerald-700 font-black">تم النسخ</span>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>جاري إنشاء ملف PDF...</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-4 h-4 text-slate-500" />
-                  <span>نسخ التقرير كنص</span>
+                  <FileText className="w-4 h-4" />
+                  <span>مشاركة وتنزيل PDF</span>
                 </>
               )}
             </button>
 
-            <button
-              onClick={handlePrint}
-              className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 border border-slate-200"
-            >
-              <Printer className="w-4 h-4 text-slate-500" />
-              <span>طباعة المستند</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleCopyText}
+                className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    <span className="text-emerald-700 font-black">تم النسخ بنجاح</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-slate-500" />
+                    <span>نسخ التقرير كنص</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handlePrint}
+                className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-slate-500" />
+                <span>طباعة المستند</span>
+              </button>
+            </div>
           </div>
 
-          {/* Collapsible Preview Toggle */}
-          <div className="border border-slate-200 rounded-2xl overflow-hidden">
+          {/* Preview accordion button */}
+          <div className="pt-2 border-t border-slate-100">
             <button
               onClick={() => setShowPreviewSheet(!showPreviewSheet)}
-              className="w-full p-3 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-between transition-colors"
+              className="w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-between transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-600" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 <span>معاينة المستند المعتمد وتصميم الـ PDF</span>
               </div>
               <ChevronDown
@@ -495,13 +593,17 @@ ${divider}
                 }`}
               />
             </button>
+          </div>
+        </div>
 
-            {/* Document Sheet for Capture and Preview */}
-            <div
-              className={`p-2 sm:p-4 bg-slate-200/90 overflow-x-auto transition-all ${
-                showPreviewSheet ? 'block' : 'hidden'
-              }`}
-            >
+        {/* Document Sheet for Capture and Preview */}
+        <div
+          className={`transition-all ${
+            showPreviewSheet
+              ? 'p-2 sm:p-4 bg-slate-200/90 rounded-2xl overflow-x-auto shadow-inner block'
+              : 'fixed -left-[99999px] top-0 opacity-0 pointer-events-none'
+          }`}
+        >
               <div
                 ref={printableRef}
                 className={`bg-white p-5 sm:p-7 rounded-2xl shadow-lg text-slate-800 font-sans relative overflow-hidden mx-auto ${
@@ -1060,21 +1162,6 @@ ${divider}
                 )}
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500 truncate max-w-[280px]">
-            {data.projectName} • {data.reportDate}
-          </div>
-          <button
-            onClick={onClose}
-            className="py-1.5 px-4 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition-colors"
-          >
-            إغلاق
-          </button>
-        </div>
       </div>
     </div>
   );

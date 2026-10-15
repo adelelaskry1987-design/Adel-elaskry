@@ -63,17 +63,15 @@ export const Screen1Splash: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({
         </div>
       </div>
 
-      {/* Center Logos: AH2 System Emblem & Shop Owner Brand (OM BASMA) */}
-      <div className="my-auto flex flex-col items-center gap-5">
-        <Ah2Logo variant="splash" size="xl" showSubtitle={true} />
-
-        {/* Separated Shop Owner Identity */}
-        <div className="flex flex-col items-center bg-white/5 border border-amber-400/40 rounded-2xl p-3 backdrop-blur-sm shadow-xl">
-          <span className="text-[10px] text-amber-300 font-bold mb-1 opacity-90">
-            لوجو صاحب المحل
-          </span>
-          <ShopOwnerLogo variant="default" size="md" />
+      {/* Center Logos: Shop Owner Brand (OM BASMA) & AH2 System Emblem (Swapped & Scaled +100%) */}
+      <div className="my-auto flex flex-col items-center gap-6">
+        {/* Prominent Shop Owner Identity (On Top) */}
+        <div className="flex flex-col items-center bg-white/5 border-2 border-amber-400/60 rounded-3xl p-4 backdrop-blur-sm shadow-2xl">
+          <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
         </div>
+
+        {/* AH2 System Emblem (Positioned Below Shop Logo) */}
+        <Ah2Logo variant="splash" size="md" showSubtitle={true} />
       </div>
 
       {/* Bottom Version (Matches Screen 1 in reference) */}
@@ -526,15 +524,9 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
     <div className="min-h-screen bg-[#08172b] flex flex-col items-center justify-center p-4 text-white select-none">
       <div className="w-full max-w-sm bg-[#0d223c] rounded-2xl p-6 border border-slate-700 shadow-2xl">
         <div className="flex flex-col items-center mb-6">
-          <div className="flex items-center justify-center gap-4 mb-2">
+          <div className="flex flex-col items-center justify-center gap-3 mb-2">
+            <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
             <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
-            <div className="h-10 w-px bg-slate-600/60" />
-            <div className="flex flex-col items-center">
-              <ShopOwnerLogo variant="default" size="sm" />
-            </div>
-          </div>
-          <div className="text-[11px] font-bold text-amber-300 tracking-wide mt-1">
-            OM BASMA للستائر والمفروشات
           </div>
           <h2 className="text-xl font-black mt-2 text-amber-400">
             {isRegisterMode ? 'إنشاء حساب ومشروع جديد' : 'مرحبًا بك'}
