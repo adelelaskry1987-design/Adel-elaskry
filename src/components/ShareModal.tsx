@@ -38,6 +38,214 @@ import { getCustomerBalanceInfo, getPeriodMovementInfo } from '../utils/balanceU
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
+/**
+ * Convert any modern CSS color string (including Tailwind v4 oklch/oklab/color-mix)
+ * into a standard rgb()/rgba() string supported by html2canvas v1.4.1, and normalize
+ * SVG and IMG dimensions so html2canvas renders them without clipping or distortion.
+ */
+function sanitizeClonedDocumentColors(clonedDoc: Document, rootEl: HTMLElement) {
+  const colorCanvas = clonedDoc.createElement('canvas');
+  colorCanvas.width = 1;
+  colorCanvas.height = 1;
+  const ctx = colorCanvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return;
+
+  const cache = new Map<string, string>();
+  const resolveSingleColor = (rawColor: string): string => {
+    const trimmed = rawColor.trim();
+    if (!trimmed) return trimmed;
+    const cached = cache.get(trimmed);
+    if (cached) return cached;
+    try {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = '#000000';
+      ctx.fillStyle = trimmed;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      const result =
+        a === 0
+          ? 'rgba(0, 0, 0, 0)'
+          : a === 255
+          ? `rgb(${r}, ${g}, ${b})`
+          : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
+      cache.set(trimmed, result);
+      return result;
+    } catch {
+      return 'rgb(30, 41, 59)';
+    }
+  };
+
+  const replaceModernColorsInString = (value: string): string => {
+    if (
+      !value ||
+      (!value.includes('oklch') &&
+        !value.includes('oklab') &&
+        !value.includes('color-mix') &&
+        !value.includes('color('))
+    ) {
+      return value;
+    }
+    return value.replace(
+      /(?:oklch|oklab|color-mix|color)\([^()]*(\([^()]*\)[^()]*)*\)/gi,
+      (match) => resolveSingleColor(match)
+    );
+  };
+
+  // 1. Sanitize all <style> tags in the cloned document
+  const styleNodes = clonedDoc.querySelectorAll('style');
+  styleNodes.forEach((styleEl) => {
+    if (styleEl.textContent) {
+      styleEl.textContent = replaceModernColorsInString(styleEl.textContent);
+    }
+  });
+
+  // 2. Sanitize computed styles on rootEl and all its descendants
+  const view = clonedDoc.defaultView || window;
+  const colorProps = [
+    'color',
+    'backgroundColor',
+    'backgroundImage',
+    'borderTopColor',
+    'borderRightColor',
+    'borderBottomColor',
+    'borderLeftColor',
+    'boxShadow',
+    'textDecorationColor',
+    'textShadow',
+    'outlineColor',
+    'webkitTextStrokeColor',
+  ] as const;
+
+  const allNodes: HTMLElement[] = [
+    rootEl,
+    ...Array.from(rootEl.querySelectorAll<HTMLElement>('*')),
+  ];
+
+  for (const node of allNodes) {
+    const computed = view.getComputedStyle(node);
+    if (!computed) continue;
+
+    for (const prop of colorProps) {
+      const val = (computed as any)[prop];
+      if (
+        typeof val === 'string' &&
+        (val.includes('oklch') ||
+          val.includes('oklab') ||
+          val.includes('color-mix') ||
+          val.includes('color('))
+      ) {
+        (node.style as any)[prop] = replaceModernColorsInString(val);
+      }
+    }
+
+    // Preserve aspect ratio on <img> elements since html2canvas does not support object-fit: contain
+    if (node.tagName.toLowerCase() === 'img') {
+      const imgEl = node as HTMLImageElement;
+      const nw = imgEl.naturalWidth;
+      const nh = imgEl.naturalHeight;
+      const parent = imgEl.parentElement;
+      if (nw > 0 && nh > 0 && parent) {
+        const parentRect = parent.getBoundingClientRect();
+        const pStyle = view.getComputedStyle(parent);
+        const padX =
+          (parseFloat(pStyle.paddingLeft) || 0) +
+          (parseFloat(pStyle.paddingRight) || 0) +
+          (parseFloat(pStyle.borderLeftWidth) || 0) +
+          (parseFloat(pStyle.borderRightWidth) || 0);
+        const padY =
+          (parseFloat(pStyle.paddingTop) || 0) +
+          (parseFloat(pStyle.paddingBottom) || 0) +
+          (parseFloat(pStyle.borderTopWidth) || 0) +
+          (parseFloat(pStyle.borderBottomWidth) || 0);
+        const availW = Math.max(16, parentRect.width - padX);
+        const availH = Math.max(16, parentRect.height - padY);
+        const scale = Math.min(availW / nw, availH / nh);
+        const targetW = Math.round(nw * scale);
+        const targetH = Math.round(nh * scale);
+        imgEl.style.width = `${targetW}px`;
+        imgEl.style.height = `${targetH}px`;
+      }
+    }
+
+    // Clean up inline styles that html2canvas's DocumentCloner copies onto <svg> and its child nodes
+    if (node.tagName.toLowerCase() === 'svg') {
+      const resolvedColor = replaceModernColorsInString(computed.color || '#1e3a5f');
+      const isCornerWave = node.classList.contains('invoice-corner-wave');
+      const isRightWave = node.classList.contains('invoice-corner-wave-right');
+      const isLeftWave = node.classList.contains('invoice-corner-wave-left');
+
+      node.querySelectorAll('*').forEach((child) => {
+        child.removeAttribute('style');
+      });
+
+      if (isCornerWave) {
+        node.style.cssText = `position:absolute !important;top:-28px !important;${
+          isRightWave ? 'right:-28px !important;left:auto !important;' : ''
+        }${
+          isLeftWave ? 'left:-28px !important;right:auto !important;' : ''
+        }width:96px !important;height:96px !important;display:block !important;pointer-events:none !important;overflow:visible !important;`;
+      } else {
+        const iconSize =
+          node.classList.contains('w-5') || node.classList.contains('sm:w-5')
+            ? '18px'
+            : '16px';
+        node.style.cssText = `display:inline-block !important;vertical-align:middle !important;width:${iconSize} !important;height:${iconSize} !important;min-width:${iconSize} !important;min-height:${iconSize} !important;color:${resolvedColor} !important;stroke:${resolvedColor} !important;fill:none !important;overflow:visible !important;flex-shrink:0 !important;`;
+        node.setAttribute('width', iconSize);
+        node.setAttribute('height', iconSize);
+        if (node.getAttribute('stroke') === 'currentColor') {
+          node.setAttribute('stroke', resolvedColor);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Find a clean horizontal row break near targetY (scanning upwards) where pixels are uniform white/background
+ * so multi-page PDFs never slice through the middle of a transaction row or text line.
+ */
+function findSafePageBreakY(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  startY: number,
+  maxPageHeightPx: number,
+  totalHeight: number
+): number {
+  const idealEnd = startY + maxPageHeightPx;
+  if (idealEnd >= totalHeight) return totalHeight;
+
+  const searchRange = Math.min(220, Math.floor(maxPageHeightPx * 0.25));
+  const minCandidateY = Math.max(startY + 200, idealEnd - searchRange);
+  const stripHeight = idealEnd - minCandidateY + 1;
+
+  try {
+    const imgData = ctx.getImageData(0, minCandidateY, width, stripHeight).data;
+    const marginX = Math.floor(width * 0.06);
+
+    for (let offset = stripHeight - 1; offset >= 0; offset--) {
+      const rowStart = offset * width * 4;
+      let isCleanRow = true;
+      for (let x = marginX; x < width - marginX; x += 4) {
+        const idx = rowStart + x * 4;
+        const r = imgData[idx];
+        const g = imgData[idx + 1];
+        const b = imgData[idx + 2];
+        if (r < 244 || g < 246 || b < 248) {
+          isCleanRow = false;
+          break;
+        }
+      }
+      if (isCleanRow) {
+        return minCandidateY + offset;
+      }
+    }
+  } catch {
+    // Fallback to idealEnd if getImageData fails
+  }
+
+  return idealEnd;
+}
+
 export type ShareData =
   | {
       type: 'all_transactions';
@@ -122,7 +330,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data })
   const [copied, setCopied] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [showPreviewSheet, setShowPreviewSheet] = useState(false);
+  const [showPreviewSheet, setShowPreviewSheet] = useState(true);
   const printableRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
@@ -246,35 +454,175 @@ ${divider}
 
     try {
       const element = printableRef.current;
+
+      // Ensure all images inside the invoice sheet are loaded before capturing
+      const images = Array.from(element.querySelectorAll('img'));
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete && img.naturalHeight > 0) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            setTimeout(() => resolve(), 2500);
+          });
+        })
+      );
+
+      // Fixed desktop-grade sheet width so header, cards, and footer render without mobile clipping
+      const targetWidth = data.type === 'customer_statement' ? 680 : 720;
+
       const canvas = await html2canvas(element, {
-        scale: 2.2,
+        scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: '#ffffff',
+        windowWidth: targetWidth,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        onclone: (clonedDoc, clonedEl) => {
+          // 1. Reset document and body in the cloned iframe so no ancestor scroll/overflow/opacity clips the top header
+          clonedDoc.documentElement.style.margin = '0';
+          clonedDoc.documentElement.style.padding = '0';
+          clonedDoc.documentElement.style.background = '#ffffff';
+          clonedDoc.documentElement.style.overflow = 'visible';
+          clonedDoc.documentElement.style.height = 'auto';
+
+          clonedDoc.body.style.margin = '0';
+          clonedDoc.body.style.padding = '0';
+          clonedDoc.body.style.background = '#ffffff';
+          clonedDoc.body.style.overflow = 'visible';
+          clonedDoc.body.style.height = 'auto';
+          clonedDoc.body.style.width = `${targetWidth}px`;
+          clonedDoc.body.dir = 'rtl';
+
+          // Detach clonedEl from modal/scroll wrappers and place directly at root of clonedDoc.body at (0, 0)
+          while (clonedDoc.body.firstChild) {
+            clonedDoc.body.removeChild(clonedDoc.body.firstChild);
+          }
+          clonedDoc.body.appendChild(clonedEl);
+
+          clonedEl.style.position = 'relative';
+          clonedEl.style.left = '0';
+          clonedEl.style.top = '0';
+          clonedEl.style.margin = '0';
+          clonedEl.style.width = `${targetWidth}px`;
+          clonedEl.style.maxWidth = `${targetWidth}px`;
+          clonedEl.style.minWidth = `${targetWidth}px`;
+          clonedEl.style.height = 'auto';
+          clonedEl.style.maxHeight = 'none';
+          clonedEl.style.opacity = '1';
+          clonedEl.style.visibility = 'visible';
+          clonedEl.style.transform = 'none';
+          clonedEl.style.overflow = 'hidden';
+          clonedEl.style.boxShadow = 'none';
+          clonedEl.style.borderRadius = '16px';
+          clonedEl.style.backgroundColor = '#ffffff';
+          clonedEl.style.direction = 'rtl';
+
+          // 2. Convert Tailwind v4 oklch/oklab/color-mix CSS rules & computed styles into standard rgb/rgba
+          sanitizeClonedDocumentColors(clonedDoc, clonedEl);
+        },
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pageWidthMm = pdf.internal.pageSize.getWidth(); // 210mm
+      const pageHeightMm = pdf.internal.pageSize.getHeight(); // 297mm
+      const marginMm = 8;
+      const printableWidthMm = pageWidthMm - marginMm * 2; // 194mm
+      const printableHeightMm = pageHeightMm - marginMm * 2; // 281mm
 
-      let heightLeft = imgHeight;
-      let position = 0;
+      // Maximum canvas pixel height that fits onto one A4 printable area at full width
+      const maxPageHeightPx = Math.floor(
+        (printableHeightMm * canvas.width) / printableWidthMm
+      );
+      const sourceCtx = canvas.getContext('2d', { willReadFrequently: true });
 
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pageHeight;
+      // If the invoice fits on 1 page (or within 25% of 1 page), scale it proportionally to fit on a single A4 page
+      if (canvas.height <= Math.floor(maxPageHeightPx * 1.25)) {
+        const imgData = canvas.toDataURL('image/jpeg', 0.96);
+        let renderWidthMm = printableWidthMm;
+        let renderHeightMm = (canvas.height * renderWidthMm) / canvas.width;
+        if (renderHeightMm > printableHeightMm) {
+          const fitScale = printableHeightMm / renderHeightMm;
+          renderHeightMm = printableHeightMm;
+          renderWidthMm = renderWidthMm * fitScale;
+        }
+        const offsetXMm = (pageWidthMm - renderWidthMm) / 2;
+        pdf.addImage(
+          imgData,
+          'JPEG',
+          offsetXMm,
+          marginMm,
+          renderWidthMm,
+          renderHeightMm
+        );
+      } else {
+        // Multi-page invoice: slice cleanly between rows without cutting text or overlapping headers/footers
+        let currentY = 0;
+        let pageIndex = 0;
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pageHeight;
+        while (currentY < canvas.height) {
+          const nextBreakY = sourceCtx
+            ? findSafePageBreakY(
+                sourceCtx,
+                canvas.width,
+                currentY,
+                maxPageHeightPx,
+                canvas.height
+              )
+            : Math.min(currentY + maxPageHeightPx, canvas.height);
+
+          const sliceHeightPx = Math.max(1, nextBreakY - currentY);
+
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeightPx;
+          const pageCtx = pageCanvas.getContext('2d');
+
+          if (pageCtx) {
+            pageCtx.fillStyle = '#ffffff';
+            pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+            pageCtx.drawImage(
+              canvas,
+              0,
+              currentY,
+              canvas.width,
+              sliceHeightPx,
+              0,
+              0,
+              canvas.width,
+              sliceHeightPx
+            );
+
+            const sliceImgData = pageCanvas.toDataURL('image/jpeg', 0.96);
+            const sliceHeightMm =
+              (sliceHeightPx * printableWidthMm) / canvas.width;
+
+            if (pageIndex > 0) {
+              pdf.addPage();
+            }
+
+            pdf.addImage(
+              sliceImgData,
+              'JPEG',
+              marginMm,
+              marginMm,
+              printableWidthMm,
+              sliceHeightMm
+            );
+          }
+
+          currentY = nextBreakY;
+          pageIndex++;
+        }
       }
 
       const fileTitle =
@@ -603,15 +951,15 @@ ${divider}
           className={`transition-all ${
             showPreviewSheet
               ? 'p-2 sm:p-4 bg-slate-200/90 rounded-2xl overflow-x-auto shadow-inner block'
-              : 'fixed -left-[99999px] top-0 opacity-0 pointer-events-none'
+              : 'h-0 overflow-hidden pointer-events-none'
           }`}
         >
               <div
                 ref={printableRef}
-                className={`bg-white p-5 sm:p-7 rounded-2xl shadow-lg text-slate-800 font-sans relative overflow-hidden mx-auto ${
+                className={`printable-invoice-sheet bg-white p-5 sm:p-7 rounded-2xl shadow-lg text-slate-800 font-sans relative overflow-hidden mx-auto ${
                   data.type === 'customer_statement'
-                    ? 'max-w-[680px] min-w-[540px] sm:min-w-[620px] border border-slate-200/80 space-y-4'
-                    : 'max-w-2xl border-2 border-amber-400/80 space-y-4'
+                    ? 'w-full max-w-[680px] border border-slate-200/80 space-y-3.5'
+                    : 'w-full max-w-2xl border-2 border-amber-400/80 space-y-4'
                 }`}
                 style={{ direction: 'rtl' }}
               >
@@ -620,35 +968,10 @@ ${divider}
                   const bal = getCustomerBalanceInfo(data.currentBalance);
 
                   return (
-                    <div className="space-y-4 relative">
+                    <div className="space-y-3.5 relative">
                       {/* Decorative Top Corner Waves matching reference image */}
                       <svg
-                        className="absolute -top-5 -right-5 sm:-top-7 sm:-right-7 w-28 sm:w-36 h-28 sm:h-36 pointer-events-none"
-                        viewBox="0 0 160 160"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M0 0 L160 0 C160 60 120 120 60 150 C30 165 0 140 0 140 Z"
-                          fill="#0f233c"
-                        />
-                        <path
-                          d="M160 10 C160 68 122 125 64 153"
-                          stroke="#c59a3f"
-                          strokeWidth="3.5"
-                          fill="none"
-                        />
-                        <path
-                          d="M160 22 C160 74 128 128 72 156"
-                          stroke="#c59a3f"
-                          strokeWidth="1.5"
-                          strokeOpacity="0.6"
-                          fill="none"
-                        />
-                      </svg>
-
-                      <svg
-                        className="absolute -top-5 -left-5 sm:-top-7 sm:-left-7 w-28 sm:w-36 h-28 sm:h-36 pointer-events-none"
+                        className="invoice-corner-wave invoice-corner-wave-right absolute -top-7 -right-7 w-24 h-24 pointer-events-none"
                         viewBox="0 0 160 160"
                         fill="none"
                         xmlns="http://www.w3.org/2000/svg"
@@ -672,8 +995,33 @@ ${divider}
                         />
                       </svg>
 
+                      <svg
+                        className="invoice-corner-wave invoice-corner-wave-left absolute -top-7 -left-7 w-24 h-24 pointer-events-none"
+                        viewBox="0 0 160 160"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M0 0 L160 0 C160 60 120 120 60 150 C30 165 0 140 0 140 Z"
+                          fill="#0f233c"
+                        />
+                        <path
+                          d="M160 10 C160 68 122 125 64 153"
+                          stroke="#c59a3f"
+                          strokeWidth="3.5"
+                          fill="none"
+                        />
+                        <path
+                          d="M160 22 C160 74 128 128 72 156"
+                          stroke="#c59a3f"
+                          strokeWidth="1.5"
+                          strokeOpacity="0.6"
+                          fill="none"
+                        />
+                      </svg>
+
                       {/* Statement Title flanked by thin golden lines */}
-                      <div className="flex items-center justify-center gap-3 sm:gap-4 pt-3 sm:pt-4 my-2 sm:my-3">
+                      <div className="relative z-10 flex items-center justify-center gap-3 sm:gap-4 px-16 sm:px-20 pt-2 pb-1">
                         <div className="flex-1 h-[2px] bg-[#c59a3f]"></div>
                         <h1 className="text-2xl sm:text-3xl font-black text-[#0f233c] tracking-tight whitespace-nowrap font-sans">
                           كشف حساب
@@ -682,7 +1030,7 @@ ${divider}
                       </div>
 
                       {/* 3. Project and Customer Information Card */}
-                      <div className="bg-[#f8fafd] border border-[#e2e8f0] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2 sm:space-y-2.5">
+                      <div className="relative z-10 bg-[#f8fafd] border border-[#e2e8f0] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2 sm:space-y-2.5">
                         {/* Project Name */}
                         <div className="flex items-center justify-between py-1 border-b border-slate-100">
                           <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
@@ -727,8 +1075,8 @@ ${divider}
                           </div>
                         </div>
 
-                        {/* Covered Period (if non-default) */}
-                        {data.periodText && data.periodText !== 'كافة العمليات المسجلة للعميل' && (
+                        {/* Covered Period */}
+                        {data.periodText && (
                           <div className="flex items-center justify-between py-1 border-t border-slate-100">
                             <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
                               <Clock className="w-4 h-4 text-[#1e3a5f]" />
@@ -877,7 +1225,7 @@ ${divider}
                                 </div>
 
                                 {/* Center: Type with arrow and description */}
-                                <div className="flex-1 text-center sm:text-right">
+                                <div className="flex-1 min-w-0 text-center sm:text-right">
                                   <div className="flex items-center justify-center sm:justify-start gap-1 font-black text-xs sm:text-sm text-slate-800">
                                     <span>{isPayment ? 'دفع' : 'سحب'}</span>
                                     {isPayment ? (
@@ -887,7 +1235,7 @@ ${divider}
                                     )}
                                   </div>
                                   {t.description && (
-                                    <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[180px] sm:max-w-[260px]">
+                                    <div className="text-[11px] text-slate-500 mt-0.5 break-words leading-relaxed">
                                       {t.description}
                                     </div>
                                   )}
@@ -917,8 +1265,8 @@ ${divider}
 
                       {/* 6. Informative note matching reference image */}
                       <div className="bg-[#eff6ff]/80 border border-[#bfdbfe] rounded-2xl p-3 flex items-center gap-3 text-xs text-slate-600">
-                        <div className="w-6 h-6 rounded-full bg-[#1e40af] text-white flex items-center justify-center shrink-0 font-bold text-xs">
-                          i
+                        <div className="w-6 h-6 rounded-full bg-[#1e40af] text-white flex items-center justify-center shrink-0 font-bold text-xs leading-none">
+                          <span className="leading-none">i</span>
                         </div>
                         <div className="text-[11px] sm:text-xs leading-relaxed text-slate-600">
                           الرصيد الموجب يعني أن المبلغ لصالح العميل، والرصيد السالب يعني أن المبلغ مستحق للمحل.

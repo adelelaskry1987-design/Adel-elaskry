@@ -268,7 +268,7 @@ export const Screen11CustomerDetails: React.FC<{
             </div>
 
             {/* Invoice Printable Sheet */}
-            <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/30 space-y-4">
+            <div className="printable-invoice-sheet p-4 rounded-xl border border-amber-300 bg-white space-y-4">
               {/* Clean Statement Header (No shop logo at top per rule 4) */}
               <div className="flex items-center justify-between border-b border-amber-200 pb-3">
                 <div>
@@ -281,8 +281,12 @@ export const Screen11CustomerDetails: React.FC<{
                 </div>
               </div>
 
-              {/* Customer Box */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-1">
+              {/* Customer & Project Box */}
+              <div className="bg-slate-50/70 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">اسم المشروع:</span>
+                  <span className="font-black text-[#0f233c]">{activeProjectName}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">العميل:</span>
                   <span className="font-black text-slate-800">{customer.name}</span>
@@ -298,7 +302,15 @@ export const Screen11CustomerDetails: React.FC<{
               </div>
 
               {/* Financial Status */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
+              <div className="bg-slate-50/70 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">إجمالي الدفع:</span>
+                  <span className="font-bold font-mono text-emerald-700">+{periodMovement.periodPayments.toLocaleString()} ج.م</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">إجمالي السحب:</span>
+                  <span className="font-bold font-mono text-red-600">-{periodMovement.periodWithdrawals.toLocaleString()} ج.م</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">إجمالي العمليات:</span>
                   <span className="font-bold font-mono">{customer.transactions_count || 0}</span>
@@ -316,15 +328,25 @@ export const Screen11CustomerDetails: React.FC<{
             {/* Actions */}
             <div className="flex gap-2 mt-4">
               <button
-                onClick={() => window.print()}
+                onClick={() => {
+                  setShowInvoice(false);
+                  setShowShareModal(true);
+                }}
                 className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
               >
+                <Share2 className="w-4 h-4" />
+                <span>مشاركة وتنزيل PDF</span>
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
+              >
                 <Printer className="w-4 h-4" />
-                <span>طباعة الفاتورة (Print / PDF)</span>
+                <span>طباعة</span>
               </button>
               <button
                 onClick={() => setShowInvoice(false)}
-                className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
               >
                 إغلاق
               </button>
