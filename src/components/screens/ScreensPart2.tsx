@@ -60,7 +60,7 @@ export const Screen9AppLogo: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
       </div>
 
       <div className="my-auto flex flex-col items-center gap-6">
-        <div className="flex flex-col items-center bg-white/5 border-2 border-amber-400/60 rounded-3xl p-4 backdrop-blur-sm shadow-2xl">
+        <div className="flex flex-col items-center bg-white/5 border-2 border-amber-400/60 rounded-[50%] p-3 backdrop-blur-sm shadow-2xl">
           <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
         </div>
         <Ah2Logo variant="splash" size="md" showSubtitle={true} />
