@@ -1,20 +1,24 @@
 import React from 'react';
 import shopLogoAsset from '../assets/shop_owner_logo.jpg';
+import shopLogoTransparentAsset from '../assets/shop_owner_logo_transparent.png';
 
 interface ShopOwnerLogoProps {
   variant?: 'default' | 'header' | 'card' | 'report' | 'badge';
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   className?: string;
   showTitle?: boolean;
+  transparent?: boolean;
 }
 
 const logoSrc = shopLogoAsset || '/shop_owner_logo.jpg';
+const transparentLogoSrc = shopLogoTransparentAsset || '/shop_owner_logo_transparent.png';
 
 export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
   variant = 'default',
   size = 'md',
   className = '',
   showTitle = false,
+  transparent = false,
 }) => {
   const sizeClasses = {
     xs: 'w-10 h-10',
@@ -27,25 +31,23 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
 
   if (variant === 'header') {
     const headerSizes = {
-      xs: 'w-10 h-10',
-      sm: 'w-12 h-12',
-      md: 'w-16 h-16',
-      lg: 'w-18 h-18',
-      xl: 'w-20 h-20',
-      '2xl': 'w-24 h-24',
+      xs: 'h-10 w-auto',
+      sm: 'h-12 w-auto',
+      md: 'h-14 w-auto',
+      lg: 'h-16 w-auto',
+      xl: 'h-20 w-auto',
+      '2xl': 'h-24 w-auto',
     };
-    const headerSize = (size && headerSizes[size as keyof typeof headerSizes]) || 'w-16 h-16';
+    const headerSize = (size && headerSizes[size as keyof typeof headerSizes]) || 'h-14 w-auto';
 
     return (
-      <div className={`flex items-center gap-1.5 shrink-0 ${className}`} title="لوجو صاحب المحل - OM BASMA">
-        <div className={`${headerSize} rounded-full overflow-hidden border-2 border-amber-400/90 bg-white shadow-md shadow-black/40 shrink-0 flex items-center justify-center p-0.5 ring-2 ring-amber-400/40`}>
-          <img
-            src={logoSrc}
-            alt="لوجو صاحب المحل - OM BASMA"
-            className="w-full h-full object-contain"
-            loading="eager"
-          />
-        </div>
+      <div className={`flex items-center justify-center shrink-0 ${className}`} title="لوجو صاحب المحل - OM BASMA">
+        <img
+          src={transparentLogoSrc}
+          alt="لوجو صاحب المحل - OM BASMA"
+          className={`${headerSize} object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.55)]`}
+          loading="eager"
+        />
       </div>
     );
   }
@@ -53,11 +55,11 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
   if (variant === 'report') {
     return (
       <div className={`flex items-center gap-3 ${className}`}>
-        <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-amber-400 bg-white shadow-md shrink-0 flex items-center justify-center p-1">
+        <div className="w-24 h-24 shrink-0 flex items-center justify-center">
           <img
-            src={logoSrc}
+            src={transparentLogoSrc}
             alt="لوجو المحل - OM BASMA للستائر والمفروشات"
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain drop-shadow-sm"
             loading="eager"
           />
         </div>
@@ -72,6 +74,31 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
             هوية المتجر المعتمدة
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (transparent) {
+    return (
+      <div className={`flex flex-col items-center justify-center ${className}`}>
+        <div className={`${sizeClasses} flex items-center justify-center`}>
+          <img
+            src={transparentLogoSrc}
+            alt="لوجو صاحب المحل - OM BASMA للستائر والمفروشات"
+            className="w-full h-full object-contain drop-shadow-md"
+            loading="eager"
+          />
+        </div>
+        {showTitle && (
+          <div className="text-center mt-2">
+            <span className="text-xs font-black text-amber-400 tracking-wide block">
+              OM BASMA
+            </span>
+            <span className="text-[10px] font-bold text-amber-300/90 block">
+              للستائر والمفروشات
+            </span>
+          </div>
+        )}
       </div>
     );
   }

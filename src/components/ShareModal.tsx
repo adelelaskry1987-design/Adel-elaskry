@@ -29,7 +29,7 @@ import {
   ArrowRight,
   Loader2,
 } from 'lucide-react';
-import shopLogoAsset from '../assets/shop_owner_logo.jpg';
+import shopLogoTransparentAsset from '../assets/shop_owner_logo_transparent.png';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
 import { PageTitle } from './PageTitle';
 import { Customer, Transaction } from '../types';
@@ -413,7 +413,7 @@ ${divider}
       ? 'تقرير كل العمليات المالية'
       : 'تقرير التقارير والإحصائيات';
 
-  const logoUrl = shopLogoAsset || '/shop_owner_logo.jpg';
+  const logoUrl = shopLogoTransparentAsset || '/shop_owner_logo_transparent.png';
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-100 overflow-y-auto p-4 select-none animate-in fade-in duration-150">
