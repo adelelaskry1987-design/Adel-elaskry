@@ -31,7 +31,6 @@ import {
 } from 'lucide-react';
 import shopLogoAsset from '../assets/shop_owner_logo.jpg';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
-import { Ah2Logo } from './Ah2Logo';
 import { PageTitle } from './PageTitle';
 import { Customer, Transaction } from '../types';
 import { getCustomerBalanceInfo, getPeriodMovementInfo } from '../utils/balanceUtils';
@@ -1080,7 +1079,6 @@ ${divider}
                       <span>متجر OM BASMA للستائر والمفروشات</span>
                       <div className="flex items-center gap-1.5">
                         <span>نظام AH2 المعتمد</span>
-                        <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
                       </div>
                     </div>
                   </>
@@ -1155,7 +1153,6 @@ ${divider}
                       <span>متجر OM BASMA للستائر والمفروشات</span>
                       <div className="flex items-center gap-1.5">
                         <span>نظام AH2 المعتمد</span>
-                        <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
                       </div>
                     </div>
                   </div>

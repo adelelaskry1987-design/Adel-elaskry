@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Ah2Logo } from '../Ah2Logo';
 import { ShopOwnerLogo } from '../ShopOwnerLogo';
 import { ShareModal } from '../ShareModal';
 import { PageTitle } from '../PageTitle';
@@ -177,7 +176,6 @@ export const Screen30About: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center flex flex-col items-center">
         <div className="flex flex-col items-center gap-3 mb-3">
           <ShopOwnerLogo variant="default" size="xl" showTitle={false} />
-          <Ah2Logo variant="emblem" size="sm" showSubtitle={true} />
         </div>
         <p className="text-xs text-slate-600 mt-2 max-w-xs leading-relaxed">
           متجر OM BASMA للستائر والمفروشات • نظام AH2 لإدارة العملاء والعمليات المالية والحسابات

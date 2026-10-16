@@ -1,5 +1,4 @@
 import React from 'react';
-import { Ah2Logo } from './Ah2Logo';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
 import { ChevronRight, Menu, Bell, Wifi, BatteryMedium, Signal } from 'lucide-react';
 import { ScreenId } from '../types';
@@ -41,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Main Header Bar */}
       <div className="relative flex items-center justify-between px-3 py-1.5 min-h-[58px]">
-        {/* Right slot (in RTL = Start): Menu/Back button + AH2 Project Logo */}
+        {/* Right slot (in RTL = Start): Menu/Back button */}
         <div className="flex items-center gap-2 min-w-[70px] z-10">
           {isHome ? (
             <button
@@ -60,15 +59,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span>رجوع</span>
             </button>
           )}
-
-          {/* Project Logo (AH2) - Swapped with Shop Logo */}
-          <div
-            className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
-            onClick={() => onNavigate('screen-5-home')}
-            title="نظام AH2"
-          >
-            <Ah2Logo variant="header" className="scale-90 origin-right" />
-          </div>
         </div>
 
         {/* Center slot: Official Shop Owner Logo (OM BASMA) - Swapped to Center & Scaled by 100% */}
