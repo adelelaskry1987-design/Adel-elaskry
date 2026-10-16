@@ -38,6 +38,216 @@ import { getCustomerBalanceInfo, getPeriodMovementInfo } from '../utils/balanceU
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
+/**
+ * Convert modern CSS color functions (Tailwind v4 oklch/oklab/color-mix)
+ * into standard rgb()/rgba() strings supported by html2canvas, and clean up
+ * inline styles that DocumentCloner copies onto <svg> elements.
+ */
+function sanitizeClonedDocumentColors(clonedDoc: Document, rootEl: HTMLElement) {
+  const colorCanvas = clonedDoc.createElement('canvas');
+  colorCanvas.width = 1;
+  colorCanvas.height = 1;
+  const ctx = colorCanvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return;
+
+  const cache = new Map<string, string>();
+  const resolveSingleColor = (rawColor: string): string => {
+    const trimmed = rawColor.trim();
+    if (!trimmed) return trimmed;
+    const cached = cache.get(trimmed);
+    if (cached) return cached;
+    try {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = '#000000';
+      ctx.fillStyle = trimmed;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      const result =
+        a === 0
+          ? 'rgba(0, 0, 0, 0)'
+          : a === 255
+          ? `rgb(${r}, ${g}, ${b})`
+          : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
+      cache.set(trimmed, result);
+      return result;
+    } catch {
+      return 'rgb(30, 41, 59)';
+    }
+  };
+
+  const replaceModernColorsInString = (value: string): string => {
+    if (
+      !value ||
+      (!value.includes('oklch') &&
+        !value.includes('oklab') &&
+        !value.includes('color-mix') &&
+        !value.includes('color('))
+    ) {
+      return value;
+    }
+    return value.replace(
+      /(?:oklch|oklab|color-mix|color)\([^()]*(\([^()]*\)[^()]*)*\)/gi,
+      (match) => resolveSingleColor(match)
+    );
+  };
+
+  // 1. Sanitize all <style> tags in the cloned document
+  const styleNodes = clonedDoc.querySelectorAll('style');
+  styleNodes.forEach((styleEl) => {
+    if (styleEl.textContent) {
+      styleEl.textContent = replaceModernColorsInString(styleEl.textContent);
+    }
+  });
+
+  // 2. Sanitize computed styles on rootEl and all its descendants
+  const view = clonedDoc.defaultView || window;
+  const colorProps = [
+    'color',
+    'backgroundColor',
+    'backgroundImage',
+    'borderTopColor',
+    'borderRightColor',
+    'borderBottomColor',
+    'borderLeftColor',
+    'boxShadow',
+    'textDecorationColor',
+    'textShadow',
+    'outlineColor',
+    'webkitTextStrokeColor',
+  ] as const;
+
+  const allNodes: HTMLElement[] = [
+    rootEl,
+    ...Array.from(rootEl.querySelectorAll<HTMLElement>('*')),
+  ];
+
+  for (const node of allNodes) {
+    const computed = view.getComputedStyle(node);
+    if (!computed) continue;
+
+    for (const prop of colorProps) {
+      const val = (computed as any)[prop];
+      if (
+        typeof val === 'string' &&
+        (val.includes('oklch') ||
+          val.includes('oklab') ||
+          val.includes('color-mix') ||
+          val.includes('color('))
+      ) {
+        (node.style as any)[prop] = replaceModernColorsInString(val);
+      }
+    }
+
+    // Preserve aspect ratio on <img> elements since html2canvas does not support object-fit: contain
+    if (node.tagName.toLowerCase() === 'img') {
+      const imgEl = node as HTMLImageElement;
+      const nw = imgEl.naturalWidth;
+      const nh = imgEl.naturalHeight;
+      const parent = imgEl.parentElement;
+      if (nw > 0 && nh > 0 && parent) {
+        const parentRect = parent.getBoundingClientRect();
+        const pStyle = view.getComputedStyle(parent);
+        const padX =
+          (parseFloat(pStyle.paddingLeft) || 0) +
+          (parseFloat(pStyle.paddingRight) || 0) +
+          (parseFloat(pStyle.borderLeftWidth) || 0) +
+          (parseFloat(pStyle.borderRightWidth) || 0);
+        const padY =
+          (parseFloat(pStyle.paddingTop) || 0) +
+          (parseFloat(pStyle.paddingBottom) || 0) +
+          (parseFloat(pStyle.borderTopWidth) || 0) +
+          (parseFloat(pStyle.borderBottomWidth) || 0);
+        const availW = Math.max(16, parentRect.width - padX);
+        const availH = Math.max(16, parentRect.height - padY);
+        const scale = Math.min(availW / nw, availH / nh);
+        imgEl.style.width = `${Math.round(nw * scale)}px`;
+        imgEl.style.height = `${Math.round(nh * scale)}px`;
+      }
+    }
+
+    // Clean up inline styles that html2canvas's DocumentCloner copies onto <svg> and its child nodes
+    if (node.tagName.toLowerCase() === 'svg') {
+      const resolvedColor = replaceModernColorsInString(computed.color || '#1e3a5f');
+      const isCornerWave = node.getAttribute('viewBox') === '0 0 160 160';
+      const isRightWave =
+        isCornerWave &&
+        (node.classList.contains('-right-5') || node.classList.contains('sm:-right-7'));
+      const isLeftWave =
+        isCornerWave &&
+        (node.classList.contains('-left-5') || node.classList.contains('sm:-left-7'));
+
+      node.querySelectorAll('*').forEach((child) => {
+        child.removeAttribute('style');
+      });
+
+      if (isCornerWave) {
+        node.style.cssText = `position:absolute !important;top:-28px !important;${
+          isRightWave ? 'right:-28px !important;left:auto !important;' : ''
+        }${
+          isLeftWave ? 'left:-28px !important;right:auto !important;' : ''
+        }width:96px !important;height:96px !important;display:block !important;pointer-events:none !important;overflow:visible !important;`;
+      } else {
+        const iconSize =
+          node.classList.contains('w-5') || node.classList.contains('sm:w-5')
+            ? '18px'
+            : '16px';
+        node.style.cssText = `display:inline-block !important;vertical-align:middle !important;width:${iconSize} !important;height:${iconSize} !important;min-width:${iconSize} !important;min-height:${iconSize} !important;color:${resolvedColor} !important;stroke:${resolvedColor} !important;fill:none !important;overflow:visible !important;flex-shrink:0 !important;`;
+        node.setAttribute('width', iconSize);
+        node.setAttribute('height', iconSize);
+        if (node.getAttribute('stroke') === 'currentColor') {
+          node.setAttribute('stroke', resolvedColor);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Find a clean horizontal row break near targetY (scanning upwards) where pixels are uniform white/background
+ * so multi-page PDFs never slice through the middle of a transaction row or text line.
+ */
+function findSafePageBreakY(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  startY: number,
+  maxPageHeightPx: number,
+  totalHeight: number
+): number {
+  const idealEnd = startY + maxPageHeightPx;
+  if (idealEnd >= totalHeight) return totalHeight;
+
+  const searchRange = Math.min(220, Math.floor(maxPageHeightPx * 0.25));
+  const minCandidateY = Math.max(startY + 200, idealEnd - searchRange);
+  const stripHeight = idealEnd - minCandidateY + 1;
+
+  try {
+    const imgData = ctx.getImageData(0, minCandidateY, width, stripHeight).data;
+    const marginX = Math.floor(width * 0.06);
+
+    for (let offset = stripHeight - 1; offset >= 0; offset--) {
+      const rowStart = offset * width * 4;
+      let isCleanRow = true;
+      for (let x = marginX; x < width - marginX; x += 4) {
+        const idx = rowStart + x * 4;
+        const r = imgData[idx];
+        const g = imgData[idx + 1];
+        const b = imgData[idx + 2];
+        if (r < 244 || g < 246 || b < 248) {
+          isCleanRow = false;
+          break;
+        }
+      }
+      if (isCleanRow) {
+        return minCandidateY + offset;
+      }
+    }
+  } catch {
+    // Fallback to idealEnd if getImageData fails
+  }
+
+  return idealEnd;
+}
+
 export type ShareData =
   | {
       type: 'all_transactions';
@@ -246,35 +456,169 @@ ${divider}
 
     try {
       const element = printableRef.current;
+
+      // Ensure all images inside the invoice sheet are loaded before capturing
+      const images = Array.from(element.querySelectorAll('img'));
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete && img.naturalHeight > 0) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            setTimeout(() => resolve(), 2500);
+          });
+        })
+      );
+
+      const targetWidth = data.type === 'customer_statement' ? 680 : 720;
+
       const canvas = await html2canvas(element, {
-        scale: 2.2,
+        scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
         backgroundColor: '#ffffff',
+        windowWidth: targetWidth,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        onclone: (clonedDoc, clonedEl) => {
+          // Isolate clonedEl at (0, 0) in clonedDoc.body so modal scroll, page scroll, and offscreen wrapper never clip the top header
+          clonedDoc.documentElement.style.margin = '0';
+          clonedDoc.documentElement.style.padding = '0';
+          clonedDoc.documentElement.style.background = '#ffffff';
+          clonedDoc.documentElement.style.overflow = 'visible';
+          clonedDoc.documentElement.style.height = 'auto';
+
+          clonedDoc.body.style.margin = '0';
+          clonedDoc.body.style.padding = '0';
+          clonedDoc.body.style.background = '#ffffff';
+          clonedDoc.body.style.overflow = 'visible';
+          clonedDoc.body.style.height = 'auto';
+          clonedDoc.body.style.width = `${targetWidth}px`;
+          clonedDoc.body.dir = 'rtl';
+
+          while (clonedDoc.body.firstChild) {
+            clonedDoc.body.removeChild(clonedDoc.body.firstChild);
+          }
+          clonedDoc.body.appendChild(clonedEl);
+
+          clonedEl.style.position = 'relative';
+          clonedEl.style.left = '0';
+          clonedEl.style.top = '0';
+          clonedEl.style.margin = '0';
+          clonedEl.style.width = `${targetWidth}px`;
+          clonedEl.style.maxWidth = `${targetWidth}px`;
+          clonedEl.style.minWidth = `${targetWidth}px`;
+          clonedEl.style.height = 'auto';
+          clonedEl.style.maxHeight = 'none';
+          clonedEl.style.opacity = '1';
+          clonedEl.style.visibility = 'visible';
+          clonedEl.style.transform = 'none';
+          clonedEl.style.overflow = 'hidden';
+          clonedEl.style.boxShadow = 'none';
+          clonedEl.style.borderRadius = '16px';
+          clonedEl.style.backgroundColor = '#ffffff';
+          clonedEl.style.direction = 'rtl';
+
+          sanitizeClonedDocumentColors(clonedDoc, clonedEl);
+        },
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pageWidthMm = pdf.internal.pageSize.getWidth();
+      const pageHeightMm = pdf.internal.pageSize.getHeight();
+      const marginMm = 8;
+      const printableWidthMm = pageWidthMm - marginMm * 2;
+      const printableHeightMm = pageHeightMm - marginMm * 2;
 
-      let heightLeft = imgHeight;
-      let position = 0;
+      const maxPageHeightPx = Math.floor(
+        (printableHeightMm * canvas.width) / printableWidthMm
+      );
+      const sourceCtx = canvas.getContext('2d', { willReadFrequently: true });
 
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pageHeight;
+      if (canvas.height <= Math.floor(maxPageHeightPx * 1.25)) {
+        const imgData = canvas.toDataURL('image/jpeg', 0.96);
+        let renderWidthMm = printableWidthMm;
+        let renderHeightMm = (canvas.height * renderWidthMm) / canvas.width;
+        if (renderHeightMm > printableHeightMm) {
+          const fitScale = printableHeightMm / renderHeightMm;
+          renderHeightMm = printableHeightMm;
+          renderWidthMm = renderWidthMm * fitScale;
+        }
+        const offsetXMm = (pageWidthMm - renderWidthMm) / 2;
+        pdf.addImage(
+          imgData,
+          'JPEG',
+          offsetXMm,
+          marginMm,
+          renderWidthMm,
+          renderHeightMm
+        );
+      } else {
+        let currentY = 0;
+        let pageIndex = 0;
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pageHeight;
+        while (currentY < canvas.height) {
+          const nextBreakY = sourceCtx
+            ? findSafePageBreakY(
+                sourceCtx,
+                canvas.width,
+                currentY,
+                maxPageHeightPx,
+                canvas.height
+              )
+            : Math.min(currentY + maxPageHeightPx, canvas.height);
+
+          const sliceHeightPx = Math.max(1, nextBreakY - currentY);
+
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeightPx;
+          const pageCtx = pageCanvas.getContext('2d');
+
+          if (pageCtx) {
+            pageCtx.fillStyle = '#ffffff';
+            pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+            pageCtx.drawImage(
+              canvas,
+              0,
+              currentY,
+              canvas.width,
+              sliceHeightPx,
+              0,
+              0,
+              canvas.width,
+              sliceHeightPx
+            );
+
+            const sliceImgData = pageCanvas.toDataURL('image/jpeg', 0.96);
+            const sliceHeightMm =
+              (sliceHeightPx * printableWidthMm) / canvas.width;
+
+            if (pageIndex > 0) {
+              pdf.addPage();
+            }
+
+            pdf.addImage(
+              sliceImgData,
+              'JPEG',
+              marginMm,
+              marginMm,
+              printableWidthMm,
+              sliceHeightMm
+            );
+          }
+
+          currentY = nextBreakY;
+          pageIndex++;
+        }
       }
 
       const fileTitle =
@@ -608,7 +952,7 @@ ${divider}
         >
               <div
                 ref={printableRef}
-                className={`bg-white p-5 sm:p-7 rounded-2xl shadow-lg text-slate-800 font-sans relative overflow-hidden mx-auto ${
+                className={`printable-invoice-sheet bg-white p-5 sm:p-7 rounded-2xl shadow-lg text-slate-800 font-sans relative overflow-hidden mx-auto ${
                   data.type === 'customer_statement'
                     ? 'max-w-[680px] min-w-[540px] sm:min-w-[620px] border border-slate-200/80 space-y-4'
                     : 'max-w-2xl border-2 border-amber-400/80 space-y-4'
@@ -629,17 +973,17 @@ ${divider}
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M0 0 L160 0 C160 60 120 120 60 150 C30 165 0 140 0 140 Z"
+                          d="M160 0 L0 0 C0 60 40 120 100 150 C130 165 160 140 160 140 Z"
                           fill="#0f233c"
                         />
                         <path
-                          d="M160 10 C160 68 122 125 64 153"
+                          d="M0 10 C0 68 38 125 96 153"
                           stroke="#c59a3f"
                           strokeWidth="3.5"
                           fill="none"
                         />
                         <path
-                          d="M160 22 C160 74 128 128 72 156"
+                          d="M0 22 C0 74 32 128 88 156"
                           stroke="#c59a3f"
                           strokeWidth="1.5"
                           strokeOpacity="0.6"
@@ -654,17 +998,17 @@ ${divider}
                         xmlns="http://www.w3.org/2000/svg"
                       >
                         <path
-                          d="M160 0 L0 0 C0 60 40 120 100 150 C130 165 160 140 160 140 Z"
+                          d="M0 0 L160 0 C160 60 120 120 60 150 C30 165 0 140 0 140 Z"
                           fill="#0f233c"
                         />
                         <path
-                          d="M0 10 C0 68 38 125 96 153"
+                          d="M160 10 C160 68 122 125 64 153"
                           stroke="#c59a3f"
                           strokeWidth="3.5"
                           fill="none"
                         />
                         <path
-                          d="M0 22 C0 74 32 128 88 156"
+                          d="M160 22 C160 74 128 128 72 156"
                           stroke="#c59a3f"
                           strokeWidth="1.5"
                           strokeOpacity="0.6"
@@ -887,7 +1231,7 @@ ${divider}
                                     )}
                                   </div>
                                   {t.description && (
-                                    <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[180px] sm:max-w-[260px]">
+                                    <div className="text-[11px] text-slate-500 mt-0.5 break-words leading-relaxed max-w-[180px] sm:max-w-[260px]">
                                       {t.description}
                                     </div>
                                   )}
@@ -917,8 +1261,8 @@ ${divider}
 
                       {/* 6. Informative note matching reference image */}
                       <div className="bg-[#eff6ff]/80 border border-[#bfdbfe] rounded-2xl p-3 flex items-center gap-3 text-xs text-slate-600">
-                        <div className="w-6 h-6 rounded-full bg-[#1e40af] text-white flex items-center justify-center shrink-0 font-bold text-xs">
-                          i
+                        <div className="w-6 h-6 rounded-full bg-[#1e40af] text-white flex items-center justify-center shrink-0 font-bold text-xs leading-none">
+                          <span className="leading-none">i</span>
                         </div>
                         <div className="text-[11px] sm:text-xs leading-relaxed text-slate-600">
                           الرصيد الموجب يعني أن المبلغ لصالح العميل، والرصيد السالب يعني أن المبلغ مستحق للمحل.
