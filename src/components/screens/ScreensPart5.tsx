@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Ah2Logo } from '../Ah2Logo';
 import { ShopOwnerLogo } from '../ShopOwnerLogo';
 import { ShareModal } from '../ShareModal';
 import { PageTitle } from '../PageTitle';
@@ -171,14 +172,18 @@ export const Screen29Notifications: React.FC<{
 export const Screen30About: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
+      {/* 1. Official AH2 Logo at the very top of the page (أول عنصر في مقدمة الصفحة) */}
+      <div className="flex flex-col items-center justify-center pt-2 pb-1">
+        <Ah2Logo variant="emblem" size="md" showSubtitle={true} />
+      </div>
+
+      {/* 2. Page Title: «حول التطبيق» (التصميم المعتمد: خط أسود عريض وخطان أفقيان) */}
       <PageTitle title="حول التطبيق" />
 
+      {/* 3. Official App Information Card */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm text-center flex flex-col items-center">
-        <div className="flex flex-col items-center gap-3 mb-3">
-          <ShopOwnerLogo variant="default" size="xl" showTitle={false} transparent={true} />
-        </div>
-        <p className="text-xs text-slate-600 mt-2 max-w-xs leading-relaxed">
-          متجر OM BASMA للستائر والمفروشات • نظام AH2 لإدارة العملاء والعمليات المالية والحسابات
+        <p className="text-xs sm:text-sm text-slate-700 font-medium max-w-xs leading-relaxed">
+          تطبيق AH2 التجاري المتكامل لإدارة العملاء والحسابات والعمليات المالية بكل دقة وسهولة.
         </p>
 
         {/* Release Metadata Card (Exact user requirement) */}
@@ -572,28 +577,30 @@ export const Screen33Reports: React.FC<{
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
-      <PageTitle
-        title="التقارير والإحصائيات"
-        action={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-              title="مشاركة التقرير"
-            >
-              <Share2 className="w-4 h-4 text-slate-950" />
-              <span>مشاركة</span>
-            </button>
-            <button
-              onClick={() => setShowPrintModal(true)}
-              className="p-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 transition-all"
-              title="معاينة وطباعة"
-            >
-              <Printer className="w-4 h-4" />
-            </button>
-          </div>
-        }
-      />
+      <PageTitle title="التقارير والإحصائيات" />
+
+      {/* أزرار الإجراءات - زر المشاركة بعرض الشاشة */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setShowShareModal(true)}
+          className="w-full py-3 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all"
+          title="مشاركة التقرير والإحصائيات"
+        >
+          <Share2 className="w-4 h-4 text-slate-950" />
+          <span>مشاركة التقرير والإحصائيات</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowPrintModal(true)}
+          className="w-full py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 border border-slate-200 transition-all shadow-sm active:scale-98"
+          title="معاينة وطباعة التقرير"
+        >
+          <Printer className="w-4 h-4 text-slate-700" />
+          <span>معاينة وطباعة التقرير</span>
+        </button>
+      </div>
 
       {/* Date Filter */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">
@@ -732,8 +739,20 @@ export const Screen33Reports: React.FC<{
                 </div>
               </div>
 
-              <div className="text-center text-[10px] text-slate-500 pt-2 border-t border-amber-200">
-                متجر OM BASMA للستائر والمفروشات • نظام AH2 لإدارة الحسابات
+              <div className="flex items-center justify-between text-xs text-slate-600 pt-2 border-t border-amber-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-white border border-amber-400 p-0.5 flex items-center justify-center shrink-0 shadow-xs">
+                    <img
+                      src="/shop_owner_logo_emblem.png"
+                      alt="لوجو OM BASMA"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <span className="font-bold text-[11px] text-slate-800">
+                    متجر OM BASMA للستائر والمفروشات
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-500">نظام AH2 المعتمد</span>
               </div>
             </div>
 

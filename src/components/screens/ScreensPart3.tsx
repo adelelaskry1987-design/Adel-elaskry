@@ -287,19 +287,18 @@ export const Screen18AllTransactions: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       {/* Banner */}
-      <PageTitle
-        title="كل العمليات"
-        action={
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-            title="مشاركة"
-          >
-            <Share2 className="w-4 h-4 text-slate-950" />
-            <span>مشاركة</span>
-          </button>
-        }
-      />
+      <PageTitle title="كل العمليات" />
+
+      {/* زر المشاركة بعرض الشاشة */}
+      <button
+        type="button"
+        onClick={() => setShowShareModal(true)}
+        className="w-full py-3 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all"
+        title="مشاركة العمليات"
+      >
+        <Share2 className="w-4 h-4 text-slate-950" />
+        <span>مشاركة العمليات</span>
+      </button>
 
       {/* Date Filter Strip */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">
@@ -570,27 +569,28 @@ export const Screen19CustomerTransactions: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       {/* Banner */}
-      <PageTitle
-        title="عمليات وكشف حساب العميل"
-        action={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-              title="مشاركة كشف الحساب"
-            >
-              <Share2 className="w-4 h-4 text-slate-950" />
-              <span>مشاركة</span>
-            </button>
-            <button
-              onClick={() => onNavigate('screen-14-new-transaction')}
-              className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
-            >
-              + عملية جديدة
-            </button>
-          </div>
-        }
-      />
+      <PageTitle title="عمليات وكشف حساب العميل" />
+
+      {/* أزرار الإجراءات - زر المشاركة بعرض الشاشة */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setShowShareModal(true)}
+          className="w-full py-3 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all"
+          title="مشاركة كشف الحساب"
+        >
+          <Share2 className="w-4 h-4 text-slate-950" />
+          <span>مشاركة كشف الحساب والعمليات</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigate('screen-14-new-transaction')}
+          className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-98"
+        >
+          <span>+ تسجيل عملية جديدة</span>
+        </button>
+      </div>
 
       {/* Date Filter Strip */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-2 gap-2 text-xs">

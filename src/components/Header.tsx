@@ -1,4 +1,5 @@
 import React from 'react';
+import { Ah2Logo } from './Ah2Logo';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
 import { ChevronRight, Menu, Bell, Wifi, BatteryMedium, Signal } from 'lucide-react';
 import { ScreenId } from '../types';
@@ -21,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isHome = currentScreen === 'screen-5-home';
   const isSplash = currentScreen === 'screen-1-splash' || currentScreen === 'screen-9-app-logo';
   const isLogin = currentScreen === 'screen-4-login';
+  const isAbout = currentScreen === 'screen-30-about';
 
   if (isSplash || isLogin) {
     return null;
@@ -39,9 +41,35 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Main Header Bar */}
-      <div className="relative flex items-center justify-between px-3 py-1.5 min-h-[58px]">
-        {/* Right slot (in RTL = Start): Menu/Back button */}
-        <div className="flex items-center gap-2 min-w-[70px] z-10">
+      <div className="flex items-center justify-between px-3 py-1.5 min-h-[58px]">
+        {/* Far Right (أقصى يمين الشاشة): Brand Logo & Name */}
+        <div
+          className="flex items-center cursor-pointer transition-transform hover:scale-102 active:scale-98"
+          onClick={() => onNavigate('screen-5-home')}
+          title={isAbout ? 'نظام AH2' : 'متجر OM BASMA للستائر والمفروشات - الرئيسية'}
+        >
+          {isAbout ? (
+            <Ah2Logo variant="header" />
+          ) : (
+            <ShopOwnerLogo variant="header" size="md" />
+          )}
+        </div>
+
+        {/* Left slot (يسار الشاشة): Notifications & Menu/Back button */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigate('screen-29-notifications')}
+            className="relative p-2 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-colors"
+            title="الإشعارات"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </span>
+            )}
+          </button>
+
           {isHome ? (
             <button
               onClick={onOpenScreenSwitcher}
@@ -59,31 +87,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span>رجوع</span>
             </button>
           )}
-        </div>
-
-        {/* Center slot: Official Shop Owner Logo (OM BASMA) - Swapped to Center & Scaled by 100% */}
-        <div
-          className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 active:scale-95 z-10"
-          onClick={() => onNavigate('screen-5-home')}
-          title="متجر OM BASMA للستائر والمفروشات - الرئيسية"
-        >
-          <ShopOwnerLogo variant="header" size="md" />
-        </div>
-
-        {/* Left slot (in RTL = End) */}
-        <div className="flex items-center justify-end gap-1.5 min-w-[70px]">
-          <button
-            onClick={() => onNavigate('screen-29-notifications')}
-            className="relative p-2 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-colors"
-            title="الإشعارات"
-          >
-            <Bell className="w-5 h-5" />
-            {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
-                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-              </span>
-            )}
-          </button>
         </div>
       </div>
     </header>

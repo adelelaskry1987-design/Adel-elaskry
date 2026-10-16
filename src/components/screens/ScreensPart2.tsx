@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Ah2Logo } from '../Ah2Logo';
 import { ShopOwnerLogo } from '../ShopOwnerLogo';
+import { InvoiceFooter } from '../InvoiceFooter';
 import { ShareModal } from '../ShareModal';
 import { Customer, Transaction, ScreenId } from '../../types';
 import { api } from '../../services/api';
@@ -268,12 +269,15 @@ export const Screen11CustomerDetails: React.FC<{
 
             {/* Invoice Printable Sheet */}
             <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/30 space-y-4">
-              {/* Shop Owner Header with Logo */}
+              {/* Clean Statement Header (No shop logo at top per rule 4) */}
               <div className="flex items-center justify-between border-b border-amber-200 pb-3">
-                <ShopOwnerLogo variant="report" />
+                <div>
+                  <h3 className="font-black text-sm text-[#0f233c]">فاتورة وكشف حساب العميل</h3>
+                  <div className="text-[10px] text-slate-500 font-mono">رقم الكشف: #{customer.id.slice(0, 8)}</div>
+                </div>
                 <div className="text-left font-mono text-[11px] text-slate-500">
-                  <div>كشف رقم #{customer.id.slice(0, 6)}</div>
                   <div>التاريخ: {new Date().toISOString().split('T')[0]}</div>
+                  <div className="text-[10px] text-slate-400">نظام AH2</div>
                 </div>
               </div>
 
@@ -305,9 +309,8 @@ export const Screen11CustomerDetails: React.FC<{
                 </div>
               </div>
 
-              <div className="text-center text-[10px] text-slate-500 pt-2 border-t border-amber-200">
-                متجر OM BASMA للستائر والمفروشات • تم الإصدار عبر نظام AH2
-              </div>
+              {/* Invoice Footer with Shop Identity at the Bottom */}
+              <InvoiceFooter className="bg-white/80 p-2.5 rounded-xl border border-amber-200/80" />
             </div>
 
             {/* Actions */}

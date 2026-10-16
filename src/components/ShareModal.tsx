@@ -29,8 +29,9 @@ import {
   ArrowRight,
   Loader2,
 } from 'lucide-react';
-import shopLogoTransparentAsset from '../assets/shop_owner_logo_transparent.png';
+import shopLogoEmblemAsset from '../assets/shop_owner_logo_emblem.png';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
+import { InvoiceFooter } from './InvoiceFooter';
 import { PageTitle } from './PageTitle';
 import { Customer, Transaction } from '../types';
 import { getCustomerBalanceInfo, getPeriodMovementInfo } from '../utils/balanceUtils';
@@ -200,7 +201,9 @@ ${balanceDisplayLine}
 ⚖️ صافي حركة الفترة: ${periodMovementInfo.text}
 ${divider}
 📑 العمليات:
-${txLines || 'لا توجد عمليات مسجلة خلال هذه الفترة.'}`;
+${txLines || 'لا توجد عمليات مسجلة خلال هذه الفترة.'}
+${divider}
+متجر OM BASMA للستائر والمفروشات • نظام AH2 المعتمد`;
     }
 
     // reports_summary
@@ -413,7 +416,7 @@ ${divider}
       ? 'تقرير كل العمليات المالية'
       : 'تقرير التقارير والإحصائيات';
 
-  const logoUrl = shopLogoTransparentAsset || '/shop_owner_logo_transparent.png';
+  const logoUrl = shopLogoEmblemAsset || '/shop_owner_logo_emblem.png';
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-100 overflow-y-auto p-4 select-none animate-in fade-in duration-150">
@@ -669,18 +672,8 @@ ${divider}
                         />
                       </svg>
 
-                      {/* 1. Integrated OM BASMA Logo at the top */}
-                      <div className="pt-2 pb-1 text-center flex flex-col items-center justify-center">
-                        <img
-                          src={logoUrl}
-                          alt="OM BASMA للستائر والمفروشات"
-                          className="h-28 sm:h-32 w-auto object-contain mx-auto drop-shadow-sm"
-                          loading="eager"
-                        />
-                      </div>
-
-                      {/* 2. Statement Title flanked by thin golden lines */}
-                      <div className="flex items-center justify-center gap-3 sm:gap-4 my-3 sm:my-4">
+                      {/* Statement Title flanked by thin golden lines */}
+                      <div className="flex items-center justify-center gap-3 sm:gap-4 pt-3 sm:pt-4 my-2 sm:my-3">
                         <div className="flex-1 h-[2px] bg-[#c59a3f]"></div>
                         <h1 className="text-2xl sm:text-3xl font-black text-[#0f233c] tracking-tight whitespace-nowrap font-sans">
                           كشف حساب
@@ -932,19 +925,8 @@ ${divider}
                         </div>
                       </div>
 
-                      {/* 7. Footer matching reference image */}
-                      <div className="pt-4 border-t border-[#c59a3f]/70 text-center space-y-1.5">
-                        <div className="flex items-center justify-center">
-                          <img
-                            src={logoUrl}
-                            alt="OM BASMA للستائر والمفروشات"
-                            className="h-10 sm:h-12 w-auto object-contain mx-auto"
-                          />
-                        </div>
-                        <div className="text-[11px] font-bold text-slate-500">
-                          نظام AH2 المعتمد
-                        </div>
-                      </div>
+                      {/* 7. Footer with Shop Owner Identity (InvoiceFooter Component) */}
+                      <InvoiceFooter className="mt-4" />
                     </div>
                   );
                 })()}
@@ -1075,10 +1057,26 @@ ${divider}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-[10px] text-slate-500">
-                      <span>متجر OM BASMA للستائر والمفروشات</span>
-                      <div className="flex items-center gap-1.5">
-                        <span>نظام AH2 المعتمد</span>
+                    <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-xs text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-white border-2 border-amber-400 shadow-sm p-1 flex items-center justify-center shrink-0">
+                          <img
+                            src={logoUrl}
+                            alt="لوجو متجر OM BASMA"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-xs text-slate-900 block leading-none">
+                            OM BASMA
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-700 block leading-tight mt-0.5">
+                            للستائر والمفروشات
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-500">
+                        نظام AH2 المعتمد
                       </div>
                     </div>
                   </>
@@ -1149,10 +1147,26 @@ ${divider}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-[10px] text-slate-500">
-                      <span>متجر OM BASMA للستائر والمفروشات</span>
-                      <div className="flex items-center gap-1.5">
-                        <span>نظام AH2 المعتمد</span>
+                    <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-xs text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-xl bg-white border-2 border-amber-400 shadow-sm p-1 flex items-center justify-center shrink-0">
+                          <img
+                            src={logoUrl}
+                            alt="لوجو متجر OM BASMA"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-xs text-slate-900 block leading-none">
+                            OM BASMA
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-700 block leading-tight mt-0.5">
+                            للستائر والمفروشات
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-500">
+                        نظام AH2 المعتمد
                       </div>
                     </div>
                   </div>
