@@ -28,6 +28,9 @@ import {
   MoreHorizontal,
   ArrowRight,
   Loader2,
+  Image as ImageIcon,
+  ListOrdered,
+  Wallet,
 } from 'lucide-react';
 import shopLogoEmblemAsset from '../assets/shop_owner_logo_emblem.png';
 import { Header } from './Header';
@@ -369,12 +372,19 @@ function formatArabicDate(dateStr: string): string {
   }
 }
 
+export type CustomerShareContentScope = 'balance_only' | 'full_statement';
+export type CustomerShareSendFormat = 'text' | 'image' | 'pdf';
+
 export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data }) => {
   const [copied, setCopied] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showPreviewSheet, setShowPreviewSheet] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [contentScope, setContentScope] = useState<CustomerShareContentScope>('full_statement');
+  const [sendFormat, setSendFormat] = useState<CustomerShareSendFormat>('pdf');
   const printableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -389,8 +399,49 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data })
 
   if (!isOpen) return null;
 
+  const isBusy = isGeneratingPdf || isGeneratingImage;
+
+  const showSuccessStatus = (msg: string, duration = 3500) => {
+    setErrorMessage(null);
+    setStatusMessage(msg);
+    setTimeout(() => setStatusMessage(null), duration);
+  };
+
+  const showErrorStatus = (msg: string, duration = 4500) => {
+    setStatusMessage(null);
+    setErrorMessage(msg);
+    setTimeout(() => setErrorMessage(null), duration);
+  };
+
+  // Compute accurate active transaction totals for customer_statement (excluding cancelled transactions)
+  const activeCustomerTxs =
+    data.type === 'customer_statement'
+      ? data.transactions.filter((t) => t.status !== 'cancelled')
+      : [];
+  const effectivePeriodPayments =
+    data.type === 'customer_statement'
+      ? data.transactions.length > 0
+        ? activeCustomerTxs
+            .filter((t) => t.type === 'payment')
+            .reduce((acc, t) => acc + Number(t.amount || 0), 0)
+        : data.periodPayments
+      : 0;
+  const effectivePeriodWithdrawals =
+    data.type === 'customer_statement'
+      ? data.transactions.length > 0
+        ? activeCustomerTxs
+            .filter((t) => t.type === 'withdrawal')
+            .reduce((acc, t) => acc + Number(t.amount || 0), 0)
+        : data.periodWithdrawals
+      : 0;
+  const effectivePeriodNetMovement =
+    effectivePeriodPayments - effectivePeriodWithdrawals;
+
   // Generate plain Arabic text suitable for WhatsApp / text sharing
-  const generateFormattedText = (): string => {
+  const generateFormattedText = (
+    overrideScope?: CustomerShareContentScope
+  ): string => {
+    const scope = overrideScope || contentScope;
     const divider = '━━━━━━━━━━━━━━━━━━━━━━━━━';
 
     if (data.type === 'all_transactions') {
@@ -428,44 +479,68 @@ ${divider}
     }
 
     if (data.type === 'customer_statement') {
-      // Clean, concise WhatsApp statement per requirement 6
+      const balInfo = getCustomerBalanceInfo(data.currentBalance);
+      const balanceMeaning =
+        balInfo.state === 'positive'
+          ? 'رصيد لصالح العميل'
+          : balInfo.state === 'negative'
+          ? 'رصيد مستحق للمحل'
+          : 'الحساب متوازن';
+
+      // الخيار الأول: إجمالي الحساب فقط (ملخص مختصر بدون تفاصيل العمليات أو قائمة الدفع والسحب)
+      if (scope === 'balance_only') {
+        return `ملخص حساب عميل
+${divider}
+اسم المشروع: ${data.projectName}
+اسم العميل: ${data.customer.name}${
+          data.customer.phone ? `\nرقم الهاتف: ${data.customer.phone}` : ''
+        }
+تاريخ إعداد الحساب: ${formatArabicDate(data.reportDate)}
+${divider}
+إجمالي الحساب الحالي: ${balInfo.formattedAmount}
+توضيح الرصيد: ${balanceMeaning}
+${divider}
+OM BASMA للستائر والمفروشات - نظام AH2 المعتمد`;
+      }
+
+      // الخيار الثاني: إجمالي الحساب والعمليات (كشف حساب تفصيلي)
       const txLines = data.transactions
         .map((t, idx) => {
           const isCancelled = t.status === 'cancelled';
           const typeLabel = t.type === 'payment' ? 'دفع (+)' : 'سحب (-)';
-          const statusSuffix = isCancelled ? ' [ملغاة]' : '';
+          const statusSuffix = isCancelled
+            ? ' [ملغاة - لا تدخل في الحسابات]'
+            : '';
           const desc = t.description ? ` - ${t.description}` : '';
-          return `${idx + 1}. ${typeLabel} ${t.amount.toLocaleString()} ج.م (${t.date} ${t.time})${desc}${statusSuffix}`;
+          return `${idx + 1}. ${typeLabel} ${t.amount.toLocaleString()} ج.م (${t.date}${
+            t.time ? ` ${t.time}` : ''
+          })${desc}${statusSuffix}`;
         })
         .join('\n');
 
-      const balInfo = getCustomerBalanceInfo(data.currentBalance);
-      let balanceDisplayLine = '';
-      if (balInfo.state === 'positive') {
-        balanceDisplayLine = `🟢 الرصيد الحالي: ${balInfo.formattedAmount} (رصيد لصالح العميل)`;
-      } else if (balInfo.state === 'negative') {
-        balanceDisplayLine = `🔴 الرصيد الحالي: ${balInfo.formattedAmount} (مبلغ مستحق للمحل)`;
-      } else {
-        balanceDisplayLine = `⚪ الرصيد الحالي: 0 ج.م (الحساب متعادل)`;
-      }
-      const periodMovementInfo = getPeriodMovementInfo(data.periodNetMovement);
+      const periodMovementInfo = getPeriodMovementInfo(effectivePeriodNetMovement);
+      const hasCustomPeriod =
+        Boolean(data.periodText) &&
+        data.periodText !== 'كافة العمليات المسجلة للعميل';
 
-      return `📄 كشف حساب عميل
-🏢 المشروع: ${data.projectName}
-👤 العميل: ${data.customer.name}
-📞 الهاتف: ${data.customer.phone}
-📅 تاريخ الإصدار: ${formatArabicDate(data.reportDate)}
-${data.periodText && data.periodText !== 'كافة العمليات المسجلة للعميل' ? `⏱ الفترة: ${data.periodText}\n` : ''}${divider}
-💼 الموقف المالي للعميل:
-${balanceDisplayLine}
-⬆️ إجمالي الدفع: ${data.periodPayments.toLocaleString()} ج.م
-⬇️ إجمالي السحب: ${data.periodWithdrawals.toLocaleString()} ج.م
-⚖️ صافي حركة الفترة: ${periodMovementInfo.text}
+      return `كشف حساب عميل تفصيلي
 ${divider}
-📑 العمليات:
+اسم المشروع: ${data.projectName}
+اسم العميل: ${data.customer.name}${
+        data.customer.phone ? `\nرقم الهاتف: ${data.customer.phone}` : ''
+      }
+تاريخ إعداد الكشف: ${formatArabicDate(data.reportDate)}
+${hasCustomPeriod ? `الفترة المحددة: ${data.periodText}\n` : ''}${divider}
+الموقف المالي للعميل:
+الرصيد الحالي: ${balInfo.formattedAmount} (${balanceMeaning})
+إجمالي عمليات الدفع: ${effectivePeriodPayments.toLocaleString()} ج.م
+إجمالي عمليات السحب: ${effectivePeriodWithdrawals.toLocaleString()} ج.م
+صافي الحركة خلال الفترة: ${periodMovementInfo.text}
+${divider}
+تفاصيل العمليات:
 ${txLines || 'لا توجد عمليات مسجلة خلال هذه الفترة.'}
 ${divider}
-متجر OM BASMA للستائر والمفروشات • نظام AH2 المعتمد`;
+OM BASMA للستائر والمفروشات - نظام AH2 المعتمد`;
     }
 
     // reports_summary
@@ -484,10 +559,15 @@ ${divider}
 متجر OM BASMA للستائر والمفروشات • نظام AH2 المعتمد`;
   };
 
-  // Core helper: generate the actual PDF document, Blob, and File from printableRef
-  const generatePdfFile = async () => {
+  // Shared helper: render printableRef to a high-resolution Canvas with Light Mode & Arabic RTL fidelity
+  const renderSheetToCanvas = async () => {
+    // Allow React to flush any pending state update before capturing DOM
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+
     if (!printableRef.current) {
-      throw new Error('لم يتم العثور على قالب الفاتورة');
+      throw new Error('لم يتم العثور على قالب الفاتورة لإنشاء الملف');
     }
 
     const element = printableRef.current;
@@ -526,7 +606,7 @@ ${divider}
       x: 0,
       y: 0,
       onclone: (clonedDoc, clonedEl) => {
-        // Force light theme on the cloned document so exported PDFs are never affected by Dark Mode
+        // Force light theme on the cloned document so exported images/PDFs are never affected by Dark Mode
         clonedDoc.documentElement.classList.remove('dark');
         clonedDoc.documentElement.classList.add('light');
         clonedDoc.documentElement.setAttribute('data-theme', 'light');
@@ -590,6 +670,61 @@ ${divider}
         blockBoundsPx.sort((a, b) => a.top - b.top);
       },
     });
+
+    const baseCustomerSlug =
+      data.type === 'customer_statement'
+        ? data.customer.name.trim().replace(/\s+/g, '_')
+        : '';
+
+    const fileTitle =
+      data.type === 'customer_statement'
+        ? contentScope === 'balance_only'
+          ? `ملخص_حساب_${baseCustomerSlug}`
+          : `كشف_حساب_${baseCustomerSlug}`
+        : data.type === 'all_transactions'
+        ? 'تقرير_كل_العمليات_المالية'
+        : 'تقرير_الاحصائيات_المالية';
+
+    return { canvas, blockBoundsPx, fileTitle };
+  };
+
+  // Core helper: generate actual PNG Image Blob and File from printableRef
+  const generateImageFile = async () => {
+    const { canvas, fileTitle } = await renderSheetToCanvas();
+    const fileName = `${fileTitle}_${data.reportDate}.png`;
+
+    const imageBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob && blob.size > 0) {
+            resolve(blob);
+          } else {
+            reject(new Error('تعذر تحويل الفاتورة إلى ملف صورة صالح'));
+          }
+        },
+        'image/png',
+        1.0
+      );
+    });
+
+    const imageFile = new File([imageBlob], fileName, { type: 'image/png' });
+    return { canvas, imageBlob, imageFile, fileName, fileTitle };
+  };
+
+  const triggerBlobDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  };
+
+  // Core helper: generate the actual PDF document, Blob, and File from printableRef
+  const generatePdfFile = async () => {
+    const { canvas, blockBoundsPx, fileTitle } = await renderSheetToCanvas();
 
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -687,13 +822,6 @@ ${divider}
       }
     }
 
-    const fileTitle =
-      data.type === 'customer_statement'
-        ? `كشف_حساب_${data.customer.name.trim().replace(/\s+/g, '_')}`
-        : data.type === 'all_transactions'
-        ? 'تقرير_كل_العمليات_المالية'
-        : 'تقرير_الاحصائيات_المالية';
-
     const fileName = `${fileTitle}_${data.reportDate}.pdf`;
     const pdfBlob = pdf.output('blob');
     if (!pdfBlob || pdfBlob.size === 0) {
@@ -704,9 +832,208 @@ ${divider}
     return { pdf, pdfBlob, pdfFile, fileName, fileTitle };
   };
 
-  // 1. WhatsApp share (attaches actual PDF file when Web Share API file sharing is available)
+  // 0a. Send as Text via WhatsApp directly
+  const handleWhatsAppTextOnly = () => {
+    const text = generateFormattedText();
+    const encoded = encodeURIComponent(text);
+    const url = `https://api.whatsapp.com/send?text=${encoded}`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showSuccessStatus('تم فتح نافذة واتساب لإرسال النص');
+  };
+
+  // 0b. Share as Text via system share dialog or fallback to clipboard
+  const handleShareTextOnly = async () => {
+    const text = generateFormattedText();
+    const title =
+      data.type === 'customer_statement'
+        ? contentScope === 'balance_only'
+          ? `ملخص حساب العميل ${data.customer.name}`
+          : `كشف حساب العميل ${data.customer.name}`
+        : data.type === 'all_transactions'
+        ? 'تقرير كل العمليات المالية'
+        : 'تقرير الموقف المالي والإحصائيات';
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text });
+        showSuccessStatus('تم فتح نافذة المشاركة لإرسال النص');
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          setStatusMessage(null);
+          return;
+        }
+      }
+    }
+
+    await handleCopyText();
+  };
+
+  // 1a. Generate and share/download actual PNG Image file
+  const handleImageShare = async () => {
+    if (!printableRef.current) {
+      showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء الصورة');
+      return;
+    }
+    setIsGeneratingImage(true);
+    setErrorMessage(null);
+    setStatusMessage('جاري إعداد وتوليد صورة الفاتورة...');
+
+    try {
+      const { imageBlob, imageFile, fileName, fileTitle } =
+        await generateImageFile();
+
+      if (
+        navigator.canShare &&
+        navigator.canShare({ files: [imageFile] }) &&
+        navigator.share
+      ) {
+        try {
+          await navigator.share({
+            files: [imageFile],
+            title: fileTitle,
+            text:
+              data.type === 'customer_statement' && contentScope === 'balance_only'
+                ? `ملخص حساب العميل ${data.customer.name} • ${data.projectName}`
+                : `كشف حساب معتمد • ${data.projectName}`,
+          });
+          showSuccessStatus('تم فتح نافذة المشاركة لإرسال الصورة');
+          return;
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') {
+            setStatusMessage(null);
+            return;
+          }
+        }
+      }
+
+      triggerBlobDownload(imageBlob, fileName);
+      showSuccessStatus('تم إنشاء وحفظ صورة الفاتورة بنجاح على جهازك');
+    } catch (err: any) {
+      console.error('Image generation error:', err);
+      showErrorStatus(
+        err?.message || 'حدث خطأ أثناء إنشاء صورة الفاتورة، يرجى المحاولة مرة أخرى'
+      );
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  // 1b. Save/Download PNG Image directly to device
+  const handleDownloadImage = async () => {
+    if (!printableRef.current) {
+      showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء الصورة');
+      return;
+    }
+    setIsGeneratingImage(true);
+    setErrorMessage(null);
+    setStatusMessage('جاري إنشاء وحفظ صورة الفاتورة...');
+
+    try {
+      const { imageBlob, fileName } = await generateImageFile();
+      triggerBlobDownload(imageBlob, fileName);
+      showSuccessStatus('تم حفظ صورة الفاتورة بنجاح على جهازك');
+    } catch (err: any) {
+      console.error('Image save error:', err);
+      showErrorStatus(
+        err?.message || 'تعذر إنشاء أو حفظ صورة الفاتورة على الجهاز'
+      );
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  // 1c. Open generated PNG Image in viewer/new tab
+  const handleOpenImage = async () => {
+    if (!printableRef.current) {
+      showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء الصورة');
+      return;
+    }
+    setIsGeneratingImage(true);
+    setErrorMessage(null);
+    setStatusMessage('جاري تجهيز وفتح صورة الفاتورة...');
+
+    try {
+      const { imageBlob, fileName } = await generateImageFile();
+      const blobUrl = URL.createObjectURL(imageBlob);
+      const opened = window.open(blobUrl, '_blank');
+      if (!opened) {
+        triggerBlobDownload(imageBlob, fileName);
+      }
+      showSuccessStatus('تم تجهيز وفتح صورة الفاتورة بنجاح');
+    } catch (err: any) {
+      console.error('Image open error:', err);
+      showErrorStatus(err?.message || 'تعذر فتح صورة الفاتورة');
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  // 1. WhatsApp share (respects selected sendFormat: 'text' | 'image' | 'pdf' and contentScope)
   const handleWhatsAppShare = async () => {
+    if (data.type === 'customer_statement' && sendFormat === 'text') {
+      handleWhatsAppTextOnly();
+      return;
+    }
+
+    if (data.type === 'customer_statement' && sendFormat === 'image') {
+      setIsGeneratingImage(true);
+      setErrorMessage(null);
+      setStatusMessage('جاري تجهيز صورة الفاتورة للمشاركة عبر واتساب...');
+      try {
+        const { imageBlob, imageFile, fileTitle, fileName } =
+          await generateImageFile();
+        const text = generateFormattedText();
+
+        if (
+          navigator.canShare &&
+          navigator.canShare({ files: [imageFile] }) &&
+          navigator.share
+        ) {
+          try {
+            await navigator.share({
+              files: [imageFile],
+              title: fileTitle,
+              text,
+            });
+            showSuccessStatus('تم فتح نافذة المشاركة لإرسال الصورة عبر واتساب');
+            return;
+          } catch (shareErr: any) {
+            if (shareErr.name === 'AbortError') {
+              setStatusMessage(null);
+              return;
+            }
+          }
+        }
+
+        triggerBlobDownload(imageBlob, fileName);
+        const encoded = encodeURIComponent(text);
+        const url = `https://api.whatsapp.com/send?text=${encoded}`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showSuccessStatus('تم تنزيل صورة الفاتورة وفتح نافذة واتساب لإرفاقها');
+      } catch (err: any) {
+        console.error('WhatsApp Image error:', err);
+        showErrorStatus(err?.message || 'تعذر إنشاء صورة الفاتورة للمشاركة');
+      } finally {
+        setIsGeneratingImage(false);
+      }
+      return;
+    }
+
     setIsGeneratingPdf(true);
+    setErrorMessage(null);
     setStatusMessage('جاري تجهيز ملف الـ PDF للمشاركة عبر واتساب...');
 
     try {
@@ -724,8 +1051,7 @@ ${divider}
             title: fileTitle,
             text,
           });
-          setStatusMessage('تمت مشاركة ملف PDF عبر واتساب بنجاح');
-          setTimeout(() => setStatusMessage(null), 3000);
+          showSuccessStatus('تم فتح نافذة المشاركة لإرسال ملف PDF عبر واتساب');
           return;
         } catch (shareErr: any) {
           if (shareErr.name === 'AbortError') {
@@ -746,16 +1072,10 @@ ${divider}
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setStatusMessage('تم تنزيل ملف PDF الفعلي وفتح واتساب لإرفاقه');
-      setTimeout(() => setStatusMessage(null), 3500);
-    } catch (err) {
+      showSuccessStatus('تم تنزيل ملف PDF الفعلي وفتح نافذة واتساب لإرفاقه');
+    } catch (err: any) {
       console.error('WhatsApp PDF error:', err);
-      const text = generateFormattedText();
-      const encoded = encodeURIComponent(text);
-      const url = `https://api.whatsapp.com/send?text=${encoded}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setStatusMessage('تم فتح واتساب لمشاركة التقرير');
-      setTimeout(() => setStatusMessage(null), 3000);
+      showErrorStatus(err?.message || 'تعذر إنشاء ملف PDF للمشاركة');
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -763,8 +1083,12 @@ ${divider}
 
   // 2. Generate and share/download actual PDF file
   const handlePdfShare = async () => {
-    if (!printableRef.current) return;
+    if (!printableRef.current) {
+      showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء ملف PDF');
+      return;
+    }
     setIsGeneratingPdf(true);
+    setErrorMessage(null);
     setStatusMessage('جاري إعداد وتوليد ملف PDF...');
 
     try {
@@ -780,10 +1104,12 @@ ${divider}
           await navigator.share({
             files: [pdfFile],
             title: fileTitle,
-            text: `كشف حساب معتمد • ${data.projectName}`,
+            text:
+              data.type === 'customer_statement' && contentScope === 'balance_only'
+                ? `ملخص حساب العميل ${data.customer.name} • ${data.projectName}`
+                : `كشف حساب معتمد • ${data.projectName}`,
           });
-          setStatusMessage('تمت مشاركة ملف PDF بنجاح');
-          setTimeout(() => setStatusMessage(null), 3000);
+          showSuccessStatus('تم فتح نافذة المشاركة لإرسال ملف PDF');
           return;
         } catch (shareErr: any) {
           if (shareErr.name === 'AbortError') {
@@ -795,13 +1121,12 @@ ${divider}
 
       // Download file directly
       pdf.save(fileName);
-      setStatusMessage('تم حفظ وتنزيل ملف PDF بنجاح على جهازك');
-      setTimeout(() => setStatusMessage(null), 3500);
-    } catch (err) {
+      showSuccessStatus('تم حفظ وتنزيل ملف PDF بنجاح على جهازك');
+    } catch (err: any) {
       console.error('PDF error:', err);
-      setStatusMessage('تعذر إنشاء ملف PDF، جاري فتح نافذة الطباعة...');
-      setTimeout(() => setStatusMessage(null), 3000);
-      window.print();
+      showErrorStatus(
+        err?.message || 'تعذر إنشاء ملف PDF، يرجى المحاولة مرة أخرى'
+      );
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -809,19 +1134,21 @@ ${divider}
 
   // 2b. Save/Download PDF directly to device
   const handleDownloadPdf = async () => {
-    if (!printableRef.current) return;
+    if (!printableRef.current) {
+      showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء ملف PDF');
+      return;
+    }
     setIsGeneratingPdf(true);
+    setErrorMessage(null);
     setStatusMessage('جاري إنشاء وحفظ ملف PDF...');
 
     try {
       const { pdf, fileName } = await generatePdfFile();
       pdf.save(fileName);
-      setStatusMessage('تم حفظ ملف PDF بنجاح على جهازك');
-      setTimeout(() => setStatusMessage(null), 3500);
-    } catch (err) {
+      showSuccessStatus('تم حفظ ملف PDF بنجاح على جهازك');
+    } catch (err: any) {
       console.error('PDF save error:', err);
-      setStatusMessage('تعذر حفظ ملف PDF');
-      setTimeout(() => setStatusMessage(null), 3000);
+      showErrorStatus(err?.message || 'تعذر حفظ ملف PDF على الجهاز');
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -829,8 +1156,12 @@ ${divider}
 
   // 2c. Open generated PDF file in viewer/new tab
   const handleOpenPdf = async () => {
-    if (!printableRef.current) return;
+    if (!printableRef.current) {
+      showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء ملف PDF');
+      return;
+    }
     setIsGeneratingPdf(true);
+    setErrorMessage(null);
     setStatusMessage('جاري تجهيز وفتح ملف PDF...');
 
     try {
@@ -845,29 +1176,40 @@ ${divider}
         link.click();
         document.body.removeChild(link);
       }
-      setStatusMessage('تم فتح ملف PDF بنجاح');
-      setTimeout(() => setStatusMessage(null), 3000);
-    } catch (err) {
+      showSuccessStatus('تم تجهيز وفتح ملف PDF بنجاح');
+    } catch (err: any) {
       console.error('PDF open error:', err);
-      setStatusMessage('تعذر فتح ملف PDF');
-      setTimeout(() => setStatusMessage(null), 3000);
+      showErrorStatus(err?.message || 'تعذر فتح ملف PDF');
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  // 3. Share via other apps (Web Share API with actual PDF file or fallback to text)
+  // 3. Share via other apps (respects selected sendFormat: 'text' | 'image' | 'pdf')
   const handleOtherAppsShare = async () => {
+    if (data.type === 'customer_statement' && sendFormat === 'text') {
+      await handleShareTextOnly();
+      return;
+    }
+
+    if (data.type === 'customer_statement' && sendFormat === 'image') {
+      await handleImageShare();
+      return;
+    }
+
     const text = generateFormattedText();
     const title =
       data.type === 'customer_statement'
-        ? `كشف حساب العميل ${data.customer.name}`
+        ? contentScope === 'balance_only'
+          ? `ملخص حساب العميل ${data.customer.name}`
+          : `كشف حساب العميل ${data.customer.name}`
         : data.type === 'all_transactions'
         ? 'تقرير كل العمليات المالية'
         : 'تقرير الموقف المالي والإحصائيات';
 
     if (printableRef.current && navigator.share) {
       setIsGeneratingPdf(true);
+      setErrorMessage(null);
       setStatusMessage('جاري تجهيز ملف PDF للمشاركة...');
       try {
         const { pdfFile } = await generatePdfFile();
@@ -877,8 +1219,7 @@ ${divider}
             title,
             text,
           });
-          setStatusMessage('تمت مشاركة ملف PDF بنجاح');
-          setTimeout(() => setStatusMessage(null), 3000);
+          showSuccessStatus('تم فتح نافذة المشاركة لإرسال ملف PDF');
           setIsGeneratingPdf(false);
           return;
         }
@@ -898,8 +1239,7 @@ ${divider}
           title,
           text,
         });
-        setStatusMessage('تمت المشاركة بنجاح');
-        setTimeout(() => setStatusMessage(null), 3000);
+        showSuccessStatus('تم فتح نافذة المشاركة');
         return;
       } catch (err: any) {
         if (err.name === 'AbortError') {
@@ -909,20 +1249,19 @@ ${divider}
       }
     }
 
-    handleCopyText();
+    await handleCopyText();
   };
 
   const handleCopyText = async () => {
     try {
       await navigator.clipboard.writeText(generateFormattedText());
       setCopied(true);
-      setStatusMessage('تم نسخ نص التقرير إلى الحافظة');
+      showSuccessStatus('تم نسخ النص إلى الحافظة بنجاح', 2500);
       setTimeout(() => {
         setCopied(false);
-        setStatusMessage(null);
       }, 2500);
     } catch {
-      setStatusMessage('تعذر النسخ التلقائي');
+      showErrorStatus('تعذر النسخ التلقائي إلى الحافظة');
     }
   };
 
@@ -935,8 +1274,7 @@ ${divider}
     const text = generateFormattedText();
     const url = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
-    setStatusMessage('تم فتح تيليجرام للمشاركة');
-    setTimeout(() => setStatusMessage(null), 3000);
+    showSuccessStatus('تم فتح نافذة تيليجرام لإرسال الرسالة');
   };
 
   // Gmail share
@@ -944,17 +1282,21 @@ ${divider}
     const text = generateFormattedText();
     const subject =
       data.type === 'customer_statement'
-        ? `كشف حساب العميل: ${data.customer.name}`
+        ? contentScope === 'balance_only'
+          ? `ملخص حساب العميل: ${data.customer.name}`
+          : `كشف حساب العميل: ${data.customer.name}`
         : data.type === 'all_transactions'
         ? 'تقرير كل العمليات المالية'
         : 'تقرير التقارير والإحصائيات';
     window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    showSuccessStatus('تم فتح تطبيق البريد لإرسال الرسالة');
   };
 
   // SMS share
   const handleSmsShare = () => {
     const text = generateFormattedText();
     window.location.href = `sms:?body=${encodeURIComponent(text)}`;
+    showSuccessStatus('تم فتح تطبيق الرسائل لإرسال النص');
   };
 
   const shareOptions = [
@@ -1021,6 +1363,384 @@ ${divider}
             </button>
           </div>
         )}
+
+        {/* Error Toast */}
+        {errorMessage && (
+          <div className="bg-red-50 border border-red-200 text-red-800 text-xs font-bold p-3 rounded-xl flex items-center justify-between shadow-sm animate-in slide-in-from-top-1">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-red-500 hover:text-red-700 p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* ==================== CUSTOMER INVOICE SHARE OPTIONS (TWO SECTIONS) ==================== */}
+        {data.type === 'customer_statement' && (() => {
+          const bal = getCustomerBalanceInfo(data.currentBalance);
+          const balanceMeaning =
+            bal.state === 'positive'
+              ? 'رصيد لصالح العميل'
+              : bal.state === 'negative'
+              ? 'رصيد مستحق للمحل'
+              : 'الحساب متوازن';
+
+          return (
+            <>
+              {/* القسم الأول: ماذا تريد أن ترسل؟ */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <Wallet className="w-4 h-4 text-[var(--color-gold)]" />
+                    أولًا: ماذا تريد أن ترسل؟
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-500">
+                    {data.customer.name}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* الخيار الأول: إجمالي الحساب فقط */}
+                  <button
+                    type="button"
+                    onClick={() => setContentScope('balance_only')}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                      contentScope === 'balance_only'
+                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                        : 'theme-btn-secondary hover:opacity-90'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <Wallet
+                        className={`w-4 h-4 ${
+                          contentScope === 'balance_only'
+                            ? 'text-[#f3d27a]'
+                            : 'text-[var(--color-gold)]'
+                        }`}
+                      />
+                      {contentScope === 'balance_only' && (
+                        <CheckCircle2 className="w-4 h-4 text-[#f3d27a]" />
+                      )}
+                    </div>
+                    <div>
+                      <div
+                        className={`text-xs font-black ${
+                          contentScope === 'balance_only' ? 'text-white' : ''
+                        }`}
+                      >
+                        إجمالي الحساب فقط
+                      </div>
+                      <div
+                        className={`text-[10px] mt-0.5 leading-snug ${
+                          contentScope === 'balance_only'
+                            ? 'text-slate-200'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        ملخص مختصر للرصيد الحالي فقط بدون العمليات
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* الخيار الثاني: إجمالي الحساب والعمليات */}
+                  <button
+                    type="button"
+                    onClick={() => setContentScope('full_statement')}
+                    className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                      contentScope === 'full_statement'
+                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                        : 'theme-btn-secondary hover:opacity-90'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <ListOrdered
+                        className={`w-4 h-4 ${
+                          contentScope === 'full_statement'
+                            ? 'text-[#f3d27a]'
+                            : 'text-[var(--color-gold)]'
+                        }`}
+                      />
+                      {contentScope === 'full_statement' && (
+                        <CheckCircle2 className="w-4 h-4 text-[#f3d27a]" />
+                      )}
+                    </div>
+                    <div>
+                      <div
+                        className={`text-xs font-black ${
+                          contentScope === 'full_statement' ? 'text-white' : ''
+                        }`}
+                      >
+                        إجمالي الحساب والعمليات
+                      </div>
+                      <div
+                        className={`text-[10px] mt-0.5 leading-snug ${
+                          contentScope === 'full_statement'
+                            ? 'text-slate-200'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        كشف حساب تفصيلي يشمل الملخص وجميع العمليات ({data.transactions.length})
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Live Balance Summary Strip */}
+                <div
+                  className={`p-3 rounded-xl border flex items-center justify-between ${
+                    bal.state === 'positive'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : bal.state === 'negative'
+                      ? 'bg-rose-50 border-rose-200 text-rose-800'
+                      : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}
+                >
+                  <div className="text-right">
+                    <div className="text-[10px] text-slate-500">
+                      إجمالي الحساب الحالي
+                    </div>
+                    <div className="text-sm font-black font-mono">
+                      {bal.formattedAmount}
+                    </div>
+                  </div>
+                  <div className="text-left text-xs font-bold">
+                    {balanceMeaning}
+                  </div>
+                </div>
+              </div>
+
+              {/* القسم الثاني: اختيار طريقة الإرسال */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <Share2 className="w-4 h-4 text-[var(--color-gold)]" />
+                    ثانيًا: اختيار طريقة الإرسال
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {contentScope === 'balance_only'
+                      ? 'إجمالي الحساب فقط'
+                      : 'إجمالي الحساب والعمليات'}
+                  </span>
+                </div>
+
+                {/* 3 Send Format Choices */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSendFormat('text')}
+                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                      sendFormat === 'text'
+                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                        : 'theme-btn-secondary hover:opacity-90'
+                    }`}
+                  >
+                    <MessageCircle
+                      className={`w-4 h-4 ${
+                        sendFormat === 'text'
+                          ? 'text-[#f3d27a]'
+                          : 'text-[var(--text-secondary)]'
+                      }`}
+                    />
+                    <span className={sendFormat === 'text' ? 'text-white' : ''}>
+                      إرسال كنص
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSendFormat('image')}
+                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                      sendFormat === 'image'
+                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                        : 'theme-btn-secondary hover:opacity-90'
+                    }`}
+                  >
+                    <ImageIcon
+                      className={`w-4 h-4 ${
+                        sendFormat === 'image'
+                          ? 'text-[#f3d27a]'
+                          : 'text-[var(--text-secondary)]'
+                      }`}
+                    />
+                    <span className={sendFormat === 'image' ? 'text-white' : ''}>
+                      إرسال كصورة
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSendFormat('pdf')}
+                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                      sendFormat === 'pdf'
+                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                        : 'theme-btn-secondary hover:opacity-90'
+                    }`}
+                  >
+                    <FileText
+                      className={`w-4 h-4 ${
+                        sendFormat === 'pdf'
+                          ? 'text-[#f3d27a]'
+                          : 'text-[var(--text-secondary)]'
+                      }`}
+                    />
+                    <span className={sendFormat === 'pdf' ? 'text-white' : ''}>
+                      إرسال كملف PDF
+                    </span>
+                  </button>
+                </div>
+
+                {/* Actions for the selected Format + Content combination */}
+                {sendFormat === 'text' && (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] font-sans text-slate-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                      {generateFormattedText()}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppTextOnly}
+                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>
+                        {contentScope === 'balance_only'
+                          ? 'إرسال إجمالي الحساب فقط كنص عبر واتساب'
+                          : 'إرسال إجمالي الحساب والعمليات كنص عبر واتساب'}
+                      </span>
+                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleShareTextOnly}
+                        className="py-2.5 px-3 rounded-xl theme-btn-primary text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        <span>مشاركة النص</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyText}
+                        className="py-2.5 px-3 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-4 h-4 text-emerald-600" />
+                            <span className="text-emerald-700 font-black">
+                              تم نسخ النص
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4 text-slate-500" />
+                            <span>نسخ النص</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {sendFormat === 'image' && (
+                  <div className="space-y-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleImageShare}
+                      disabled={isBusy}
+                      className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      {isGeneratingImage ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>جاري إنشاء صورة الفاتورة...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-4 h-4" />
+                          <span>
+                            {contentScope === 'balance_only'
+                              ? 'إرسال وتنزيل إجمالي الحساب فقط كصورة'
+                              : 'إرسال وتنزيل إجمالي الحساب والعمليات كصورة'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDownloadImage}
+                        disabled={isBusy}
+                        className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
+                      >
+                        <Download className="w-4 h-4 text-amber-700" />
+                        <span>حفظ الصورة</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenImage}
+                        disabled={isBusy}
+                        className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
+                      >
+                        <ExternalLink className="w-4 h-4 text-blue-700" />
+                        <span>فتح الصورة</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {sendFormat === 'pdf' && (
+                  <div className="space-y-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handlePdfShare}
+                      disabled={isBusy}
+                      className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      {isGeneratingPdf ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>جاري إنشاء ملف PDF...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4" />
+                          <span>
+                            {contentScope === 'balance_only'
+                              ? 'إرسال وتنزيل إجمالي الحساب فقط كملف PDF'
+                              : 'إرسال وتنزيل إجمالي الحساب والعمليات كملف PDF'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDownloadPdf}
+                        disabled={isBusy}
+                        className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
+                      >
+                        <Download className="w-4 h-4 text-amber-700" />
+                        <span>حفظ ملف PDF</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenPdf}
+                        disabled={isBusy}
+                        className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
+                      >
+                        <ExternalLink className="w-4 h-4 text-blue-700" />
+                        <span>فتح ملف PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        })()}
 
         {/* 1. Main 35-Screens Card: مشاركة عبر التطبيقات */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
@@ -1101,9 +1821,51 @@ ${divider}
 
           {/* Action Buttons */}
           <div className="space-y-2 pt-1">
+            {data.type === 'customer_statement' && (
+              <>
+                <button
+                  onClick={handleImageShare}
+                  disabled={isBusy}
+                  className="w-full py-2.5 px-3 rounded-xl theme-btn-gold disabled:opacity-50 font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  {isGeneratingImage ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>جاري إنشاء صورة الفاتورة...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="w-4 h-4" />
+                      <span>مشاركة وتنزيل كصورة (PNG)</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleDownloadImage}
+                    disabled={isBusy}
+                    className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-amber-700" />
+                    <span>حفظ كصورة</span>
+                  </button>
+
+                  <button
+                    onClick={handleOpenImage}
+                    disabled={isBusy}
+                    className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
+                  >
+                    <ExternalLink className="w-4 h-4 text-blue-700" />
+                    <span>فتح الصورة</span>
+                  </button>
+                </div>
+              </>
+            )}
+
             <button
               onClick={handlePdfShare}
-              disabled={isGeneratingPdf}
+              disabled={isBusy}
               className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               {isGeneratingPdf ? (
@@ -1122,7 +1884,7 @@ ${divider}
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={handleDownloadPdf}
-                disabled={isGeneratingPdf}
+                disabled={isBusy}
                 className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
               >
                 <Download className="w-4 h-4 text-amber-700" />
@@ -1131,7 +1893,7 @@ ${divider}
 
               <button
                 onClick={handleOpenPdf}
-                disabled={isGeneratingPdf}
+                disabled={isBusy}
                 className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
               >
                 <ExternalLink className="w-4 h-4 text-blue-700" />
@@ -1293,52 +2055,76 @@ ${divider}
                           </div>
                         </div>
 
-                        {/* Customer Phone */}
-                        <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                          <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
-                            <Phone className="w-4 h-4 text-[#1e3a5f]" />
-                            <span>رقم الهاتف</span>
+                        {/* Customer Phone (if available) */}
+                        {data.customer.phone && (
+                          <div className="flex items-center justify-between py-1 border-b border-slate-100">
+                            <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
+                              <Phone className="w-4 h-4 text-[#1e3a5f]" />
+                              <span>رقم الهاتف</span>
+                            </div>
+                            <div className="font-bold text-sm sm:text-base font-mono text-[#0f233c] dir-ltr">
+                              {data.customer.phone}
+                            </div>
                           </div>
-                          <div className="font-bold text-sm sm:text-base font-mono text-[#0f233c] dir-ltr">
-                            {data.customer.phone}
-                          </div>
-                        </div>
+                        )}
 
                         {/* Report Date */}
                         <div className="flex items-center justify-between py-1">
                           <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
                             <Calendar className="w-4 h-4 text-[#1e3a5f]" />
-                            <span>تاريخ الإصدار</span>
+                            <span>
+                              {contentScope === 'balance_only'
+                                ? 'تاريخ إعداد الحساب'
+                                : 'تاريخ الإصدار'}
+                            </span>
                           </div>
                           <div className="font-bold text-sm sm:text-base text-[#0f233c]">
                             {formatArabicDate(data.reportDate)}
                           </div>
                         </div>
 
-                        {/* Covered Period (if non-default) */}
-                        {data.periodText && data.periodText !== 'كافة العمليات المسجلة للعميل' && (
-                          <div className="flex items-center justify-between py-1 border-t border-slate-100">
-                            <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
-                              <Clock className="w-4 h-4 text-[#1e3a5f]" />
-                              <span>الفترة المغطاة</span>
+                        {/* Covered Period (only in full_statement if non-default) */}
+                        {contentScope === 'full_statement' &&
+                          data.periodText &&
+                          data.periodText !== 'كافة العمليات المسجلة للعميل' && (
+                            <div className="flex items-center justify-between py-1 border-t border-slate-100">
+                              <div className="flex items-center gap-2 text-slate-500 text-xs sm:text-sm font-medium">
+                                <Clock className="w-4 h-4 text-[#1e3a5f]" />
+                                <span>الفترة المغطاة</span>
+                              </div>
+                              <div className="font-bold text-xs sm:text-sm text-[#0f233c]">
+                                {data.periodText}
+                              </div>
                             </div>
-                            <div className="font-bold text-xs sm:text-sm text-[#0f233c]">
-                              {data.periodText}
-                            </div>
-                          </div>
-                        )}
+                          )}
                       </div>
 
                       {/* 4. Financial Status Card */}
                       <div className="bg-[#f8fafd] border border-[#e2e8f0] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
                         <div className="flex items-center gap-2 text-sm sm:text-base font-black text-[#0f233c]">
                           <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#1e3a5f]" />
-                          <span>الموقف المالي للعميل</span>
+                          <span>
+                            {contentScope === 'balance_only'
+                              ? 'إجمالي الحساب الحالي'
+                              : 'الموقف المالي للعميل'}
+                          </span>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-1">
-                          {/* Right Box (Current Balance Display) */}
-                          <div className="flex flex-col items-center justify-center shrink-0 min-w-[140px] sm:min-w-[170px]">
+                        <div
+                          className={`flex flex-col sm:flex-row items-stretch sm:items-center ${
+                            contentScope === 'balance_only'
+                              ? 'justify-center'
+                              : 'justify-between'
+                          } gap-4 pt-1`}
+                        >
+                          {/* Current Balance Display */}
+                          <div
+                            className={`flex flex-col items-center justify-center shrink-0 ${
+                              contentScope === 'balance_only'
+                                ? 'w-full'
+                                : 'min-w-[140px] sm:min-w-[170px]'
+                            }`}
+                          >
                             <div
                               className={`w-full p-4 rounded-2xl shadow-sm text-center text-white ${
                                 bal.state === 'positive'
@@ -1349,13 +2135,15 @@ ${divider}
                               }`}
                             >
                               <span className="text-xs font-bold opacity-90 block mb-1">
-                                الرصيد الحالي
+                                {contentScope === 'balance_only'
+                                  ? 'إجمالي الحساب الحالي'
+                                  : 'الرصيد الحالي'}
                               </span>
                               <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight tabular-nums">
                                 {bal.formattedAmount}
                               </div>
                             </div>
-                            <div className="mt-2 flex items-center justify-center gap-1.5 font-bold text-xs">
+                            <div className="mt-2.5 flex items-center justify-center gap-1.5 font-bold text-xs">
                               {bal.state === 'positive' ? (
                                 <span className="text-[#00875a] flex items-center gap-1">
                                   <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
@@ -1364,144 +2152,152 @@ ${divider}
                               ) : bal.state === 'negative' ? (
                                 <span className="text-red-600 flex items-center gap-1">
                                   <AlertCircle className="w-4 h-4 stroke-[2.5]" />
-                                  <span>مبلغ مستحق للمحل</span>
+                                  <span>رصيد مستحق للمحل</span>
                                 </span>
                               ) : (
                                 <span className="text-slate-600 flex items-center gap-1">
                                   <Scale className="w-4 h-4" />
-                                  <span>الحساب متعادل</span>
+                                  <span>الحساب متوازن</span>
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          {/* Vertical Divider */}
-                          <div className="hidden sm:block w-[1px] bg-slate-200 self-stretch my-1"></div>
+                          {/* Breakdown list (ONLY when contentScope === 'full_statement') */}
+                          {contentScope === 'full_statement' && (
+                            <>
+                              {/* Vertical Divider */}
+                              <div className="hidden sm:block w-[1px] bg-slate-200 self-stretch my-1"></div>
 
-                          {/* Breakdown list */}
-                          <div className="flex-1 space-y-2.5 text-xs sm:text-sm">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-slate-600 font-medium">
-                                <ArrowUpRight className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
-                                <span>إجمالي الدفع خلال الفترة</span>
-                              </div>
-                              <div className="font-black font-mono text-slate-800">
-                                {data.periodPayments.toLocaleString()} ج.م
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-slate-600 font-medium">
-                                <ArrowDownRight className="w-4 h-4 text-red-600 stroke-[2.5]" />
-                                <span>إجمالي السحب خلال الفترة</span>
-                              </div>
-                              <div className="font-black font-mono text-slate-800">
-                                {data.periodWithdrawals.toLocaleString()} ج.م
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-200">
-                              <div className="flex items-center gap-2 text-slate-700 font-bold">
-                                <Scale className="w-4 h-4 text-[#00875a]" />
-                                <span>صافي حركة الفترة</span>
-                              </div>
-                              <div
-                                className={`font-black font-mono ${
-                                  data.periodNetMovement > 0
-                                    ? 'text-[#00875a]'
-                                    : data.periodNetMovement < 0
-                                    ? 'text-red-600'
-                                    : 'text-slate-600'
-                                }`}
-                              >
-                                {data.periodNetMovement > 0
-                                  ? `+${data.periodNetMovement.toLocaleString()} ج.م`
-                                  : data.periodNetMovement < 0
-                                  ? `-${Math.abs(data.periodNetMovement).toLocaleString()} ج.م`
-                                  : '0 ج.م'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 5. Customer Transactions List */}
-                      <div className="space-y-2.5">
-                        <div className="flex items-center gap-2 text-sm sm:text-base font-black text-[#0f233c]">
-                          <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[#1e3a5f]" />
-                          <span>عمليات العميل</span>
-                        </div>
-
-                        {data.transactions.length === 0 ? (
-                          <div className="bg-[#f8fafd] border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-xs">
-                            لا توجد عمليات مسجلة لهذا العميل خلال الفترة المحددة.
-                          </div>
-                        ) : (
-                          data.transactions.map((t) => {
-                            const isCancelled = t.status === 'cancelled';
-                            const isPayment = t.type === 'payment';
-                            return (
-                              <div
-                                key={t.id}
-                                className={`bg-white border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-2.5 sm:gap-3 shadow-sm transition-all ${
-                                  isCancelled
-                                    ? 'border-red-200 bg-red-50/20 opacity-75'
-                                    : 'border-slate-200'
-                                }`}
-                              >
-                                {/* Left: Amount Pill */}
-                                <div
-                                  className={`font-black font-mono text-xs sm:text-sm px-3 py-1.5 rounded-xl shrink-0 ${
-                                    isCancelled
-                                      ? 'bg-slate-100 text-slate-400 line-through'
-                                      : isPayment
-                                      ? 'bg-[#dcfce7] text-[#16a34a]'
-                                      : 'bg-[#fee2e2] text-[#dc2626]'
-                                  }`}
-                                >
-                                  {isPayment
-                                    ? `+${t.amount.toLocaleString()} ج.م`
-                                    : `-${t.amount.toLocaleString()} ج.م`}
+                              <div className="flex-1 space-y-2.5 text-xs sm:text-sm">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 text-slate-600 font-medium">
+                                    <ArrowUpRight className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
+                                    <span>إجمالي عمليات الدفع</span>
+                                  </div>
+                                  <div className="font-black font-mono text-slate-800">
+                                    {effectivePeriodPayments.toLocaleString()} ج.م
+                                  </div>
                                 </div>
 
-                                {/* Center: Type with arrow and description */}
-                                <div className="flex-1 text-center sm:text-right">
-                                  <div className="flex items-center justify-center sm:justify-start gap-1 font-black text-xs sm:text-sm text-slate-800">
-                                    <span>{isPayment ? 'دفع' : 'سحب'}</span>
-                                    {isPayment ? (
-                                      <ArrowUpRight className="w-4 h-4 text-emerald-600 stroke-[3]" />
-                                    ) : (
-                                      <ArrowDownRight className="w-4 h-4 text-red-600 stroke-[3]" />
-                                    )}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 text-slate-600 font-medium">
+                                    <ArrowDownRight className="w-4 h-4 text-red-600 stroke-[2.5]" />
+                                    <span>إجمالي عمليات السحب</span>
                                   </div>
-                                  {t.description && (
-                                    <div className="text-[11px] text-slate-500 mt-0.5 break-words leading-relaxed max-w-[180px] sm:max-w-[260px]">
-                                      {t.description}
-                                    </div>
-                                  )}
+                                  <div className="font-black font-mono text-slate-800">
+                                    {effectivePeriodWithdrawals.toLocaleString()} ج.م
+                                  </div>
                                 </div>
 
-                                {/* Right: Date, Time & Status badge */}
-                                <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-left sm:text-right">
-                                  <div className="text-[10px] sm:text-[11px] text-slate-500 font-mono text-left">
-                                    <div>{formatArabicDate(t.date)}</div>
-                                    <div className="text-slate-400">{t.time}</div>
+                                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200">
+                                  <div className="flex items-center gap-2 text-slate-700 font-bold">
+                                    <Scale className="w-4 h-4 text-[#00875a]" />
+                                    <span>صافي حركة الفترة</span>
                                   </div>
-                                  <span
-                                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap ${
-                                      isCancelled
-                                        ? 'bg-red-100 text-red-700'
-                                        : 'bg-[#dcfce7] text-[#15803d]'
+                                  <div
+                                    className={`font-black font-mono ${
+                                      effectivePeriodNetMovement > 0
+                                        ? 'text-[#00875a]'
+                                        : effectivePeriodNetMovement < 0
+                                        ? 'text-red-600'
+                                        : 'text-slate-600'
                                     }`}
                                   >
-                                    {isCancelled ? 'ملغاة' : 'نشطة'}
-                                  </span>
+                                    {effectivePeriodNetMovement > 0
+                                      ? `+${effectivePeriodNetMovement.toLocaleString()} ج.م`
+                                      : effectivePeriodNetMovement < 0
+                                      ? `-${Math.abs(effectivePeriodNetMovement).toLocaleString()} ج.م`
+                                      : '0 ج.م'}
+                                  </div>
                                 </div>
                               </div>
-                            );
-                          })
-                        )}
+                            </>
+                          )}
+                        </div>
                       </div>
+
+                      {/* 5. Customer Transactions List (ONLY when contentScope === 'full_statement') */}
+                      {contentScope === 'full_statement' && (
+                        <div className="space-y-2.5">
+                          <div className="flex items-center gap-2 text-sm sm:text-base font-black text-[#0f233c]">
+                            <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-[#1e3a5f]" />
+                            <span>عمليات العميل</span>
+                          </div>
+
+                          {data.transactions.length === 0 ? (
+                            <div className="bg-[#f8fafd] border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-xs">
+                              لا توجد عمليات مسجلة لهذا العميل خلال الفترة المحددة.
+                            </div>
+                          ) : (
+                            data.transactions.map((t) => {
+                              const isCancelled = t.status === 'cancelled';
+                              const isPayment = t.type === 'payment';
+                              return (
+                                <div
+                                  key={t.id}
+                                  className={`bg-white border rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-2.5 sm:gap-3 shadow-sm transition-all ${
+                                    isCancelled
+                                      ? 'border-red-200 bg-red-50/20 opacity-75'
+                                      : 'border-slate-200'
+                                  }`}
+                                >
+                                  {/* Left: Amount Pill */}
+                                  <div
+                                    className={`font-black font-mono text-xs sm:text-sm px-3 py-1.5 rounded-xl shrink-0 ${
+                                      isCancelled
+                                        ? 'bg-slate-100 text-slate-400 line-through'
+                                        : isPayment
+                                        ? 'bg-[#dcfce7] text-[#16a34a]'
+                                        : 'bg-[#fee2e2] text-[#dc2626]'
+                                    }`}
+                                  >
+                                    {isPayment
+                                      ? `+${t.amount.toLocaleString()} ج.م`
+                                      : `-${t.amount.toLocaleString()} ج.م`}
+                                  </div>
+
+                                  {/* Center: Type with arrow and description */}
+                                  <div className="flex-1 text-center sm:text-right">
+                                    <div className="flex items-center justify-center sm:justify-start gap-1 font-black text-xs sm:text-sm text-slate-800">
+                                      <span>{isPayment ? 'دفع' : 'سحب'}</span>
+                                      {isPayment ? (
+                                        <ArrowUpRight className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                                      ) : (
+                                        <ArrowDownRight className="w-4 h-4 text-red-600 stroke-[3]" />
+                                      )}
+                                    </div>
+                                    {t.description && (
+                                      <div className="text-[11px] text-slate-500 mt-0.5 break-words leading-relaxed max-w-[180px] sm:max-w-[260px]">
+                                        {t.description}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Right: Date, Time & Status badge */}
+                                  <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-left sm:text-right">
+                                    <div className="text-[10px] sm:text-[11px] text-slate-500 font-mono text-left">
+                                      <div>{formatArabicDate(t.date)}</div>
+                                      <div className="text-slate-400">{t.time}</div>
+                                    </div>
+                                    <span
+                                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap ${
+                                        isCancelled
+                                          ? 'bg-red-100 text-red-700'
+                                          : 'bg-[#dcfce7] text-[#15803d]'
+                                      }`}
+                                    >
+                                      {isCancelled
+                                        ? 'ملغاة (لا تدخل في الحسابات)'
+                                        : 'نشطة'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
 
                       {/* 6. Informative note matching reference image */}
                       <div className="bg-[#eff6ff]/80 border border-[#bfdbfe] rounded-2xl p-3 flex items-center gap-3 text-xs text-slate-600">
