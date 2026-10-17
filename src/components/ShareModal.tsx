@@ -202,11 +202,11 @@ function sanitizeClonedDocumentColors(clonedDoc: Document, rootEl: HTMLElement) 
         node.setAttribute('width', '52');
         node.setAttribute('height', '32');
       } else if (isCornerWave) {
-        node.style.cssText = `position:absolute !important;top:-20px !important;${
-          isRightWave ? 'right:-20px !important;left:auto !important;' : ''
+        node.style.cssText = `position:absolute !important;top:-22px !important;${
+          isRightWave ? 'right:-18px !important;left:auto !important;' : ''
         }${
-          isLeftWave ? 'left:-20px !important;right:auto !important;' : ''
-        }width:72px !important;height:72px !important;display:block !important;pointer-events:none !important;overflow:visible !important;`;
+          isLeftWave ? 'left:-18px !important;right:auto !important;' : ''
+        }width:60px !important;height:60px !important;display:block !important;pointer-events:none !important;overflow:visible !important;`;
       } else {
         const iconSize =
           node.classList.contains('w-3')
@@ -603,8 +603,17 @@ ${divider}
       await document.fonts.ready;
     }
 
-    // Customer statement is scaled to 70% of its previous 680px width (476px = 680 * 0.70, 30% reduction)
-    const targetWidth = data.type === 'customer_statement' ? 476 : 720;
+    // Customer statement image dimensions:
+    // - Width reduced by 30% (70% of previous 476px width => 333px CSS width = 666px at 2x scale vs. previous 952px)
+    // - Height increased by 20% (120% of previous height => 695px CSS min-height = 1390px at 2x scale for full statement,
+    //   and 528px CSS min-height = 1056px at 2x scale for balance-only, expanding automatically when more transactions exist)
+    const targetWidth = data.type === 'customer_statement' ? 333 : 720;
+    const minTargetHeight =
+      data.type === 'customer_statement'
+        ? contentScope === 'balance_only'
+          ? 528
+          : 695
+        : 0;
     const renderScale = 2;
     const blockBoundsPx: Array<{ top: number; bottom: number }> = [];
 
@@ -655,6 +664,12 @@ ${divider}
         clonedEl.style.maxWidth = `${targetWidth}px`;
         clonedEl.style.minWidth = `${targetWidth}px`;
         clonedEl.style.height = 'auto';
+        if (minTargetHeight > 0) {
+          clonedEl.style.minHeight = `${minTargetHeight}px`;
+          clonedEl.style.display = 'flex';
+          clonedEl.style.flexDirection = 'column';
+          clonedEl.style.justifyContent = 'space-between';
+        }
         clonedEl.style.maxHeight = 'none';
         clonedEl.style.opacity = '1';
         clonedEl.style.visibility = 'visible';
@@ -1980,243 +1995,265 @@ ${divider}
                 ref={printableRef}
                 className={`printable-invoice-sheet bg-white shadow-lg text-slate-800 font-sans relative overflow-hidden mx-auto ${
                   data.type === 'customer_statement'
-                    ? 'w-full max-w-[476px] p-3.5 sm:p-5 rounded-xl border border-slate-200/80 space-y-2.5'
+                    ? `w-full max-w-[333px] px-3.5 py-3.5 rounded-xl border border-slate-200/80 flex flex-col justify-between ${
+                        contentScope === 'balance_only'
+                          ? 'min-h-[528px]'
+                          : 'min-h-[695px]'
+                      }`
                     : 'max-w-2xl p-5 sm:p-7 rounded-2xl border-2 border-amber-400/80 space-y-4'
                 }`}
                 style={{ direction: 'rtl' }}
               >
-                {/* ---------------- CUSTOMER STATEMENT MATCHING REFERENCE DESIGN (SCALED TO 70% SIZE) ---------------- */}
+                {/* ---------------- CUSTOMER STATEMENT (70% WIDTH x 120% HEIGHT MOBILE PORTRAIT LAYOUT) ---------------- */}
                 {data.type === 'customer_statement' && (() => {
                   const bal = getCustomerBalanceInfo(data.currentBalance);
 
                   return (
-                    <div className="space-y-2.5 relative">
-                      {/* Decorative Top Corner Waves (scaled 30% smaller, never overlapping Card 1) */}
-                      <svg
-                        className="absolute -top-3.5 -right-3.5 sm:-top-5 sm:-right-5 w-14 sm:w-20 h-14 sm:h-20 pointer-events-none"
-                        viewBox="0 0 160 160"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M160 0 L0 0 C0 60 40 120 100 150 C130 165 160 140 160 140 Z"
-                          fill="#0f233c"
-                        />
-                        <path
-                          d="M0 10 C0 68 38 125 96 153"
-                          stroke="#c59a3f"
-                          strokeWidth="3.5"
+                    <div className="flex-1 flex flex-col justify-between gap-2 relative">
+                      {/* Top & Middle Content Group */}
+                      <div className="space-y-2 relative">
+                        {/* Decorative Top Corner Waves */}
+                        <svg
+                          className="absolute -top-4 -right-3.5 w-14 h-14 pointer-events-none"
+                          viewBox="0 0 160 160"
                           fill="none"
-                        />
-                        <path
-                          d="M0 22 C0 74 32 128 88 156"
-                          stroke="#c59a3f"
-                          strokeWidth="1.5"
-                          strokeOpacity="0.6"
-                          fill="none"
-                        />
-                      </svg>
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M160 0 L0 0 C0 60 40 120 100 150 C130 165 160 140 160 140 Z"
+                            fill="#0f233c"
+                          />
+                          <path
+                            d="M0 10 C0 68 38 125 96 153"
+                            stroke="#c59a3f"
+                            strokeWidth="3.5"
+                            fill="none"
+                          />
+                          <path
+                            d="M0 22 C0 74 32 128 88 156"
+                            stroke="#c59a3f"
+                            strokeWidth="1.5"
+                            strokeOpacity="0.6"
+                            fill="none"
+                          />
+                        </svg>
 
-                      <svg
-                        className="absolute -top-3.5 -left-3.5 sm:-top-5 sm:-left-5 w-14 sm:w-20 h-14 sm:h-20 pointer-events-none"
-                        viewBox="0 0 160 160"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M0 0 L160 0 C160 60 120 120 60 150 C30 165 0 140 0 140 Z"
-                          fill="#0f233c"
-                        />
-                        <path
-                          d="M160 10 C160 68 122 125 64 153"
-                          stroke="#c59a3f"
-                          strokeWidth="3.5"
+                        <svg
+                          className="absolute -top-4 -left-3.5 w-14 h-14 pointer-events-none"
+                          viewBox="0 0 160 160"
                           fill="none"
-                        />
-                        <path
-                          d="M160 22 C160 74 128 128 72 156"
-                          stroke="#c59a3f"
-                          strokeWidth="1.5"
-                          strokeOpacity="0.6"
-                          fill="none"
-                        />
-                      </svg>
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M0 0 L160 0 C160 60 120 120 60 150 C30 165 0 140 0 140 Z"
+                            fill="#0f233c"
+                          />
+                          <path
+                            d="M160 10 C160 68 122 125 64 153"
+                            stroke="#c59a3f"
+                            strokeWidth="3.5"
+                            fill="none"
+                          />
+                          <path
+                            d="M160 22 C160 74 128 128 72 156"
+                            stroke="#c59a3f"
+                            strokeWidth="1.5"
+                            strokeOpacity="0.6"
+                            fill="none"
+                          />
+                        </svg>
 
-                      {/* Statement Title flanked by thin golden lines */}
-                      <div className="flex items-center justify-center gap-2 sm:gap-3 pt-2 sm:pt-2.5 my-1.5 sm:my-2 px-8 sm:px-10">
-                        <div className="flex-1 h-[1.5px] bg-[#c59a3f]"></div>
-                        <h1 className="text-lg sm:text-xl font-black text-[#0f233c] tracking-tight whitespace-nowrap font-sans">
-                          كشف حساب
-                        </h1>
-                        <div className="flex-1 h-[1.5px] bg-[#c59a3f]"></div>
-                      </div>
-
-                      {/* 3. Project and Customer Information Card */}
-                      <div className="bg-[#f8fafd] border border-[#e2e8f0] rounded-xl p-2.5 sm:p-3.5 shadow-sm space-y-1.5">
-                        {/* Project Name */}
-                        <div className="flex items-center justify-between py-0.5 border-b border-slate-100">
-                          <div className="flex items-center gap-1.5 text-slate-500 text-[10px] sm:text-xs font-medium">
-                            <Building2 className="w-3.5 h-3.5 text-[#1e3a5f]" />
-                            <span>اسم المشروع</span>
-                          </div>
-                          <div className="font-black text-xs sm:text-[13px] text-[#0f233c]">
-                            {data.projectName}
-                          </div>
+                        {/* Statement Title flanked by thin golden lines */}
+                        <div className="flex items-center justify-center gap-2.5 pt-1.5 pb-0.5 px-8">
+                          <div className="flex-1 h-[1.5px] bg-[#c59a3f]"></div>
+                          <h1 className="text-lg font-black text-[#0f233c] tracking-tight whitespace-nowrap font-sans">
+                            كشف حساب
+                          </h1>
+                          <div className="flex-1 h-[1.5px] bg-[#c59a3f]"></div>
                         </div>
 
-                        {/* Customer Name */}
-                        <div className="flex items-center justify-between py-0.5 border-b border-slate-100">
-                          <div className="flex items-center gap-1.5 text-slate-500 text-[10px] sm:text-xs font-medium">
-                            <User className="w-3.5 h-3.5 text-[#1e3a5f]" />
-                            <span>العميل</span>
-                          </div>
-                          <div className="font-black text-xs sm:text-[13px] text-[#0f233c]">
-                            {data.customer.name}
-                          </div>
-                        </div>
-
-                        {/* Customer Phone (if available) */}
-                        {data.customer.phone && (
-                          <div className="flex items-center justify-between py-0.5 border-b border-slate-100">
-                            <div className="flex items-center gap-1.5 text-slate-500 text-[10px] sm:text-xs font-medium">
-                              <Phone className="w-3.5 h-3.5 text-[#1e3a5f]" />
-                              <span>رقم الهاتف</span>
+                        {/* 3. Project and Customer Information Card */}
+                        <div
+                          className={`bg-[#f8fafd] border border-[#e2e8f0] rounded-xl shadow-sm ${
+                            contentScope === 'balance_only'
+                              ? 'p-3.5 space-y-2'
+                              : 'p-2.5 space-y-1'
+                          }`}
+                        >
+                          {/* Project Name */}
+                          <div
+                            className={`flex items-center justify-between gap-2 border-b border-slate-100 ${
+                              contentScope === 'balance_only' ? 'py-1' : 'py-0.5'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 text-slate-500 text-[10.5px] font-semibold shrink-0">
+                              <Building2 className="w-3.5 h-3.5 text-[#1e3a5f]" />
+                              <span>اسم المشروع</span>
                             </div>
-                            <div className="font-bold text-xs sm:text-[13px] font-mono text-[#0f233c] dir-ltr">
-                              {data.customer.phone}
+                            <div className="font-black text-[11.5px] text-[#0f233c] text-left leading-tight">
+                              {data.projectName}
                             </div>
                           </div>
-                        )}
 
-                        {/* Report Date */}
-                        <div className="flex items-center justify-between py-0.5">
-                          <div className="flex items-center gap-1.5 text-slate-500 text-[10px] sm:text-xs font-medium">
-                            <Calendar className="w-3.5 h-3.5 text-[#1e3a5f]" />
-                            <span>
-                              {contentScope === 'balance_only'
-                                ? 'تاريخ إعداد الحساب'
-                                : 'تاريخ الإصدار'}
-                            </span>
+                          {/* Customer Name */}
+                          <div
+                            className={`flex items-center justify-between gap-2 border-b border-slate-100 ${
+                              contentScope === 'balance_only' ? 'py-1' : 'py-0.5'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 text-slate-500 text-[10.5px] font-semibold shrink-0">
+                              <User className="w-3.5 h-3.5 text-[#1e3a5f]" />
+                              <span>العميل</span>
+                            </div>
+                            <div className="font-black text-[11.5px] text-[#0f233c] text-left leading-tight">
+                              {data.customer.name}
+                            </div>
                           </div>
-                          <div className="font-bold text-xs sm:text-[13px] text-[#0f233c]">
-                            {formatArabicDate(data.reportDate)}
-                          </div>
-                        </div>
 
-                        {/* Covered Period (only in full_statement if non-default) */}
-                        {contentScope === 'full_statement' &&
-                          data.periodText &&
-                          data.periodText !== 'كافة العمليات المسجلة للعميل' && (
-                            <div className="flex items-center justify-between py-0.5 border-t border-slate-100">
-                              <div className="flex items-center gap-1.5 text-slate-500 text-[10px] sm:text-xs font-medium">
-                                <Clock className="w-3.5 h-3.5 text-[#1e3a5f]" />
-                                <span>الفترة المغطاة</span>
+                          {/* Customer Phone (if available) */}
+                          {data.customer.phone && (
+                            <div
+                              className={`flex items-center justify-between gap-2 border-b border-slate-100 ${
+                                contentScope === 'balance_only' ? 'py-1' : 'py-0.5'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 text-slate-500 text-[10.5px] font-semibold shrink-0">
+                                <Phone className="w-3.5 h-3.5 text-[#1e3a5f]" />
+                                <span>رقم الهاتف</span>
                               </div>
-                              <div className="font-bold text-[10px] sm:text-xs text-[#0f233c]">
-                                {data.periodText}
+                              <div className="font-bold text-[11.5px] font-mono text-[#0f233c] dir-ltr">
+                                {data.customer.phone}
                               </div>
                             </div>
                           )}
-                      </div>
 
-                      {/* 4. Financial Status Card */}
-                      <div className="bg-[#f8fafd] border border-[#e2e8f0] rounded-xl p-2.5 sm:p-3.5 shadow-sm space-y-2">
-                        <div className="flex items-center gap-1.5 text-xs sm:text-[13px] font-black text-[#0f233c]">
-                          <Briefcase className="w-3.5 h-3.5 text-[#1e3a5f]" />
-                          <span>
-                            {contentScope === 'balance_only'
-                              ? 'إجمالي الحساب الحالي'
-                              : 'الموقف المالي للعميل'}
-                          </span>
-                        </div>
-
-                        <div
-                          className={`flex flex-row items-center ${
-                            contentScope === 'balance_only'
-                              ? 'justify-center'
-                              : 'justify-between'
-                          } gap-2.5 sm:gap-3 pt-0.5`}
-                        >
-                          {/* Current Balance Display */}
+                          {/* Report Date */}
                           <div
-                            className={`flex flex-col items-center justify-center shrink-0 ${
-                              contentScope === 'balance_only'
-                                ? 'w-full'
-                                : 'min-w-[105px] sm:min-w-[125px]'
+                            className={`flex items-center justify-between gap-2 ${
+                              contentScope === 'balance_only' ? 'py-1' : 'py-0.5'
                             }`}
                           >
-                            <div
-                              className={`w-full p-2.5 sm:p-3 rounded-xl shadow-sm text-center text-white ${
-                                bal.state === 'positive'
-                                  ? 'bg-[#00875a]'
-                                  : bal.state === 'negative'
-                                  ? 'bg-[#dc2626]'
-                                  : 'bg-slate-600'
-                              }`}
-                            >
-                              <span className="text-[10px] font-bold opacity-90 block mb-0.5">
+                            <div className="flex items-center gap-1.5 text-slate-500 text-[10.5px] font-semibold shrink-0">
+                              <Calendar className="w-3.5 h-3.5 text-[#1e3a5f]" />
+                              <span>
                                 {contentScope === 'balance_only'
-                                  ? 'إجمالي الحساب الحالي'
-                                  : 'الرصيد الحالي'}
+                                  ? 'تاريخ إعداد الحساب'
+                                  : 'تاريخ الإصدار'}
                               </span>
-                              <div className="text-base sm:text-xl font-black font-mono tracking-tight tabular-nums whitespace-nowrap">
-                                {bal.formattedAmount}
-                              </div>
                             </div>
-                            <div className="mt-1.5 flex items-center justify-center gap-1 font-bold text-[10px]">
-                              {bal.state === 'positive' ? (
-                                <span className="text-[#00875a] flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
-                                  <span>رصيد لصالح العميل</span>
-                                </span>
-                              ) : bal.state === 'negative' ? (
-                                <span className="text-red-600 flex items-center gap-1">
-                                  <AlertCircle className="w-3 h-3 stroke-[2.5]" />
-                                  <span>رصيد مستحق للمحل</span>
-                                </span>
-                              ) : (
-                                <span className="text-slate-600 flex items-center gap-1">
-                                  <Scale className="w-3 h-3" />
-                                  <span>الحساب متوازن</span>
-                                </span>
-                              )}
+                            <div className="font-bold text-[11.5px] text-[#0f233c]">
+                              {formatArabicDate(data.reportDate)}
                             </div>
                           </div>
 
-                          {/* Breakdown list (ONLY when contentScope === 'full_statement') */}
-                          {contentScope === 'full_statement' && (
-                            <>
-                              {/* Vertical Divider */}
-                              <div className="w-[1px] bg-slate-200 self-stretch my-0.5"></div>
+                          {/* Covered Period (only in full_statement if non-default) */}
+                          {contentScope === 'full_statement' &&
+                            data.periodText &&
+                            data.periodText !== 'كافة العمليات المسجلة للعميل' && (
+                              <div className="flex items-center justify-between gap-2 py-0.5 border-t border-slate-100">
+                                <div className="flex items-center gap-1.5 text-slate-500 text-[10.5px] font-semibold shrink-0">
+                                  <Clock className="w-3.5 h-3.5 text-[#1e3a5f]" />
+                                  <span>الفترة المغطاة</span>
+                                </div>
+                                <div className="font-bold text-[10.5px] text-[#0f233c] text-left leading-tight">
+                                  {data.periodText}
+                                </div>
+                              </div>
+                            )}
+                        </div>
 
-                              <div className="flex-1 space-y-1.5 text-[10px] sm:text-xs">
-                                <div className="flex items-center justify-between gap-1">
-                                  <div className="flex items-center gap-1 text-slate-600 font-medium">
+                        {/* 4. Financial Status Card (Redistributed vertically for optimal mobile readability) */}
+                        <div
+                          className={`bg-[#f8fafd] border border-[#e2e8f0] rounded-xl shadow-sm ${
+                            contentScope === 'balance_only'
+                              ? 'p-3.5 space-y-2.5'
+                              : 'p-2.5 space-y-1.5'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 pb-1.5 text-xs font-black text-[#0f233c] leading-normal">
+                            <Briefcase className="w-3.5 h-3.5 text-[#1e3a5f]" />
+                            <span>
+                              {contentScope === 'balance_only'
+                                ? 'إجمالي الحساب الحالي'
+                                : 'الموقف المالي للعميل'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5">
+                            {/* Current Balance Banner (Full Width) */}
+                            <div className="flex flex-col items-center justify-center w-full">
+                              <div
+                                className={`w-full rounded-xl shadow-sm text-center text-white ${
+                                  contentScope === 'balance_only'
+                                    ? 'pt-2.5 pb-4 px-3'
+                                    : 'pt-1.5 pb-3 px-3'
+                                } ${
+                                  bal.state === 'positive'
+                                    ? 'bg-[#00875a]'
+                                    : bal.state === 'negative'
+                                    ? 'bg-[#dc2626]'
+                                    : 'bg-slate-600'
+                                }`}
+                              >
+                                <span className="text-[10.5px] font-bold opacity-95 block mb-0.5">
+                                  {contentScope === 'balance_only'
+                                    ? 'إجمالي الحساب الحالي'
+                                    : 'الرصيد الحالي'}
+                                </span>
+                                <div className="text-lg font-black font-mono tracking-tight tabular-nums whitespace-nowrap leading-normal">
+                                  {bal.formattedAmount}
+                                </div>
+                              </div>
+                              <div className="mt-1 pb-0.5 flex items-center justify-center gap-1 font-bold text-[10.5px]">
+                                {bal.state === 'positive' ? (
+                                  <span className="text-[#00875a] flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 stroke-[2.5]" />
+                                    <span>رصيد لصالح العميل</span>
+                                  </span>
+                                ) : bal.state === 'negative' ? (
+                                  <span className="text-red-600 flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3 stroke-[2.5]" />
+                                    <span>رصيد مستحق للمحل</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600 flex items-center gap-1">
+                                    <Scale className="w-3 h-3" />
+                                    <span>الحساب متوازن</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Breakdown list (ONLY when contentScope === 'full_statement', Full Width) */}
+                            {contentScope === 'full_statement' && (
+                              <div className="w-full pt-1.5 border-t border-slate-200/90 space-y-1 text-[10.5px]">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
                                     <ArrowUpRight className="w-3 h-3 text-emerald-600 stroke-[2.5] shrink-0" />
                                     <span>إجمالي عمليات الدفع</span>
                                   </div>
-                                  <div className="font-black font-mono text-slate-800 whitespace-nowrap">
+                                  <div className="font-black font-mono text-[11.5px] text-slate-800 whitespace-nowrap">
                                     {effectivePeriodPayments.toLocaleString()} ج.م
                                   </div>
                                 </div>
 
-                                <div className="flex items-center justify-between gap-1">
-                                  <div className="flex items-center gap-1 text-slate-600 font-medium">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
                                     <ArrowDownRight className="w-3 h-3 text-red-600 stroke-[2.5] shrink-0" />
                                     <span>إجمالي عمليات السحب</span>
                                   </div>
-                                  <div className="font-black font-mono text-slate-800 whitespace-nowrap">
+                                  <div className="font-black font-mono text-[11.5px] text-slate-800 whitespace-nowrap">
                                     {effectivePeriodWithdrawals.toLocaleString()} ج.م
                                   </div>
                                 </div>
 
-                                <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-200">
-                                  <div className="flex items-center gap-1 text-slate-700 font-bold">
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/80">
+                                  <div className="flex items-center gap-1.5 text-slate-700 font-bold">
                                     <Scale className="w-3 h-3 text-[#00875a] shrink-0" />
                                     <span>صافي حركة الفترة</span>
                                   </div>
                                   <div
-                                    className={`font-black font-mono whitespace-nowrap ${
+                                    className={`font-black font-mono text-[11.5px] whitespace-nowrap ${
                                       effectivePeriodNetMovement > 0
                                         ? 'text-[#00875a]'
                                         : effectivePeriodNetMovement < 0
@@ -2232,105 +2269,111 @@ ${divider}
                                   </div>
                                 </div>
                               </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 5. Customer Transactions List (ONLY when contentScope === 'full_statement') */}
-                      {contentScope === 'full_statement' && (
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-xs sm:text-[13px] font-black text-[#0f233c]">
-                            <FileText className="w-3.5 h-3.5 text-[#1e3a5f]" />
-                            <span>عمليات العميل</span>
+                            )}
                           </div>
+                        </div>
 
-                          {data.transactions.length === 0 ? (
-                            <div className="bg-[#f8fafd] border border-slate-200 rounded-xl p-4 text-center text-slate-400 text-[10px]">
-                              لا توجد عمليات مسجلة لهذا العميل خلال الفترة المحددة.
+                        {/* 5. Customer Transactions List (ONLY when contentScope === 'full_statement', 2-row card layout for narrow mobile width) */}
+                        {contentScope === 'full_statement' && (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5 pb-1 text-xs font-black text-[#0f233c] leading-normal">
+                              <FileText className="w-3.5 h-3.5 text-[#1e3a5f]" />
+                              <span>عمليات العميل</span>
                             </div>
-                          ) : (
-                            data.transactions.map((t) => {
-                              const isCancelled = t.status === 'cancelled';
-                              const isPayment = t.type === 'payment';
-                              return (
-                                <div
-                                  key={t.id}
-                                  className={`bg-white border rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 shadow-sm transition-all ${
-                                    isCancelled
-                                      ? 'border-red-200 bg-red-50/20 opacity-75'
-                                      : 'border-slate-200'
-                                  }`}
-                                >
-                                  {/* Left: Amount Pill */}
+
+                            {data.transactions.length === 0 ? (
+                              <div className="bg-[#f8fafd] border border-slate-200 rounded-xl p-3 text-center text-slate-400 text-[10.5px]">
+                                لا توجد عمليات مسجلة لهذا العميل خلال الفترة المحددة.
+                              </div>
+                            ) : (
+                              data.transactions.map((t) => {
+                                const isCancelled = t.status === 'cancelled';
+                                const isPayment = t.type === 'payment';
+                                return (
                                   <div
-                                    className={`font-black font-mono text-[10px] sm:text-xs px-2 py-1 rounded-lg shrink-0 whitespace-nowrap ${
+                                    key={t.id}
+                                    className={`bg-white border rounded-xl p-2 space-y-1 shadow-sm transition-all ${
                                       isCancelled
-                                        ? 'bg-slate-100 text-slate-400 line-through'
-                                        : isPayment
-                                        ? 'bg-[#dcfce7] text-[#16a34a]'
-                                        : 'bg-[#fee2e2] text-[#dc2626]'
+                                        ? 'border-red-200 bg-red-50/20 opacity-75'
+                                        : 'border-slate-200'
                                     }`}
                                   >
-                                    {isPayment
-                                      ? `+${t.amount.toLocaleString()} ج.م`
-                                      : `-${t.amount.toLocaleString()} ج.م`}
-                                  </div>
-
-                                  {/* Center: Type with arrow and description */}
-                                  <div className="flex-1 text-right min-w-0">
-                                    <div className="flex items-center justify-start gap-1 font-black text-[11px] sm:text-xs text-slate-800">
-                                      <span>{isPayment ? 'دفع' : 'سحب'}</span>
-                                      {isPayment ? (
-                                        <ArrowUpRight className="w-3 h-3 text-emerald-600 stroke-[3]" />
-                                      ) : (
-                                        <ArrowDownRight className="w-3 h-3 text-red-600 stroke-[3]" />
-                                      )}
-                                    </div>
-                                    {t.description && (
-                                      <div className="text-[9.5px] sm:text-[10px] text-slate-500 mt-0.5 break-words leading-snug">
-                                        {t.description}
+                                    {/* Top Row: Type + Status Badge (Right) & Amount Pill (Left) */}
+                                    <div className="flex items-center justify-between gap-2 pb-0.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1 font-black text-[11.5px] text-slate-800">
+                                          <span>{isPayment ? 'دفع' : 'سحب'}</span>
+                                          {isPayment ? (
+                                            <ArrowUpRight className="w-3 h-3 text-emerald-600 stroke-[3]" />
+                                          ) : (
+                                            <ArrowDownRight className="w-3 h-3 text-red-600 stroke-[3]" />
+                                          )}
+                                        </div>
+                                        <span
+                                          className={`text-[8.5px] font-bold px-2 pt-0.5 pb-1 rounded-full whitespace-nowrap leading-none ${
+                                            isCancelled
+                                              ? 'bg-red-100 text-red-700'
+                                              : 'bg-[#dcfce7] text-[#15803d]'
+                                          }`}
+                                        >
+                                          {isCancelled
+                                            ? 'ملغاة (لا تدخل في الحسابات)'
+                                            : 'نشطة'}
+                                        </span>
                                       </div>
-                                    )}
-                                  </div>
 
-                                  {/* Right: Date, Time & Status badge */}
-                                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 text-left">
-                                    <div className="text-[9px] sm:text-[10px] text-slate-500 font-mono text-left whitespace-nowrap">
-                                      <div>{formatArabicDate(t.date)}</div>
-                                      <div className="text-slate-400">{t.time}</div>
+                                      <div
+                                        className={`font-black font-mono text-[11px] px-2 pt-0.5 pb-1.5 rounded-lg shrink-0 whitespace-nowrap leading-none ${
+                                          isCancelled
+                                            ? 'bg-slate-100 text-slate-400 line-through'
+                                            : isPayment
+                                            ? 'bg-[#dcfce7] text-[#16a34a]'
+                                            : 'bg-[#fee2e2] text-[#dc2626]'
+                                        }`}
+                                      >
+                                        {isPayment
+                                          ? `+${t.amount.toLocaleString()} ج.م`
+                                          : `-${t.amount.toLocaleString()} ج.م`}
+                                      </div>
                                     </div>
-                                    <span
-                                      className={`text-[8.5px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
-                                        isCancelled
-                                          ? 'bg-red-100 text-red-700'
-                                          : 'bg-[#dcfce7] text-[#15803d]'
-                                      }`}
-                                    >
-                                      {isCancelled
-                                        ? 'ملغاة (لا تدخل في الحسابات)'
-                                        : 'نشطة'}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
 
-                      {/* 6. Informative note matching reference image (scaled 30% smaller) */}
-                      <div className="bg-[#eff6ff]/80 border border-[#bfdbfe] rounded-xl p-2 flex items-center gap-2 text-slate-600">
-                        <div className="w-4 h-4 rounded-full bg-[#1e40af] text-white flex items-center justify-center shrink-0 font-bold text-[9px] leading-none">
-                          <span className="leading-none">i</span>
-                        </div>
-                        <div className="text-[9.5px] sm:text-[10px] leading-snug text-slate-600">
-                          الرصيد الموجب يعني أن المبلغ لصالح العميل، والرصيد السالب يعني أن المبلغ مستحق للمحل.
-                        </div>
+                                    {/* Bottom Row: Description (Right, wraps freely) & Date/Time (Left) */}
+                                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                      <div className="text-[10px] text-slate-600 font-medium leading-snug break-words flex-1 text-right">
+                                        {t.description || (isPayment ? 'عملية دفع مسجلة' : 'عملية سحب مسجلة')}
+                                      </div>
+                                      <div className="text-[9px] text-slate-500 font-mono text-left shrink-0 whitespace-nowrap">
+                                        <span>{formatArabicDate(t.date)}</span>
+                                        {t.time && (
+                                          <span className="text-slate-400 mr-1">
+                                            • {t.time}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* 7. Footer with Shop Owner Logo (Far Right) and Project AH2 Logo (Far Left) */}
-                      <InvoiceFooter className="mt-2.5" />
+                      {/* Bottom Group: Informative Note + Footer */}
+                      <div className="space-y-2 pt-1">
+                        {/* 6. Informative note matching reference image */}
+                        <div className="bg-[#eff6ff]/80 border border-[#bfdbfe] rounded-xl p-2 flex items-center gap-2 text-slate-600">
+                          <div className="w-4 h-4 rounded-full bg-[#1e40af] text-white flex items-center justify-center shrink-0 font-bold text-[9px] leading-none">
+                            <span className="leading-none">i</span>
+                          </div>
+                          <div className="text-[9.5px] leading-snug text-slate-600">
+                            الرصيد الموجب يعني أن المبلغ لصالح العميل، والرصيد السالب يعني أن المبلغ مستحق للمحل.
+                          </div>
+                        </div>
+
+                        {/* 7. Footer with Shop Owner Logo (Right) and Project AH2 Logo + 'نظام AH2 المعتمد' (Left) */}
+                        <InvoiceFooter />
+                      </div>
                     </div>
                   );
                 })()}
