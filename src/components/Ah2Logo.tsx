@@ -1,8 +1,8 @@
 import React from 'react';
 
 interface Ah2LogoProps {
-  variant?: 'emblem' | 'header' | 'splash' | 'icon';
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  variant?: 'emblem' | 'header' | 'splash' | 'icon' | 'footer';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   showSubtitle?: boolean;
 }
@@ -13,6 +13,42 @@ export const Ah2Logo: React.FC<Ah2LogoProps> = ({
   className = '',
   showSubtitle = true,
 }) => {
+  if (variant === 'footer' || size === 'xs') {
+    return (
+      <div className={`flex flex-col items-center justify-center shrink-0 ${className}`}>
+        <svg
+          className="w-12 h-7 sm:w-13 sm:h-8 shrink-0 drop-shadow-xs"
+          viewBox="0 0 104 64"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-label="AH2"
+        >
+          <ellipse
+            cx="52"
+            cy="32"
+            rx="49"
+            ry="29"
+            fill="#0e213b"
+            stroke="#fbbf24"
+            strokeWidth="4"
+          />
+          <text
+            x="52"
+            y="38"
+            textAnchor="middle"
+            fill="#fbbf24"
+            fontFamily="Cairo, Arial, sans-serif"
+            fontWeight="900"
+            fontSize="21"
+            letterSpacing="1"
+          >
+            AH2
+          </text>
+        </svg>
+      </div>
+    );
+  }
   if (variant === 'header') {
     return (
       <div className={`flex flex-col items-center justify-center shrink-0 ${className}`}>

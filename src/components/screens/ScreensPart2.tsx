@@ -266,22 +266,22 @@ export const Screen11CustomerDetails: React.FC<{
               </button>
             </div>
 
-            {/* Invoice Printable Sheet (Always Print-Friendly White Paper) */}
-            <div className="printable-invoice-sheet p-4 rounded-xl border border-amber-300 bg-[#fffdf7] text-slate-800 space-y-4">
+            {/* Invoice Printable Sheet (Scaled 30% smaller, Always Print-Friendly White Paper) */}
+            <div className="printable-invoice-sheet max-w-[340px] mx-auto p-3 rounded-xl border border-amber-300 bg-[#fffdf7] text-slate-800 space-y-2.5">
               {/* Clean Statement Header (No shop logo at top per rule 4) */}
-              <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+              <div className="flex items-center justify-between border-b border-amber-200 pb-2">
                 <div>
-                  <h3 className="font-black text-sm text-[#0f233c]">فاتورة وكشف حساب العميل</h3>
-                  <div className="text-[10px] text-slate-500 font-mono">رقم الكشف: #{customer.id.slice(0, 8)}</div>
+                  <h3 className="font-black text-xs text-[#0f233c]">فاتورة وكشف حساب العميل</h3>
+                  <div className="text-[9px] text-slate-500 font-mono">رقم الكشف: #{customer.id.slice(0, 8)}</div>
                 </div>
-                <div className="text-left font-mono text-[11px] text-slate-500">
+                <div className="text-left font-mono text-[9.5px] text-slate-500">
                   <div>التاريخ: {new Date().toISOString().split('T')[0]}</div>
-                  <div className="text-[10px] text-slate-400">نظام AH2</div>
+                  <div className="text-[9px] text-slate-400">نظام AH2</div>
                 </div>
               </div>
 
               {/* Customer Box */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-1">
+              <div className="bg-white p-2 rounded-lg border border-slate-200 text-[10.5px] space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-500">العميل:</span>
                   <span className="font-black text-slate-800">{customer.name}</span>
@@ -297,19 +297,19 @@ export const Screen11CustomerDetails: React.FC<{
               </div>
 
               {/* Financial Status */}
-              <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
+              <div className="bg-white p-2 rounded-lg border border-slate-200 text-[10.5px] space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-600">إجمالي العمليات:</span>
                   <span className="font-bold font-mono">{customer.transactions_count || 0}</span>
                 </div>
-                <div className="flex justify-between items-center border-t pt-1.5 font-bold">
+                <div className="flex justify-between items-center border-t pt-1 font-bold">
                   <span className="text-slate-800">الرصيد الحالي:</span>
                   <CustomerBalanceBadge balance={customer.balance} variant="inline" />
                 </div>
               </div>
 
-              {/* Invoice Footer with Shop Identity at the Bottom */}
-              <InvoiceFooter className="bg-white/80 p-2.5 rounded-xl border border-amber-200/80" />
+              {/* Invoice Footer with Shop Logo (Far Right) and Project AH2 Logo (Far Left) */}
+              <InvoiceFooter className="bg-white/80 p-2 rounded-xl border border-amber-200/80" />
             </div>
 
             {/* Actions */}

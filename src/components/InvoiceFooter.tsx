@@ -1,5 +1,6 @@
 import React from 'react';
 import shopLogoEmblemAsset from '../assets/shop_owner_logo_emblem.png';
+import { Ah2Logo } from './Ah2Logo';
 
 interface InvoiceFooterProps {
   className?: string;
@@ -8,15 +9,12 @@ interface InvoiceFooterProps {
 
 /**
  * Shared Customer Invoice & Statement Footer
- * 
+ *
  * Complies with strict project requirements:
- * 1. Placed at the very bottom of the customer invoice/statement after transactions & financial summary.
- * 2. Shop logo positioned on the right (in RTL).
- * 3. 'OM BASMA' on the first line adjacent to the logo on the left.
- * 4. 'للستائر والمفروشات' directly beneath 'OM BASMA' on the second line with close vertical proximity.
- * 5. Uses original authentic logo with object-contain to fill its frame without distortion or clipping.
- * 6. Preserves official brand color palette (#0f233c navy, amber-400 gold border, amber-700 subtitle).
- * 7. Clean integration for PDF generation and visual rendering.
+ * 1. Placed at the very bottom of the customer invoice/statement.
+ * 2. Far Right (أقصى اليمين): Shop logo (OM BASMA) with two-line shop name ('OM BASMA' / 'للستائر والمفروشات') adjacent to its left.
+ * 3. Far Left (أقصى اليسار): Project logo (AH2) with existing system/project info adjacent to its right.
+ * 4. Both logos in a single horizontal row with harmonious vertical alignment and preserved aspect ratios.
  */
 export const InvoiceFooter: React.FC<InvoiceFooterProps> = ({
   className = '',
@@ -27,12 +25,12 @@ export const InvoiceFooter: React.FC<InvoiceFooterProps> = ({
   return (
     <div
       dir="rtl"
-      className={`pt-4 border-t-2 border-[#c59a3f]/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-700 select-none ${className}`}
+      className={`pt-2.5 border-t-[1.5px] border-[#c59a3f]/70 flex flex-row items-center justify-between gap-2 text-slate-700 select-none ${className}`}
     >
-      {/* Shop Commercial Identity: [Logo on Right] [OM BASMA & للستائر والمفروشات on Left] */}
-      <div className="flex items-center gap-3">
-        {/* Logo Container on the Right */}
-        <div className="logo-light-frame w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-white border-2 border-amber-400 shadow-sm p-1.5 flex items-center justify-center shrink-0">
+      {/* Far Right (أقصى اليمين): Shop Logo + Shop Name in 2 lines */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Shop Logo Container at Far Right */}
+        <div className="logo-light-frame w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border-[1.5px] border-amber-400 shadow-sm p-1 flex items-center justify-center shrink-0">
           <img
             src={logoUrl}
             alt="لوجو متجر OM BASMA"
@@ -41,28 +39,33 @@ export const InvoiceFooter: React.FC<InvoiceFooterProps> = ({
           />
         </div>
 
-        {/* Brand Names to the Left of the Logo */}
+        {/* Shop Name to the Left of the Shop Logo */}
         <div className="flex flex-col text-right justify-center">
-          <span className="font-black text-base sm:text-lg text-[#0f233c] font-sans tracking-wide leading-none whitespace-nowrap">
+          <span className="font-black text-xs sm:text-[13px] text-[#0f233c] font-sans tracking-wide leading-none whitespace-nowrap">
             OM BASMA
           </span>
-          <span className="font-bold text-xs sm:text-sm text-amber-700 font-sans leading-tight mt-1 whitespace-nowrap">
+          <span className="font-bold text-[9.5px] sm:text-[10.5px] text-amber-700 font-sans leading-tight mt-0.5 whitespace-nowrap">
             للستائر والمفروشات
           </span>
         </div>
       </div>
 
-      {/* System & Verification Note */}
-      {showSystemText && (
-        <div className="text-center sm:text-left text-xs space-y-0.5">
-          <div className="font-bold text-slate-700 font-sans">
-            كشف حساب رسمي معتمد
+      {/* Far Left (أقصى اليسار): Existing System Text + Project Logo (AH2) at the Far Left Edge */}
+      <div className="flex items-center gap-2 shrink-0">
+        {showSystemText && (
+          <div className="text-left space-y-0.5">
+            <div className="font-bold text-[9.5px] sm:text-[10.5px] text-slate-700 font-sans leading-tight whitespace-nowrap">
+              كشف حساب رسمي معتمد
+            </div>
+            <div className="text-[8.5px] sm:text-[9.5px] font-semibold text-slate-500 font-sans leading-tight whitespace-nowrap">
+              نظام AH2 لإدارة الحسابات والعمليات
+            </div>
           </div>
-          <div className="text-[11px] font-semibold text-slate-500 font-sans">
-            نظام AH2 لإدارة الحسابات والعمليات
-          </div>
-        </div>
-      )}
+        )}
+
+        {/* Project Logo (AH2) at Far Left */}
+        <Ah2Logo variant="footer" showSubtitle={false} />
+      </div>
     </div>
   );
 };
