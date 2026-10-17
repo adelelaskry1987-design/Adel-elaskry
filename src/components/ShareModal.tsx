@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Share2,
   FileText,
@@ -30,10 +30,12 @@ import {
   Loader2,
 } from 'lucide-react';
 import shopLogoEmblemAsset from '../assets/shop_owner_logo_emblem.png';
+import { Header } from './Header';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
 import { InvoiceFooter } from './InvoiceFooter';
 import { PageTitle } from './PageTitle';
 import { Customer, Transaction } from '../types';
+import { api } from '../services/api';
 import { getCustomerBalanceInfo, getPeriodMovementInfo } from '../utils/balanceUtils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -372,7 +374,18 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, data })
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [showPreviewSheet, setShowPreviewSheet] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const printableRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    api
+      .getNotifications()
+      .then((list) => {
+        setUnreadCount(list.filter((n) => !n.is_read).length);
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -965,10 +978,19 @@ ${divider}
   const logoUrl = shopLogoEmblemAsset || '/shop_owner_logo_emblem.png';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100 overflow-y-auto p-4 select-none animate-in fade-in duration-150">
-      <div className="max-w-md mx-auto space-y-4 pb-24">
-        {/* Page Title: STRICTLY FIRST element per project guidelines */}
-        <PageTitle title="قائمة المشاركة" />
+    <div className="fixed inset-0 z-50 bg-[var(--bg-page)] text-[var(--text-primary)] overflow-y-auto flex flex-col select-none animate-in fade-in duration-150">
+      {/* Shared Top Dark Header identical to all other application pages */}
+      <Header
+        currentScreen="screen-17-share-menu"
+        onNavigate={() => onClose()}
+        onBack={onClose}
+        unreadNotificationsCount={unreadCount}
+      />
+
+      <main className="flex-1 w-full max-w-md mx-auto">
+        <div className="p-4 max-w-md mx-auto space-y-4 pb-24">
+          {/* Page Title: STRICTLY FIRST element per project guidelines */}
+          <PageTitle title="قائمة المشاركة" />
 
         {/* Back and Subtitle bar */}
         <div className="flex items-center justify-between">
@@ -1739,7 +1761,8 @@ ${divider}
                 )}
               </div>
             </div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };
