@@ -33,7 +33,7 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
         title="متجر OM BASMA للستائر والمفروشات"
       >
         {/* [اللوجو على اليمين - أرضية بيضاء ناصعة مع إطار ذهبي أنيق] */}
-        <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-white border-2 border-amber-400 shadow-md p-1 flex items-center justify-center shrink-0">
+        <div className="logo-light-frame h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-white border-2 border-[#c59a3f] shadow-md p-1 flex items-center justify-center shrink-0">
           <img
             src={emblemLogoSrc}
             alt="شعار OM BASMA"
@@ -70,7 +70,7 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
       >
         {/* [اللوجو على اليمين - الأيقونة الذهبية بدون النص بداخلها] */}
         <div
-          className={`${frameSize} rounded-2xl bg-white border-2 border-amber-400/80 p-1.5 flex items-center justify-center shrink-0 shadow-sm`}
+          className={`logo-light-frame ${frameSize} rounded-2xl bg-white border-2 border-amber-400/80 p-1.5 flex items-center justify-center shrink-0 shadow-sm`}
         >
           <img
             src={emblemLogoSrc}
@@ -117,7 +117,7 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
       >
         {/* [اللوجو على اليمين - الأيقونة الذهبية النقية] */}
         <div
-          className={`${sizeClasses} rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-white shadow-md p-1.5 flex items-center justify-center shrink-0`}
+          className={`logo-light-frame ${sizeClasses} rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-white shadow-md p-1.5 flex items-center justify-center shrink-0`}
         >
           <img
             src={emblemLogoSrc}
@@ -153,7 +153,7 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
       <div
-        className={`${sizeClasses} rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-white shadow-md p-1 flex items-center justify-center`}
+        className={`logo-light-frame ${sizeClasses} rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-white shadow-md p-1 flex items-center justify-center`}
       >
         <img
           src={transparent ? fullLogoSrc : logoSrc}

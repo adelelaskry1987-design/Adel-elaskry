@@ -32,7 +32,7 @@ export const InvoiceFooter: React.FC<InvoiceFooterProps> = ({
       {/* Shop Commercial Identity: [Logo on Right] [OM BASMA & للستائر والمفروشات on Left] */}
       <div className="flex items-center gap-3">
         {/* Logo Container on the Right */}
-        <div className="w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-white border-2 border-amber-400 shadow-sm p-1.5 flex items-center justify-center shrink-0">
+        <div className="logo-light-frame w-13 h-13 sm:w-15 sm:h-15 rounded-2xl bg-white border-2 border-amber-400 shadow-sm p-1.5 flex items-center justify-center shrink-0">
           <img
             src={logoUrl}
             alt="لوجو متجر OM BASMA"

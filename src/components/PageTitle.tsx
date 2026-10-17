@@ -21,18 +21,18 @@ export interface PageTitleProps {
 export const PageTitle: React.FC<PageTitleProps> = ({ title, action, className = '' }) => {
   return (
     <div className={`w-full mb-3 sm:mb-4 select-none ${className}`}>
-      {/* 1. Centered Title flanked by thin horizontal black lines - STRICTLY FIRST */}
+      {/* 1. Centered Title flanked by thin horizontal lines - STRICTLY FIRST */}
       <div className="flex items-center justify-center gap-3 sm:gap-4 w-full">
         {/* Right line (in RTL: start line) */}
-        <div className="flex-1 min-w-[12px] h-px bg-black" />
+        <div className="flex-1 min-w-[12px] h-px bg-[var(--text-primary)] opacity-80" />
 
-        {/* Title Text: Black, Bold, Large, Centered */}
-        <h1 className="text-lg sm:text-2xl font-black text-black text-center whitespace-nowrap px-1 shrink-0 tracking-normal">
+        {/* Title Text: Bold, Large, Centered */}
+        <h1 className="text-lg sm:text-2xl font-black text-[var(--text-primary)] text-center whitespace-nowrap px-1 shrink-0 tracking-normal">
           {title}
         </h1>
 
         {/* Left line (in RTL: end line) */}
-        <div className="flex-1 min-w-[12px] h-px bg-black" />
+        <div className="flex-1 min-w-[12px] h-px bg-[var(--text-primary)] opacity-80" />
       </div>
 
       {/* 2. Optional action buttons (like Share) placed cleanly BELOW the title line, never above */}

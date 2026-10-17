@@ -68,9 +68,9 @@ export const ScreenSwitcher: React.FC<ScreenSwitcherProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-lg max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 text-slate-800">
         {/* Header */}
-        <div className="bg-[#0c1e34] text-white p-4 flex items-center justify-between border-b border-slate-700">
+        <div className="bg-[var(--bg-header)] text-white p-4 flex items-center justify-between border-b border-[#1b3453]">
           <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-amber-400" />
+            <Layers className="w-5 h-5 text-[#d4ab54]" />
             <div>
               <h2 className="font-bold text-base leading-tight">خريطة شاشات AH2 الـ35 الأصلية</h2>
               <p className="text-[11px] text-slate-300">اختر أي شاشة للانتقال المباشر إليها وفحصها</p>

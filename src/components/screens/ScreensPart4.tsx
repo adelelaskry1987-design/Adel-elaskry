@@ -146,7 +146,7 @@ export const Screen22BackupRestore: React.FC<{
                   setSelectedBackup(null);
                   setError(null);
                 }}
-                className="py-2 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+                className="py-2 px-4 rounded-xl theme-btn-secondary font-bold text-xs"
               >
                 إلغاء
               </button>
@@ -249,7 +249,7 @@ export const Screen24ResetData: React.FC<{
         </button>
         <button
           onClick={() => onNavigate('screen-34-data-management')}
-          className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+          className="w-full py-2.5 rounded-xl theme-btn-secondary font-bold text-xs"
         >
           إلغاء
         </button>
@@ -353,7 +353,7 @@ export const Screen25DataImport: React.FC<{
           </button>
           <button
             onClick={() => onNavigate('screen-34-data-management')}
-            className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+            className="w-full py-2.5 rounded-xl theme-btn-secondary font-bold text-xs"
           >
             إلغاء
           </button>
@@ -528,7 +528,7 @@ export const Screen28DataExportSuccess: React.FC<{
 
         <button
           onClick={() => onNavigate('screen-5-home')}
-          className="w-full py-2.5 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
+          className="w-full py-2.5 px-6 rounded-xl theme-btn-secondary font-bold text-xs transition-all"
         >
           العودة إلى الرئيسية
         </button>

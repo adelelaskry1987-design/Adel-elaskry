@@ -52,16 +52,16 @@ export const Screen8PasswordChangedSuccess: React.FC<{ onNavigate: (s: ScreenId)
 // ================= SCREEN 9: APP LOGO =================
 export const Screen9AppLogo: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#091b33] via-[#0b213f] to-[#040e1b] flex flex-col items-center justify-between p-6 text-white text-center select-none">
-      <div className="w-full flex justify-between items-center text-xs text-slate-400">
+    <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-between p-6 text-[var(--text-primary)] text-center select-none transition-colors duration-200">
+      <div className="w-full flex justify-between items-center text-xs text-[var(--text-muted)]">
         <span className="font-mono">10:30</span>
-        <span className="text-[11px] bg-amber-400/10 text-amber-300 px-2.5 py-0.5 rounded-full border border-amber-400/20">
+        <span className="text-[11px] bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full border border-amber-300 font-bold">
           الهوية الرسمية
         </span>
       </div>
 
-      <div className="my-auto flex flex-col items-center gap-6">
-        <div className="flex flex-col items-center bg-white/5 border-2 border-amber-400/60 rounded-3xl p-4 backdrop-blur-sm shadow-2xl">
+      <div className="my-auto flex flex-col items-center gap-6 bg-[var(--bg-header)] border-2 border-[var(--color-gold)]/70 rounded-3xl p-6 shadow-xl text-white">
+        <div className="flex flex-col items-center bg-white/5 border-2 border-[#c59a3f]/60 rounded-3xl p-4 shadow-md">
           <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
         </div>
         <Ah2Logo variant="splash" size="md" showSubtitle={true} />
@@ -71,13 +71,13 @@ export const Screen9AppLogo: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
 
         <button
           onClick={() => onNavigate('screen-5-home')}
-          className="mt-8 py-3 px-8 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg shadow-amber-400/20 transition-all active:scale-98"
+          className="mt-6 py-3 px-8 rounded-xl theme-btn-gold font-black text-xs shadow-md transition-all active:scale-98"
         >
           العودة للرئيسية
         </button>
       </div>
 
-      <div className="text-[11px] text-slate-400">
+      <div className="text-[11px] text-[var(--text-muted)]">
         المطور: م/ عادل العسكري • تاريخ الإصدار: 1 سبتمبر 2026
       </div>
     </div>
@@ -217,19 +217,19 @@ export const Screen11CustomerDetails: React.FC<{
         {/* Print Invoice with Shop Owner Identity */}
         <button
           onClick={() => setShowInvoice(true)}
-          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md flex items-center justify-between active:scale-98 transition-all"
+          className="w-full py-3 px-4 rounded-xl theme-btn-gold font-black text-xs shadow-sm flex items-center justify-between active:scale-98 transition-all"
         >
           <div className="flex items-center gap-2">
-            <Printer className="w-4 h-4 text-slate-950" />
+            <Printer className="w-4 h-4 text-[#0f233c]" />
             <span>طباعة فاتورة / كشف حساب بهوية المحل</span>
           </div>
-          <ArrowRight className="w-4 h-4 text-slate-950" />
+          <ArrowRight className="w-4 h-4 text-[#0f233c]" />
         </button>
 
         {/* Edit Customer */}
         <button
           onClick={() => onNavigate('screen-31-customer-edit')}
-          className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-between transition-all"
+          className="w-full py-2.5 px-4 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-between transition-all"
         >
           <div className="flex items-center gap-2">
             <Edit className="w-4 h-4 text-blue-600" />
@@ -266,8 +266,8 @@ export const Screen11CustomerDetails: React.FC<{
               </button>
             </div>
 
-            {/* Invoice Printable Sheet */}
-            <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/30 space-y-4">
+            {/* Invoice Printable Sheet (Always Print-Friendly White Paper) */}
+            <div className="printable-invoice-sheet p-4 rounded-xl border border-amber-300 bg-[#fffdf7] text-slate-800 space-y-4">
               {/* Clean Statement Header (No shop logo at top per rule 4) */}
               <div className="flex items-center justify-between border-b border-amber-200 pb-3">
                 <div>
@@ -323,7 +323,7 @@ export const Screen11CustomerDetails: React.FC<{
               </button>
               <button
                 onClick={() => setShowInvoice(false)}
-                className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                className="py-2.5 px-4 rounded-xl theme-btn-secondary font-bold text-xs"
               >
                 إغلاق
               </button>
@@ -463,7 +463,7 @@ export const Screen12ChangePassword: React.FC<{ onNavigate: (s: ScreenId) => voi
           <button
             type="button"
             onClick={() => onNavigate('screen-32-settings')}
-            className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
+            className="w-full py-2.5 rounded-xl theme-btn-secondary font-bold text-xs transition-all"
           >
             إلغاء
           </button>
@@ -492,7 +492,7 @@ export const Screen13TransactionSavedSuccess: React.FC<{ onNavigate: (s: ScreenI
         </button>
         <button
           onClick={() => onNavigate('screen-18-all-transactions')}
-          className="w-full py-2.5 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
+          className="w-full py-2.5 px-6 rounded-xl theme-btn-secondary font-bold text-xs transition-all"
         >
           عرض كل العمليات
         </button>
@@ -685,7 +685,7 @@ export const Screen14NewTransaction: React.FC<{
           <button
             type="button"
             onClick={() => onNavigate('screen-11-customer-details')}
-            className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
+            className="w-full py-2.5 rounded-xl theme-btn-secondary font-bold text-xs transition-all"
           >
             إلغاء
           </button>

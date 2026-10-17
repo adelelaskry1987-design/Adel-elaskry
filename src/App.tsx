@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Customer, Transaction, NotificationItem, ReportsSummary, ScreenId } from './types';
 import { api } from './services/api';
 import { Header } from './components/Header';
@@ -147,9 +148,9 @@ function MainApp() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#08172b] flex flex-col items-center justify-center text-white">
-        <div className="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-xs font-semibold text-slate-300">جاري تحميل نظام AH2...</p>
+      <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-center text-[var(--text-primary)]">
+        <div className="w-12 h-12 border-4 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-xs font-semibold text-[var(--text-secondary)]">جاري تحميل نظام AH2...</p>
       </div>
     );
   }
@@ -167,7 +168,7 @@ function MainApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased">
+    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex flex-col antialiased transition-colors duration-200">
       {/* Offline Alert Strip */}
       {!isOnline && (
         <div className="bg-amber-600 text-white text-[11px] font-bold py-1.5 px-4 text-center flex items-center justify-center gap-1.5 sticky top-0 z-50 shadow-sm">
@@ -385,7 +386,9 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <ThemeProvider>
+        <MainApp />
+      </ThemeProvider>
     </AuthProvider>
   );
 }

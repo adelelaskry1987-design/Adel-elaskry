@@ -21,10 +21,10 @@ export const CustomerBalanceBadge: React.FC<CustomerBalanceBadgeProps> = ({
       <div
         className={`rounded-2xl p-4 border shadow-sm flex items-center justify-between transition-all ${
           info.state === 'positive'
-            ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/80 border-emerald-300 text-emerald-950'
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
             : info.state === 'negative'
-            ? 'bg-gradient-to-br from-red-50 to-red-100/80 border-red-300 text-red-950'
-            : 'bg-gradient-to-br from-slate-50 to-slate-100 border-slate-300 text-slate-800'
+            ? 'bg-red-50 border-red-300 text-red-950'
+            : 'bg-slate-50 border-slate-300 text-slate-800'
         } ${className}`}
       >
         <div>
@@ -54,7 +54,7 @@ export const CustomerBalanceBadge: React.FC<CustomerBalanceBadgeProps> = ({
               ? 'bg-emerald-600 text-white'
               : info.state === 'negative'
               ? 'bg-red-600 text-white'
-              : 'bg-slate-500 text-white'
+              : 'bg-[var(--color-primary)] text-white'
           }`}
         >
           {info.state === 'positive' ? '+' : info.state === 'negative' ? '-' : '='}

@@ -513,6 +513,12 @@ ${divider}
       x: 0,
       y: 0,
       onclone: (clonedDoc, clonedEl) => {
+        // Force light theme on the cloned document so exported PDFs are never affected by Dark Mode
+        clonedDoc.documentElement.classList.remove('dark');
+        clonedDoc.documentElement.classList.add('light');
+        clonedDoc.documentElement.setAttribute('data-theme', 'light');
+        clonedDoc.documentElement.style.colorScheme = 'light';
+
         // Isolate clonedEl at (0, 0) in clonedDoc.body so modal scroll, page scroll, and offscreen wrapper never clip the top header
         clonedDoc.documentElement.style.margin = '0';
         clonedDoc.documentElement.style.padding = '0';
@@ -939,14 +945,14 @@ ${divider}
   };
 
   const shareOptions = [
-    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-500', action: handleWhatsAppShare },
-    { name: 'Telegram', icon: Send, color: 'bg-sky-500', action: handleTelegramShare },
-    { name: 'Messenger', icon: MessageCircle, color: 'bg-blue-600', action: handleOtherAppsShare },
-    { name: 'IMO', icon: MessageCircle, color: 'bg-cyan-500', action: handleOtherAppsShare },
-    { name: 'Gmail', icon: Mail, color: 'bg-red-500', action: handleGmailShare },
+    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-600', action: handleWhatsAppShare },
+    { name: 'Telegram', icon: Send, color: 'theme-btn-primary', action: handleTelegramShare },
+    { name: 'Messenger', icon: MessageCircle, color: 'theme-btn-primary', action: handleOtherAppsShare },
+    { name: 'IMO', icon: MessageCircle, color: 'theme-btn-primary', action: handleOtherAppsShare },
+    { name: 'Gmail', icon: Mail, color: 'theme-btn-primary', action: handleGmailShare },
     { name: 'الرسائل', icon: MessageCircle, color: 'bg-emerald-600', action: handleSmsShare },
-    { name: 'المزيد', icon: MoreHorizontal, color: 'bg-slate-600', action: handleOtherAppsShare },
-    { name: 'بلوتوث', icon: Bluetooth, color: 'bg-indigo-600', action: handleOtherAppsShare },
+    { name: 'المزيد', icon: MoreHorizontal, color: 'theme-btn-gold', action: handleOtherAppsShare },
+    { name: 'بلوتوث', icon: Bluetooth, color: 'theme-btn-primary', action: handleOtherAppsShare },
   ];
 
   const reportTitle =
@@ -1076,7 +1082,7 @@ ${divider}
             <button
               onClick={handlePdfShare}
               disabled={isGeneratingPdf}
-              className="w-full py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               {isGeneratingPdf ? (
                 <>
@@ -1114,7 +1120,7 @@ ${divider}
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={handleCopyText}
-                className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer"
+                className="py-2.5 px-3 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 {copied ? (
                   <>
@@ -1131,7 +1137,7 @@ ${divider}
 
               <button
                 onClick={handlePrint}
-                className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer"
+                className="py-2.5 px-3 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <Printer className="w-4 h-4 text-slate-500" />
                 <span>طباعة المستند</span>

@@ -62,7 +62,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentScreen, onNavigate 
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg select-none">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--bg-nav)] border-t border-[var(--border-color)] shadow-lg select-none transition-colors duration-200">
       <div className="max-w-md mx-auto grid grid-cols-5 h-16">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -72,13 +72,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentScreen, onNavigate 
               onClick={() => onNavigate(item.id)}
               className={`flex flex-col items-center justify-center transition-all ${
                 item.isActive
-                  ? 'text-blue-600 font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? 'text-[var(--color-primary-text)] font-bold'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               } active:scale-95`}
             >
               <div
                 className={`p-1 rounded-xl transition-colors ${
-                  item.isActive ? 'bg-blue-50 text-blue-600' : ''
+                  item.isActive ? 'bg-[var(--color-primary-soft)] text-[var(--color-primary-text)]' : ''
                 }`}
               >
                 <Icon className={`w-5 h-5 ${item.isActive ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />

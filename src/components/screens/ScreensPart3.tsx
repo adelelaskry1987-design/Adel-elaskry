@@ -157,14 +157,14 @@ export const Screen16CustomerUpdatedSuccess: React.FC<{ onNavigate: (s: ScreenId
 // ================= SCREEN 17: SHARE MENU =================
 export const Screen17ShareMenu: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   const shareOptions = [
-    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-500' },
-    { name: 'Telegram', icon: Send, color: 'bg-sky-500' },
-    { name: 'Messenger', icon: MessageCircle, color: 'bg-blue-600' },
-    { name: 'IMO', icon: MessageCircle, color: 'bg-cyan-500' },
-    { name: 'Gmail', icon: Mail, color: 'bg-red-500' },
+    { name: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-600' },
+    { name: 'Telegram', icon: Send, color: 'theme-btn-primary' },
+    { name: 'Messenger', icon: MessageCircle, color: 'theme-btn-primary' },
+    { name: 'IMO', icon: MessageCircle, color: 'theme-btn-primary' },
+    { name: 'Gmail', icon: Mail, color: 'theme-btn-primary' },
     { name: 'الرسائل', icon: MessageCircle, color: 'bg-emerald-600' },
-    { name: 'المزيد', icon: MoreHorizontal, color: 'bg-slate-600' },
-    { name: 'بلوتوث', icon: Bluetooth, color: 'bg-indigo-600' },
+    { name: 'المزيد', icon: MoreHorizontal, color: 'theme-btn-gold' },
+    { name: 'بلوتوث', icon: Bluetooth, color: 'theme-btn-primary' },
   ];
 
   const [copiedLink, setCopiedLink] = useState(false);
@@ -473,7 +473,7 @@ export const Screen18AllTransactions: React.FC<{
                   setCancelModalTx(null);
                   setCancelError(null);
                 }}
-                className="py-2 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+                className="py-2 px-4 rounded-xl theme-btn-secondary font-bold text-xs"
               >
                 تراجع
               </button>
@@ -764,7 +764,7 @@ export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
         {/* Restore Backup */}
         <button
           onClick={() => onNavigate('screen-22-backup-restore')}
-          className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-between transition-all"
+          className="w-full py-3 px-4 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-between transition-all"
         >
           <div className="flex items-center gap-2">
             <Upload className="w-4 h-4 text-blue-600" />
@@ -789,7 +789,7 @@ export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
           }`}
         >
           <div
-            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+            className={`toggle-thumb bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
               autoBackup ? '-translate-x-5' : 'translate-x-0'
             }`}
           />
@@ -856,7 +856,7 @@ export const Screen21BackupCreate: React.FC<{ onNavigate: (s: ScreenId) => void 
           </button>
           <button
             onClick={() => onNavigate('screen-20-backup')}
-            className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+            className="w-full py-2.5 rounded-xl theme-btn-secondary font-bold text-xs"
           >
             إلغاء
           </button>

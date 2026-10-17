@@ -6,6 +6,7 @@ import { PageTitle } from '../PageTitle';
 import { Customer, NotificationItem, ReportsSummary, ScreenId } from '../../types';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import {
   Bell,
   CheckCircle2,
@@ -22,6 +23,8 @@ import {
   HelpCircle,
   Database,
   Moon,
+  Sun,
+  Monitor,
   Users,
   LogOut,
   Calendar,
@@ -111,7 +114,7 @@ export const Screen29Notifications: React.FC<{
               }`}
             >
               <div
-                className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${
+                className={`toggle-thumb bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${
                   item.state ? '-translate-x-5' : 'translate-x-0'
                 }`}
               />
@@ -225,7 +228,7 @@ export const Screen30About: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({
 
           <button
             onClick={() => onNavigate('screen-35-support')}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+            className="w-full py-2.5 px-4 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-center gap-2 transition-all"
           >
             <HelpCircle className="w-4 h-4" />
             <span>الدعم والمساعدة ودليل الاستخدام</span>
@@ -402,7 +405,7 @@ export const Screen31CustomerEdit: React.FC<{
           <button
             type="button"
             onClick={() => onNavigate('screen-11-customer-details')}
-            className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+            className="w-full py-2.5 rounded-xl theme-btn-secondary font-bold text-xs"
           >
             إلغاء
           </button>
@@ -415,11 +418,60 @@ export const Screen31CustomerEdit: React.FC<{
 // ================= SCREEN 32: SETTINGS =================
 export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   const { user, project, logout } = useAuth();
-  const [darkMode, setDarkMode] = useState(false);
+  const { themeMode, resolvedTheme, setThemeMode } = useTheme();
+
+  const themeOptions: { id: 'light' | 'dark' | 'system'; label: string; icon: React.FC<{ className?: string }> }[] = [
+    { id: 'light', label: 'نهاري', icon: Sun },
+    { id: 'dark', label: 'ليلي', icon: Moon },
+    { id: 'system', label: 'حسب إعدادات الجهاز', icon: Monitor },
+  ];
 
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       <PageTitle title="الإعدادات" />
+
+      {/* Appearance / Theme Selection Card ("المظهر") */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2">
+            {resolvedTheme === 'dark' ? (
+              <Moon className="w-4 h-4 text-amber-600" />
+            ) : (
+              <Sun className="w-4 h-4 text-amber-600" />
+            )}
+            <span className="font-black text-xs text-slate-800">المظهر</span>
+          </div>
+          <span className="text-[11px] font-bold text-slate-500">
+            {themeMode === 'light'
+              ? 'الوضع النهاري مفعّل'
+              : themeMode === 'dark'
+              ? 'الوضع الليلي مفعّل'
+              : `حسب إعدادات الجهاز (${resolvedTheme === 'dark' ? 'ليلي' : 'نهاري'})`}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {themeOptions.map((opt) => {
+            const Icon = opt.icon;
+            const isSelected = themeMode === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setThemeMode(opt.id)}
+                className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98 ${
+                  isSelected
+                    ? 'theme-btn-primary shadow-sm ring-2 ring-[var(--color-gold)]/50'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isSelected ? 'text-[#d4ab54]' : 'text-slate-500'}`} />
+                <span className="text-[11px] leading-tight text-center">{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Menu items */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden text-xs">
@@ -470,26 +522,6 @@ export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> =
           </div>
           <ChevronLeft className="w-4 h-4 text-slate-400" />
         </button>
-
-        {/* Dark Mode toggle */}
-        <div className="p-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Moon className="w-4 h-4 text-blue-600" />
-            <span className="font-bold text-slate-800">الوضع الليلي</span>
-          </div>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors ${
-              darkMode ? 'bg-blue-600' : 'bg-slate-300'
-            }`}
-          >
-            <div
-              className={`bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform ${
-                darkMode ? '-translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
 
         {/* Notifications */}
         <button
@@ -594,7 +626,7 @@ export const Screen33Reports: React.FC<{
         <button
           type="button"
           onClick={() => setShowPrintModal(true)}
-          className="w-full py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 border border-slate-200 transition-all shadow-sm active:scale-98"
+          className="w-full py-2 px-4 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-98"
           title="معاينة وطباعة التقرير"
         >
           <Printer className="w-4 h-4 text-slate-700" />
@@ -660,16 +692,16 @@ export const Screen33Reports: React.FC<{
       </div>
 
       {/* Net Balance Banner */}
-      <div className="bg-[#0f233c] text-white rounded-2xl p-4 border border-slate-700 flex items-center justify-between">
+      <div className="bg-[var(--bg-header)] text-white rounded-2xl p-4 border border-[#1b3453] flex items-center justify-between">
         <div>
           <span className="text-xs text-slate-300 font-bold">صافي الموقف المالي (الأرصدة)</span>
-          <div className="text-2xl font-black font-mono text-amber-400 mt-0.5 tabular-nums">
+          <div className="text-2xl font-black font-mono text-[#d4ab54] mt-0.5 tabular-nums">
             {(summary?.netBalance ?? 0).toLocaleString()} ج.م
           </div>
         </div>
         <button
           onClick={() => onNavigate('screen-18-all-transactions')}
-          className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-bold transition-all"
+          className="px-3 py-1.5 theme-btn-gold rounded-xl text-xs font-bold transition-all"
         >
           عرض السجل
         </button>
@@ -678,9 +710,9 @@ export const Screen33Reports: React.FC<{
       {/* Action to view / print report carrying Shop Owner Identity */}
       <button
         onClick={() => setShowPrintModal(true)}
-        className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md flex items-center justify-center gap-2 transition-all active:scale-98"
+        className="w-full py-3 px-4 rounded-xl theme-btn-gold font-black text-xs shadow-sm flex items-center justify-center gap-2 transition-all active:scale-98"
       >
-        <Printer className="w-4 h-4 text-slate-950" />
+        <Printer className="w-4 h-4 text-[#0f233c]" />
         <span>معاينة وطباعة التقرير المالي بهوية المحل (PDF)</span>
       </button>
 
@@ -698,8 +730,8 @@ export const Screen33Reports: React.FC<{
               </button>
             </div>
 
-            {/* Printable Report Sheet */}
-            <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/30 space-y-4">
+            {/* Printable Report Sheet (Always Print-Friendly White Paper) */}
+            <div className="printable-invoice-sheet p-4 rounded-xl border border-amber-300 bg-[#fffdf7] text-slate-800 space-y-4">
               {/* Header with Shop Owner Logo */}
               <div className="flex items-center justify-between border-b border-amber-200 pb-3">
                 <ShopOwnerLogo variant="report" />
@@ -767,7 +799,7 @@ export const Screen33Reports: React.FC<{
               </button>
               <button
                 onClick={() => setShowPrintModal(false)}
-                className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                className="py-2.5 px-4 rounded-xl theme-btn-secondary font-bold text-xs"
               >
                 إغلاق
               </button>
@@ -820,14 +852,14 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
       desc: 'عرض وتنظيم جميع العمليات المالية والمصادقات',
       target: 'screen-18-all-transactions' as ScreenId,
       icon: FileSpreadsheet,
-      color: 'text-indigo-600',
+      color: 'text-blue-600',
     },
     {
       title: 'إدارة التقارير',
       desc: 'إدارة بيانات التقارير والإحصائيات والتحليلات',
       target: 'screen-33-reports' as ScreenId,
       icon: BarChart3,
-      color: 'text-purple-600',
+      color: 'text-amber-700',
     },
     {
       title: 'إعادة تعيين البيانات',
@@ -848,7 +880,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
       desc: 'تصدير البيانات إلى ملف خارجي بصيغة مدعومة',
       target: 'screen-27-data-export' as ScreenId,
       icon: Download,
-      color: 'text-cyan-600',
+      color: 'text-blue-600',
     },
   ];
 
@@ -866,7 +898,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
               className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors text-right"
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-xl bg-slate-100 ${item.color}`}>
+                <div className={`p-2 rounded-xl bg-slate-50 border border-slate-200 ${item.color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
                 <div>
@@ -954,7 +986,7 @@ export const Screen35Support: React.FC<{ onNavigate: (s: ScreenId) => void }> = 
 
         <button
           onClick={() => setShowContactModal(true)}
-          className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-between transition-all"
+          className="w-full py-3 px-4 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-between transition-all"
         >
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600" />
@@ -1017,7 +1049,7 @@ export const Screen35Support: React.FC<{ onNavigate: (s: ScreenId) => void }> = 
                   </button>
                   <button
                     onClick={() => setShowContactModal(false)}
-                    className="py-2 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+                    className="py-2 px-4 rounded-xl theme-btn-secondary font-bold text-xs"
                   >
                     إلغاء
                   </button>

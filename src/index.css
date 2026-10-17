@@ -4,6 +4,378 @@
   --font-sans: 'Cairo', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ==========================================================================
+   CENTRALIZED DESIGN TOKENS (LIGHT MODE & DARK MODE)
+   Palette:
+   1. Primary: Elegant Dark Blue (#0f233c / #15345a)
+   2. Secondary: Calm Gold (#c59a3f / #d4ab54)
+   3. Light Neutral: Warm Creamy Off-White (#f7f5f0 / #ffffff)
+   4. Dark Neutral: Dark Bluish-Slate Gray (#0f1724 / #172234)
+   + Functional Status Colors: Green (Positive/Success) & Red (Negative/Danger)
+   ========================================================================== */
+
+:root,
+html.light {
+  /* 3. Light Neutral Surfaces (Creamy Off-White & Clean White) */
+  --bg-page: #f7f5f0;
+  --bg-card: #ffffff;
+  --bg-surface-alt: #f0ede6;
+  --bg-surface-hover: #e7e3da;
+  --bg-input: #faf9f5;
+  --bg-nav: #ffffff;
+
+  /* 1. Primary Dark Blue Surfaces */
+  --bg-header: #0f233c;
+  --bg-header-status: #091728;
+  --color-primary: #15345a;
+  --color-primary-hover: #0f233c;
+  --color-primary-soft: #e9eff6;
+  --color-primary-border: #c5d4e6;
+  --color-primary-text: #15345a;
+
+  /* 2. Secondary Calm Gold */
+  --color-gold: #c59a3f;
+  --color-gold-hover: #b2872d;
+  --color-gold-soft: #faf3e0;
+  --color-gold-border: #e4ca8b;
+  --color-gold-text: #8a6316;
+
+  /* Typography */
+  --text-primary: #0f233c;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+
+  /* Borders & Dividers */
+  --border-color: #e2ddd3;
+  --border-subtle: #ede9e0;
+  --border-input: #d5cfc3;
+
+  /* Functional Green (Positive / Success / Add) */
+  --color-success: #15803d;
+  --color-success-hover: #166534;
+  --color-success-soft: #ecfdf5;
+  --color-success-border: #a7f3d0;
+  --color-success-text: #065f46;
+
+  /* Functional Red (Negative / Danger / Delete) */
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-soft: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #991b1b;
+}
+
+html.dark {
+  /* 4. Dark Neutral Surfaces (Dark Bluish-Slate Gray) */
+  --bg-page: #0f1724;
+  --bg-card: #172234;
+  --bg-surface-alt: #1e2c42;
+  --bg-surface-hover: #263752;
+  --bg-input: #121c2b;
+  --bg-nav: #131d2d;
+
+  /* 1. Primary Dark Blue in Dark Mode */
+  --bg-header: #0b1829;
+  --bg-header-status: #07101d;
+  --color-primary: #1e4976;
+  --color-primary-hover: #275d94;
+  --color-primary-soft: rgba(30, 73, 118, 0.35);
+  --color-primary-border: rgba(96, 165, 250, 0.3);
+  --color-primary-text: #93c5fd;
+
+  /* 2. Secondary Calm Gold in Dark Mode (No harsh glare) */
+  --color-gold: #cfa54c;
+  --color-gold-hover: #dbb35c;
+  --color-gold-soft: rgba(207, 165, 76, 0.14);
+  --color-gold-border: rgba(207, 165, 76, 0.35);
+  --color-gold-text: #ebd08e;
+
+  /* Typography */
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  /* Borders & Dividers */
+  --border-color: #26364f;
+  --border-subtle: #1e2c42;
+  --border-input: #314563;
+
+  /* Functional Green in Dark Mode */
+  --color-success: #16a34a;
+  --color-success-hover: #15803d;
+  --color-success-soft: rgba(22, 163, 74, 0.16);
+  --color-success-border: rgba(52, 211, 153, 0.35);
+  --color-success-text: #6ee7b7;
+
+  /* Functional Red in Dark Mode */
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-soft: rgba(220, 38, 38, 0.16);
+  --color-danger-border: rgba(248, 113, 113, 0.35);
+  --color-danger-text: #fca5a5;
+}
+
+/* Base Body Styling */
+body {
+  background-color: var(--bg-page) !important;
+  color: var(--text-primary) !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Reusable Semantic Theme Classes */
+.theme-page {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.theme-card {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.theme-surface-alt {
+  background-color: var(--bg-surface-alt);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.theme-btn-primary {
+  background-color: var(--color-primary) !important;
+  color: #ffffff !important;
+  border-color: transparent;
+}
+.theme-btn-primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover) !important;
+}
+
+.theme-btn-gold {
+  background-color: var(--color-gold) !important;
+  color: #0f233c !important;
+}
+.theme-btn-gold:hover:not(:disabled) {
+  background-color: var(--color-gold-hover) !important;
+}
+
+.theme-btn-secondary {
+  background-color: var(--bg-surface-alt) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+.theme-btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+/* ==========================================================================
+   UNIFIED TOKEN MAPPING ACROSS ALL APP SCREENS & COMPONENTS
+   (Strictly excludes .printable-invoice-sheet & .logo-light-frame so PDFs,
+    printed invoices, and original logos keep their exact print/brand colors)
+   ========================================================================== */
+
+/* 1. Page & Modal Backgrounds */
+.bg-slate-100:not(.printable-invoice-sheet):not(.printable-invoice-sheet *):not(.toggle-thumb) {
+  background-color: var(--bg-page) !important;
+}
+
+/* 2. Card Surfaces */
+.bg-white:not(.printable-invoice-sheet):not(.printable-invoice-sheet *):not(.logo-light-frame):not(.toggle-thumb) {
+  background-color: var(--bg-card) !important;
+}
+
+/* 3. Secondary / Muted Surfaces */
+.bg-slate-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-slate-50\/80:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-color: var(--bg-surface-alt) !important;
+}
+
+.bg-slate-200:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+/* 4. Primary Dark Blue Unification (Replaces random bright blues, purples, indigos, cyans) */
+.bg-blue-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-\[\#1b74e4\]:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-\[\#7c3aed\]:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-\[\#4f46e5\]:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-\[\#0284c7\]:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-slate-800:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-color: var(--color-primary) !important;
+  color: #ffffff !important;
+}
+
+.hover\:bg-blue-700:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.hover\:bg-\[\#1563c6\]:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.hover\:bg-\[\#6d28d9\]:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.hover\:bg-\[\#4338ca\]:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.hover\:bg-\[\#0369a1\]:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.hover\:bg-slate-900:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-color: var(--color-primary-hover) !important;
+}
+
+/* Primary Soft Badges & Avatar Circles */
+.bg-blue-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-blue-50\/50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-blue-100:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-color: var(--color-primary-soft) !important;
+}
+
+.text-blue-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-blue-700:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-blue-900:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-blue-500:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-indigo-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-purple-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-cyan-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  color: var(--color-primary-text) !important;
+}
+
+.border-blue-200:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-blue-300:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-blue-500:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-blue-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  border-color: var(--color-primary-border) !important;
+}
+
+/* 5. Secondary Calm Gold Unification */
+.bg-amber-400:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.from-amber-500.to-amber-400:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-image: none !important;
+  background-color: var(--color-gold) !important;
+  color: #0f233c !important;
+}
+
+.hover\:bg-amber-300:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.hover\:from-amber-400:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-image: none !important;
+  background-color: var(--color-gold-hover) !important;
+}
+
+.bg-amber-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-color: var(--color-gold-soft) !important;
+}
+
+.border-amber-200:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-amber-300:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  border-color: var(--color-gold-border) !important;
+}
+
+.text-amber-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-amber-700:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-amber-800:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-amber-900:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  color: var(--color-gold-text) !important;
+}
+
+/* 6. Typography Hierarchy */
+.text-slate-900:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-slate-800:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  color: var(--text-primary) !important;
+}
+
+.text-slate-700:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-slate-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  color: var(--text-secondary) !important;
+}
+
+.text-slate-500:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-slate-400:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  color: var(--text-muted) !important;
+}
+
+/* 7. Borders & Dividers */
+.border-slate-200:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-slate-300:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-slate-200\/80:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  border-color: var(--border-color) !important;
+}
+
+.border-slate-100:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  border-color: var(--border-subtle) !important;
+}
+
+.divide-slate-100:not(.printable-invoice-sheet) > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-subtle) !important;
+}
+
+/* 8. Form Inputs, Textareas & Selects */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.printable-invoice-sheet *),
+textarea:not(.printable-invoice-sheet *),
+select:not(.printable-invoice-sheet *) {
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-input) !important;
+}
+
+input:not(.printable-invoice-sheet *)::placeholder,
+textarea:not(.printable-invoice-sheet *)::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.8;
+}
+
+input:not(.printable-invoice-sheet *):focus,
+textarea:not(.printable-invoice-sheet *):focus,
+select:not(.printable-invoice-sheet *):focus {
+  border-color: var(--color-gold) !important;
+  outline: none !important;
+}
+
+/* 9. Functional Positive (Green) Surfaces & Text in Light/Dark Mode */
+.bg-emerald-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-emerald-100:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.from-\[\#dcfce7\]:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.from-emerald-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-image: none !important;
+  background-color: var(--color-success-soft) !important;
+}
+
+.border-emerald-200:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-emerald-300:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  border-color: var(--color-success-border) !important;
+}
+
+.text-emerald-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-emerald-700:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-emerald-800:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-emerald-900:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-emerald-950:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  color: var(--color-success-text) !important;
+}
+
+/* 10. Functional Negative (Red) Surfaces & Text in Light/Dark Mode */
+.bg-red-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-red-100:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.bg-rose-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.from-\[\#fee2e2\]:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.from-red-50:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-image: none !important;
+  background-color: var(--color-danger-soft) !important;
+}
+
+.border-red-200:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-red-300:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.border-rose-200:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  border-color: var(--color-danger-border) !important;
+}
+
+.text-red-600:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-red-700:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-red-800:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-red-900:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-red-950:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+.text-rose-800:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  color: var(--color-danger-text) !important;
+}
+
+/* Hover States in Dark Mode */
+html.dark .hover\:bg-slate-50:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+html.dark .hover\:bg-slate-100:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
+html.dark .hover\:bg-slate-200:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+/* ==========================================================================
+   PRINT MEDIA RULES (Always Crisp White Paper for Invoices & Reports)
+   ========================================================================== */
 @media print {
   @page {
     size: A4 portrait;
@@ -15,6 +387,7 @@
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
+    color: #0f233c !important;
     height: auto !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
