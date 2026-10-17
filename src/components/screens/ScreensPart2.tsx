@@ -139,19 +139,18 @@ export const Screen11CustomerDetails: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
       {/* Title banner */}
-      <PageTitle
-        title="بيانات العميل"
-        action={
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="py-1.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
-            title="مشاركة كشف الحساب"
-          >
-            <Share2 className="w-4 h-4 text-slate-950" />
-            <span>مشاركة</span>
-          </button>
-        }
-      />
+      <PageTitle title="بيانات العميل" />
+
+      {/* زر المشاركة بعرض الشاشة */}
+      <button
+        type="button"
+        onClick={() => setShowShareModal(true)}
+        className="w-full py-3 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all"
+        title="مشاركة كشف الحساب"
+      >
+        <Share2 className="w-4 h-4 text-slate-950" />
+        <span>مشاركة كشف الحساب</span>
+      </button>
 
       {/* Main info card */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">

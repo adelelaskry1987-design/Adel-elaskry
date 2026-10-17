@@ -51,18 +51,17 @@ export const Screen15Customers: React.FC<{
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       {/* Top Banner */}
-      <PageTitle
-        title="العملاء"
-        action={
-          <button
-            onClick={() => onNavigate('screen-7-customer-add')}
-            className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>إضافة عميل +</span>
-          </button>
-        }
-      />
+      <PageTitle title="العملاء" />
+
+      {/* زر إضافة عميل بعرض الشاشة */}
+      <button
+        type="button"
+        onClick={() => onNavigate('screen-7-customer-add')}
+        className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all"
+      >
+        <UserPlus className="w-4 h-4" />
+        <span>إضافة عميل جديد +</span>
+      </button>
 
       {/* Search Input */}
       <div className="relative">
