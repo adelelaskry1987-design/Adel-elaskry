@@ -56,6 +56,9 @@ function sanitizeClonedDocumentColors(clonedDoc: Document, rootEl: HTMLElement) 
     if (!trimmed) return trimmed;
     const cached = cache.get(trimmed);
     if (cached) return cached;
+    if (trimmed.includes('var(')) {
+      return 'rgb(226, 232, 240)';
+    }
     try {
       ctx.clearRect(0, 0, 1, 1);
       ctx.fillStyle = '#000000';
@@ -91,15 +94,8 @@ function sanitizeClonedDocumentColors(clonedDoc: Document, rootEl: HTMLElement) 
     );
   };
 
-  // 1. Sanitize all <style> tags in the cloned document
-  const styleNodes = clonedDoc.querySelectorAll('style');
-  styleNodes.forEach((styleEl) => {
-    if (styleEl.textContent) {
-      styleEl.textContent = replaceModernColorsInString(styleEl.textContent);
-    }
-  });
-
-  // 2. Sanitize computed styles on rootEl and all its descendants
+  // 1. Sanitize computed styles on rootEl and all its descendants FIRST
+  // (while <style> rules still have intact CSS variables so getComputedStyle resolves var() accurately)
   const view = clonedDoc.defaultView || window;
   const colorProps = [
     'color',
@@ -136,6 +132,14 @@ function sanitizeClonedDocumentColors(clonedDoc: Document, rootEl: HTMLElement) 
       ) {
         (node.style as any)[prop] = replaceModernColorsInString(val);
       }
+    }
+
+    // Ensure proper connected Arabic glyph shaping in html2canvas (non-zero letter-spacing or monospace font splits Arabic letters)
+    if (/[\u0600-\u06FF]/.test(node.textContent || '')) {
+      node.style.letterSpacing = '0px';
+      node.style.fontVariantLigatures = 'normal';
+      node.style.fontFeatureSettings = '"liga" 1, "calt" 1, "kern" 1';
+      node.style.fontFamily = "'Cairo', 'IBM Plex Sans Arabic', sans-serif";
     }
 
     // Preserve aspect ratio on <img> elements since html2canvas does not support object-fit: contain
@@ -200,45 +204,80 @@ function sanitizeClonedDocumentColors(clonedDoc: Document, rootEl: HTMLElement) 
       }
     }
   }
+
+  // 2. Sanitize all <style> tags in the cloned document after computed styles are captured
+  const styleNodes = clonedDoc.querySelectorAll('style');
+  styleNodes.forEach((styleEl) => {
+    if (styleEl.textContent) {
+      styleEl.textContent = replaceModernColorsInString(styleEl.textContent);
+    }
+  });
 }
 
 /**
- * Find a clean horizontal row break near targetY (scanning upwards) where pixels are uniform white/background
- * so multi-page PDFs never slice through the middle of a transaction row or text line.
+ * Find a clean horizontal row break near targetY (scanning upwards) using both DOM block boundaries
+ * and pixel verification so multi-page PDFs never slice through a transaction card, text line, or footer.
  */
 function findSafePageBreakY(
   ctx: CanvasRenderingContext2D,
   width: number,
   startY: number,
   maxPageHeightPx: number,
-  totalHeight: number
+  totalHeight: number,
+  blockBoundsPx: Array<{ top: number; bottom: number }> = []
 ): number {
   const idealEnd = startY + maxPageHeightPx;
   if (idealEnd >= totalHeight) return totalHeight;
 
-  const searchRange = Math.min(220, Math.floor(maxPageHeightPx * 0.25));
+  // 1. Prefer breaking in the gap between atomic DOM blocks (cards, rows, footer)
+  if (blockBoundsPx.length > 0) {
+    const blocksInPage = blockBoundsPx.filter(
+      (b) => b.bottom > startY + 120 && b.top < idealEnd
+    );
+    for (let i = blocksInPage.length - 1; i >= 0; i--) {
+      const blk = blocksInPage[i];
+      if (blk.bottom <= idealEnd - 8) {
+        const nextBlk = blockBoundsPx.find((nb) => nb.top >= blk.bottom);
+        const breakY = nextBlk
+          ? Math.floor((blk.bottom + nextBlk.top) / 2)
+          : Math.min(totalHeight, blk.bottom + 10);
+        if (breakY > startY + 120) {
+          return breakY;
+        }
+      }
+    }
+  }
+
+  // 2. Fallback: scan upwards for a contiguous band of pure white rows across the full sheet width (including card borders)
+  const searchRange = Math.min(260, Math.floor(maxPageHeightPx * 0.3));
   const minCandidateY = Math.max(startY + 200, idealEnd - searchRange);
   const stripHeight = idealEnd - minCandidateY + 1;
 
   try {
     const imgData = ctx.getImageData(0, minCandidateY, width, stripHeight).data;
-    const marginX = Math.floor(width * 0.06);
+    const marginX = Math.floor(width * 0.03);
+    let consecutiveWhiteRows = 0;
 
     for (let offset = stripHeight - 1; offset >= 0; offset--) {
       const rowStart = offset * width * 4;
       let isCleanRow = true;
-      for (let x = marginX; x < width - marginX; x += 4) {
+      for (let x = marginX; x < width - marginX; x += 2) {
         const idx = rowStart + x * 4;
         const r = imgData[idx];
         const g = imgData[idx + 1];
         const b = imgData[idx + 2];
-        if (r < 244 || g < 246 || b < 248) {
+        if (r < 252 || g < 252 || b < 252) {
           isCleanRow = false;
           break;
         }
       }
       if (isCleanRow) {
-        return minCandidateY + offset;
+        consecutiveWhiteRows++;
+        if (consecutiveWhiteRows >= 8) {
+          return minCandidateY + offset + 4;
+        }
+      } else {
+        consecutiveWhiteRows = 0;
       }
     }
   } catch {
@@ -432,205 +471,285 @@ ${divider}
 متجر OM BASMA للستائر والمفروشات • نظام AH2 المعتمد`;
   };
 
-  // 1. WhatsApp share
-  const handleWhatsAppShare = () => {
-    const text = generateFormattedText();
-    const encoded = encodeURIComponent(text);
-    const url = `https://api.whatsapp.com/send?text=${encoded}`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setStatusMessage('تم فتح واتساب لمشاركة التقرير');
-    setTimeout(() => setStatusMessage(null), 3000);
+  // Core helper: generate the actual PDF document, Blob, and File from printableRef
+  const generatePdfFile = async () => {
+    if (!printableRef.current) {
+      throw new Error('لم يتم العثور على قالب الفاتورة');
+    }
+
+    const element = printableRef.current;
+
+    // Ensure all images inside the invoice sheet are loaded before capturing
+    const images = Array.from(element.querySelectorAll('img'));
+    await Promise.all(
+      images.map((img) => {
+        if (img.complete && img.naturalHeight > 0) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(() => resolve(), 2500);
+        });
+      })
+    );
+
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
+    const targetWidth = data.type === 'customer_statement' ? 680 : 720;
+    const renderScale = 2;
+    const blockBoundsPx: Array<{ top: number; bottom: number }> = [];
+
+    const canvas = await html2canvas(element, {
+      scale: renderScale,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width: targetWidth,
+      windowWidth: targetWidth + 48,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      onclone: (clonedDoc, clonedEl) => {
+        // Isolate clonedEl at (0, 0) in clonedDoc.body so modal scroll, page scroll, and offscreen wrapper never clip the top header
+        clonedDoc.documentElement.style.margin = '0';
+        clonedDoc.documentElement.style.padding = '0';
+        clonedDoc.documentElement.style.background = '#ffffff';
+        clonedDoc.documentElement.style.overflow = 'visible';
+        clonedDoc.documentElement.style.height = 'auto';
+
+        clonedDoc.body.style.margin = '0';
+        clonedDoc.body.style.padding = '0';
+        clonedDoc.body.style.background = '#ffffff';
+        clonedDoc.body.style.overflow = 'visible';
+        clonedDoc.body.style.height = 'auto';
+        clonedDoc.body.style.width = `${targetWidth}px`;
+        clonedDoc.body.dir = 'rtl';
+
+        while (clonedDoc.body.firstChild) {
+          clonedDoc.body.removeChild(clonedDoc.body.firstChild);
+        }
+        clonedDoc.body.appendChild(clonedEl);
+
+        clonedEl.style.position = 'relative';
+        clonedEl.style.left = '0';
+        clonedEl.style.top = '0';
+        clonedEl.style.margin = '0';
+        clonedEl.style.width = `${targetWidth}px`;
+        clonedEl.style.maxWidth = `${targetWidth}px`;
+        clonedEl.style.minWidth = `${targetWidth}px`;
+        clonedEl.style.height = 'auto';
+        clonedEl.style.maxHeight = 'none';
+        clonedEl.style.opacity = '1';
+        clonedEl.style.visibility = 'visible';
+        clonedEl.style.transform = 'none';
+        clonedEl.style.overflow = 'hidden';
+        clonedEl.style.boxShadow = 'none';
+        clonedEl.style.borderRadius = '16px';
+        clonedEl.style.backgroundColor = '#ffffff';
+        clonedEl.style.direction = 'rtl';
+
+        sanitizeClonedDocumentColors(clonedDoc, clonedEl);
+
+        // Record atomic block boundaries (cards, transaction items, footer) in canvas pixels for clean multi-page breaks
+        const rootRect = clonedEl.getBoundingClientRect();
+        const atomicBlocks = clonedEl.querySelectorAll<HTMLElement>(
+          '.rounded-2xl, [dir="rtl"]'
+        );
+        atomicBlocks.forEach((blk) => {
+          if (blk === clonedEl) return;
+          const r = blk.getBoundingClientRect();
+          if (r.height > 20 && r.height < 500) {
+            blockBoundsPx.push({
+              top: Math.max(0, Math.floor((r.top - rootRect.top) * renderScale)),
+              bottom: Math.ceil((r.bottom - rootRect.top) * renderScale),
+            });
+          }
+        });
+        blockBoundsPx.sort((a, b) => a.top - b.top);
+      },
+    });
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pageWidthMm = pdf.internal.pageSize.getWidth();
+    const pageHeightMm = pdf.internal.pageSize.getHeight();
+    const marginMm = 8;
+    const printableWidthMm = pageWidthMm - marginMm * 2;
+    const printableHeightMm = pageHeightMm - marginMm * 2;
+
+    const maxPageHeightPx = Math.floor(
+      (printableHeightMm * canvas.width) / printableWidthMm
+    );
+    const sourceCtx = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (canvas.height <= Math.floor(maxPageHeightPx * 1.25)) {
+      const imgData = canvas.toDataURL('image/jpeg', 0.96);
+      let renderWidthMm = printableWidthMm;
+      let renderHeightMm = (canvas.height * renderWidthMm) / canvas.width;
+      if (renderHeightMm > printableHeightMm) {
+        const fitScale = printableHeightMm / renderHeightMm;
+        renderHeightMm = printableHeightMm;
+        renderWidthMm = renderWidthMm * fitScale;
+      }
+      const offsetXMm = (pageWidthMm - renderWidthMm) / 2;
+      pdf.addImage(
+        imgData,
+        'JPEG',
+        offsetXMm,
+        marginMm,
+        renderWidthMm,
+        renderHeightMm
+      );
+    } else {
+      let currentY = 0;
+      let pageIndex = 0;
+
+      while (currentY < canvas.height) {
+        const nextBreakY = sourceCtx
+          ? findSafePageBreakY(
+              sourceCtx,
+              canvas.width,
+              currentY,
+              maxPageHeightPx,
+              canvas.height,
+              blockBoundsPx
+            )
+          : Math.min(currentY + maxPageHeightPx, canvas.height);
+
+        const sliceHeightPx = Math.max(1, nextBreakY - currentY);
+
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeightPx;
+        const pageCtx = pageCanvas.getContext('2d');
+
+        if (pageCtx) {
+          pageCtx.fillStyle = '#ffffff';
+          pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          pageCtx.drawImage(
+            canvas,
+            0,
+            currentY,
+            canvas.width,
+            sliceHeightPx,
+            0,
+            0,
+            canvas.width,
+            sliceHeightPx
+          );
+
+          const sliceImgData = pageCanvas.toDataURL('image/jpeg', 0.96);
+          const sliceHeightMm =
+            (sliceHeightPx * printableWidthMm) / canvas.width;
+
+          if (pageIndex > 0) {
+            pdf.addPage();
+          }
+
+          pdf.addImage(
+            sliceImgData,
+            'JPEG',
+            marginMm,
+            marginMm,
+            printableWidthMm,
+            sliceHeightMm
+          );
+        }
+
+        currentY = nextBreakY;
+        pageIndex++;
+      }
+    }
+
+    const fileTitle =
+      data.type === 'customer_statement'
+        ? `كشف_حساب_${data.customer.name.trim().replace(/\s+/g, '_')}`
+        : data.type === 'all_transactions'
+        ? 'تقرير_كل_العمليات_المالية'
+        : 'تقرير_الاحصائيات_المالية';
+
+    const fileName = `${fileTitle}_${data.reportDate}.pdf`;
+    const pdfBlob = pdf.output('blob');
+    if (!pdfBlob || pdfBlob.size === 0) {
+      throw new Error('تعذر إنشاء ملف PDF صالح');
+    }
+    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+    return { pdf, pdfBlob, pdfFile, fileName, fileTitle };
   };
 
-  // 2. Generate and download/share actual PDF file
+  // 1. WhatsApp share (attaches actual PDF file when Web Share API file sharing is available)
+  const handleWhatsAppShare = async () => {
+    setIsGeneratingPdf(true);
+    setStatusMessage('جاري تجهيز ملف الـ PDF للمشاركة عبر واتساب...');
+
+    try {
+      const { pdf, pdfFile, fileTitle, fileName } = await generatePdfFile();
+      const text = generateFormattedText();
+
+      if (
+        navigator.canShare &&
+        navigator.canShare({ files: [pdfFile] }) &&
+        navigator.share
+      ) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: fileTitle,
+            text,
+          });
+          setStatusMessage('تمت مشاركة ملف PDF عبر واتساب بنجاح');
+          setTimeout(() => setStatusMessage(null), 3000);
+          return;
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') {
+            setStatusMessage(null);
+            return;
+          }
+        }
+      }
+
+      // Desktop / fallback: save the actual PDF file and open WhatsApp chat
+      pdf.save(fileName);
+      const encoded = encodeURIComponent(text);
+      const url = `https://api.whatsapp.com/send?text=${encoded}`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setStatusMessage('تم تنزيل ملف PDF الفعلي وفتح واتساب لإرفاقه');
+      setTimeout(() => setStatusMessage(null), 3500);
+    } catch (err) {
+      console.error('WhatsApp PDF error:', err);
+      const text = generateFormattedText();
+      const encoded = encodeURIComponent(text);
+      const url = `https://api.whatsapp.com/send?text=${encoded}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setStatusMessage('تم فتح واتساب لمشاركة التقرير');
+      setTimeout(() => setStatusMessage(null), 3000);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // 2. Generate and share/download actual PDF file
   const handlePdfShare = async () => {
     if (!printableRef.current) return;
     setIsGeneratingPdf(true);
     setStatusMessage('جاري إعداد وتوليد ملف PDF...');
 
     try {
-      const element = printableRef.current;
-
-      // Ensure all images inside the invoice sheet are loaded before capturing
-      const images = Array.from(element.querySelectorAll('img'));
-      await Promise.all(
-        images.map((img) => {
-          if (img.complete && img.naturalHeight > 0) return Promise.resolve();
-          return new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            setTimeout(() => resolve(), 2500);
-          });
-        })
-      );
-
-      const targetWidth = data.type === 'customer_statement' ? 680 : 720;
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: targetWidth,
-        scrollX: 0,
-        scrollY: 0,
-        x: 0,
-        y: 0,
-        onclone: (clonedDoc, clonedEl) => {
-          // Isolate clonedEl at (0, 0) in clonedDoc.body so modal scroll, page scroll, and offscreen wrapper never clip the top header
-          clonedDoc.documentElement.style.margin = '0';
-          clonedDoc.documentElement.style.padding = '0';
-          clonedDoc.documentElement.style.background = '#ffffff';
-          clonedDoc.documentElement.style.overflow = 'visible';
-          clonedDoc.documentElement.style.height = 'auto';
-
-          clonedDoc.body.style.margin = '0';
-          clonedDoc.body.style.padding = '0';
-          clonedDoc.body.style.background = '#ffffff';
-          clonedDoc.body.style.overflow = 'visible';
-          clonedDoc.body.style.height = 'auto';
-          clonedDoc.body.style.width = `${targetWidth}px`;
-          clonedDoc.body.dir = 'rtl';
-
-          while (clonedDoc.body.firstChild) {
-            clonedDoc.body.removeChild(clonedDoc.body.firstChild);
-          }
-          clonedDoc.body.appendChild(clonedEl);
-
-          clonedEl.style.position = 'relative';
-          clonedEl.style.left = '0';
-          clonedEl.style.top = '0';
-          clonedEl.style.margin = '0';
-          clonedEl.style.width = `${targetWidth}px`;
-          clonedEl.style.maxWidth = `${targetWidth}px`;
-          clonedEl.style.minWidth = `${targetWidth}px`;
-          clonedEl.style.height = 'auto';
-          clonedEl.style.maxHeight = 'none';
-          clonedEl.style.opacity = '1';
-          clonedEl.style.visibility = 'visible';
-          clonedEl.style.transform = 'none';
-          clonedEl.style.overflow = 'hidden';
-          clonedEl.style.boxShadow = 'none';
-          clonedEl.style.borderRadius = '16px';
-          clonedEl.style.backgroundColor = '#ffffff';
-          clonedEl.style.direction = 'rtl';
-
-          sanitizeClonedDocumentColors(clonedDoc, clonedEl);
-        },
-      });
-
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pageWidthMm = pdf.internal.pageSize.getWidth();
-      const pageHeightMm = pdf.internal.pageSize.getHeight();
-      const marginMm = 8;
-      const printableWidthMm = pageWidthMm - marginMm * 2;
-      const printableHeightMm = pageHeightMm - marginMm * 2;
-
-      const maxPageHeightPx = Math.floor(
-        (printableHeightMm * canvas.width) / printableWidthMm
-      );
-      const sourceCtx = canvas.getContext('2d', { willReadFrequently: true });
-
-      if (canvas.height <= Math.floor(maxPageHeightPx * 1.25)) {
-        const imgData = canvas.toDataURL('image/jpeg', 0.96);
-        let renderWidthMm = printableWidthMm;
-        let renderHeightMm = (canvas.height * renderWidthMm) / canvas.width;
-        if (renderHeightMm > printableHeightMm) {
-          const fitScale = printableHeightMm / renderHeightMm;
-          renderHeightMm = printableHeightMm;
-          renderWidthMm = renderWidthMm * fitScale;
-        }
-        const offsetXMm = (pageWidthMm - renderWidthMm) / 2;
-        pdf.addImage(
-          imgData,
-          'JPEG',
-          offsetXMm,
-          marginMm,
-          renderWidthMm,
-          renderHeightMm
-        );
-      } else {
-        let currentY = 0;
-        let pageIndex = 0;
-
-        while (currentY < canvas.height) {
-          const nextBreakY = sourceCtx
-            ? findSafePageBreakY(
-                sourceCtx,
-                canvas.width,
-                currentY,
-                maxPageHeightPx,
-                canvas.height
-              )
-            : Math.min(currentY + maxPageHeightPx, canvas.height);
-
-          const sliceHeightPx = Math.max(1, nextBreakY - currentY);
-
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = sliceHeightPx;
-          const pageCtx = pageCanvas.getContext('2d');
-
-          if (pageCtx) {
-            pageCtx.fillStyle = '#ffffff';
-            pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-            pageCtx.drawImage(
-              canvas,
-              0,
-              currentY,
-              canvas.width,
-              sliceHeightPx,
-              0,
-              0,
-              canvas.width,
-              sliceHeightPx
-            );
-
-            const sliceImgData = pageCanvas.toDataURL('image/jpeg', 0.96);
-            const sliceHeightMm =
-              (sliceHeightPx * printableWidthMm) / canvas.width;
-
-            if (pageIndex > 0) {
-              pdf.addPage();
-            }
-
-            pdf.addImage(
-              sliceImgData,
-              'JPEG',
-              marginMm,
-              marginMm,
-              printableWidthMm,
-              sliceHeightMm
-            );
-          }
-
-          currentY = nextBreakY;
-          pageIndex++;
-        }
-      }
-
-      const fileTitle =
-        data.type === 'customer_statement'
-          ? `كشف_حساب_${data.customer.name.trim().replace(/\s+/g, '_')}`
-          : data.type === 'all_transactions'
-          ? 'تقرير_كل_العمليات_المالية'
-          : 'تقرير_الاحصائيات_المالية';
-
-      const fileName = `${fileTitle}_${data.reportDate}.pdf`;
-      const pdfBlob = pdf.output('blob');
-      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      const { pdf, pdfFile, fileName, fileTitle } = await generatePdfFile();
 
       // Check if Web Share API supports file sharing
       if (
@@ -646,11 +765,10 @@ ${divider}
           });
           setStatusMessage('تمت مشاركة ملف PDF بنجاح');
           setTimeout(() => setStatusMessage(null), 3000);
-          setIsGeneratingPdf(false);
           return;
         } catch (shareErr: any) {
           if (shareErr.name === 'AbortError') {
-            setIsGeneratingPdf(false);
+            setStatusMessage(null);
             return;
           }
         }
@@ -658,19 +776,68 @@ ${divider}
 
       // Download file directly
       pdf.save(fileName);
-      setStatusMessage('تم تنزيل ملف PDF بنجاح على جهازك');
+      setStatusMessage('تم حفظ وتنزيل ملف PDF بنجاح على جهازك');
       setTimeout(() => setStatusMessage(null), 3500);
     } catch (err) {
       console.error('PDF error:', err);
+      setStatusMessage('تعذر إنشاء ملف PDF، جاري فتح نافذة الطباعة...');
+      setTimeout(() => setStatusMessage(null), 3000);
       window.print();
-      setStatusMessage('تم تجهيز المستند للطباعة والحفظ كـ PDF');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // 2b. Save/Download PDF directly to device
+  const handleDownloadPdf = async () => {
+    if (!printableRef.current) return;
+    setIsGeneratingPdf(true);
+    setStatusMessage('جاري إنشاء وحفظ ملف PDF...');
+
+    try {
+      const { pdf, fileName } = await generatePdfFile();
+      pdf.save(fileName);
+      setStatusMessage('تم حفظ ملف PDF بنجاح على جهازك');
+      setTimeout(() => setStatusMessage(null), 3500);
+    } catch (err) {
+      console.error('PDF save error:', err);
+      setStatusMessage('تعذر حفظ ملف PDF');
       setTimeout(() => setStatusMessage(null), 3000);
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  // 3. Share via other apps (Web Share API with fallback to copy text)
+  // 2c. Open generated PDF file in viewer/new tab
+  const handleOpenPdf = async () => {
+    if (!printableRef.current) return;
+    setIsGeneratingPdf(true);
+    setStatusMessage('جاري تجهيز وفتح ملف PDF...');
+
+    try {
+      const { pdfBlob, fileName } = await generatePdfFile();
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const opened = window.open(blobUrl, '_blank');
+      if (!opened) {
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      setStatusMessage('تم فتح ملف PDF بنجاح');
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err) {
+      console.error('PDF open error:', err);
+      setStatusMessage('تعذر فتح ملف PDF');
+      setTimeout(() => setStatusMessage(null), 3000);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // 3. Share via other apps (Web Share API with actual PDF file or fallback to text)
   const handleOtherAppsShare = async () => {
     const text = generateFormattedText();
     const title =
@@ -679,6 +846,32 @@ ${divider}
         : data.type === 'all_transactions'
         ? 'تقرير كل العمليات المالية'
         : 'تقرير الموقف المالي والإحصائيات';
+
+    if (printableRef.current && navigator.share) {
+      setIsGeneratingPdf(true);
+      setStatusMessage('جاري تجهيز ملف PDF للمشاركة...');
+      try {
+        const { pdfFile } = await generatePdfFile();
+        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          await navigator.share({
+            files: [pdfFile],
+            title,
+            text,
+          });
+          setStatusMessage('تمت مشاركة ملف PDF بنجاح');
+          setTimeout(() => setStatusMessage(null), 3000);
+          setIsGeneratingPdf(false);
+          return;
+        }
+      } catch (err: any) {
+        setIsGeneratingPdf(false);
+        if (err.name === 'AbortError') {
+          setStatusMessage(null);
+          return;
+        }
+      }
+      setIsGeneratingPdf(false);
+    }
 
     if (navigator.share) {
       try {
@@ -690,7 +883,10 @@ ${divider}
         setTimeout(() => setStatusMessage(null), 3000);
         return;
       } catch (err: any) {
-        if (err.name === 'AbortError') return;
+        if (err.name === 'AbortError') {
+          setStatusMessage(null);
+          return;
+        }
       }
     }
 
@@ -894,6 +1090,26 @@ ${divider}
                 </>
               )}
             </button>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+                className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-amber-700" />
+                <span>حفظ ملف PDF</span>
+              </button>
+
+              <button
+                onClick={handleOpenPdf}
+                disabled={isGeneratingPdf}
+                className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4 text-blue-700" />
+                <span>فتح ملف PDF</span>
+              </button>
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               <button

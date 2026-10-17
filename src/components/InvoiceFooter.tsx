@@ -36,7 +36,7 @@ export const InvoiceFooter: React.FC<InvoiceFooterProps> = ({
           <img
             src={logoUrl}
             alt="لوجو متجر OM BASMA"
-            className="w-full h-full object-contain"
+            className="max-w-full max-h-full w-auto h-auto object-contain"
             loading="eager"
           />
         </div>
@@ -58,7 +58,7 @@ export const InvoiceFooter: React.FC<InvoiceFooterProps> = ({
           <div className="font-bold text-slate-700 font-sans">
             كشف حساب رسمي معتمد
           </div>
-          <div className="text-[11px] font-semibold text-slate-500 font-mono">
+          <div className="text-[11px] font-semibold text-slate-500 font-sans">
             نظام AH2 لإدارة الحسابات والعمليات
           </div>
         </div>

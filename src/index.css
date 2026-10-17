@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Cairo', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+}
+
 @media print {
   @page {
     size: A4 portrait;
