@@ -88,11 +88,6 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
           <span className={`font-bold ${subSize} text-amber-700 font-sans leading-tight mt-1 whitespace-nowrap`}>
             للستائر والمفروشات
           </span>
-          {variant === 'report' && (
-            <span className="text-[10px] font-semibold text-slate-500 mt-0.5 whitespace-nowrap">
-              هوية المتجر المعتمدة
-            </span>
-          )}
         </div>
       </div>
     );

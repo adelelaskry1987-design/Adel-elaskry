@@ -784,7 +784,12 @@ export const Screen33Reports: React.FC<{
                     متجر OM BASMA للستائر والمفروشات
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-500">نظام AH2 المعتمد</span>
+                <div className="flex flex-col items-center justify-center gap-1 shrink-0">
+                  <Ah2Logo variant="footer" showSubtitle={false} />
+                  <span className="text-[9.5px] font-bold text-slate-600 leading-none text-center whitespace-nowrap">
+                    نظام AH2 المعتمد
+                  </span>
+                </div>
               </div>
             </div>
 
