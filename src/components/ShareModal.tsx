@@ -605,11 +605,11 @@ ${divider}
 
     // Image & PDF capture dimensions:
     // - customer_statement: preserved at 333px width x 528/695px min-height at 2x scale (666px width).
-    // - all_transactions & reports_summary: rendered at mobile portrait width (360px CSS width at 3x scale = 1080px Full-HD width)
-    //   with natural content-driven height (height: auto, no fixed height) so they match the in-app mobile preview
-    //   and fill vertical phone screens in WhatsApp clearly without shrinking to 1/3 height or clipping long reports.
+    // - all_transactions & reports_summary: rendered at the same 333px mobile portrait width at 3x scale (999px Full-HD width)
+    //   with natural content-driven height (height: auto, no fixed height) so the in-app preview and exported PNG file
+    //   have identical dimensions and aspect ratio, filling vertical phone screens in WhatsApp clearly without clipping.
     const isCustomerStatement = data.type === 'customer_statement';
-    const targetWidth = isCustomerStatement ? 333 : 360;
+    const targetWidth = isCustomerStatement ? 333 : 342;
     const minTargetHeight = isCustomerStatement
       ? contentScope === 'balance_only'
         ? 528
@@ -2008,7 +2008,7 @@ ${divider}
                           ? 'min-h-[528px]'
                           : 'min-h-[695px]'
                       }`
-                    : 'w-full max-w-[360px] p-4 rounded-2xl border-2 border-amber-400/80 space-y-3.5'
+                    : 'w-full max-w-[342px] px-3.5 py-4 rounded-2xl border-2 border-amber-400/80 space-y-3.5'
                 }`}
                 style={{ direction: 'rtl' }}
               >
@@ -2389,14 +2389,14 @@ ${divider}
                 {/* ---------------- ALL TRANSACTIONS REPORT (MOBILE PORTRAIT LAYOUT) ---------------- */}
                 {data.type === 'all_transactions' && (
                   <>
-                    <div className="flex items-center justify-between gap-2 border-b-2 border-amber-400/40 pb-3">
+                    <div className="flex items-center justify-between gap-1.5 border-b-2 border-amber-400/40 pb-3">
                       <ShopOwnerLogo variant="report" />
-                      <div className="text-left font-mono text-[10.5px] text-slate-600 shrink-0">
-                        <div className="font-black text-xs text-slate-900 font-sans">
+                      <div className="text-left font-mono text-[10px] text-slate-600 min-w-0 pl-0.5">
+                        <div className="font-black text-[11px] text-slate-900 font-sans whitespace-nowrap">
                           سجل العمليات المالية
                         </div>
-                        <div className="mt-0.5">التاريخ: {data.reportDate}</div>
-                        <div className="text-[10px] text-amber-700 font-sans font-bold mt-0.5">
+                        <div className="mt-0.5 whitespace-nowrap">التاريخ: {data.reportDate}</div>
+                        <div className="text-[9.5px] text-amber-700 font-sans font-bold mt-0.5 leading-snug">
                           {data.periodText}
                         </div>
                       </div>
@@ -2445,76 +2445,89 @@ ${divider}
                       <div className="text-xs font-black text-slate-800 mb-2">
                         سجل العمليات التفصيلي
                       </div>
-                      <div className="border border-slate-200 rounded-xl overflow-hidden text-[10px]">
-                        <table className="w-full text-right border-collapse">
-                          <thead className="bg-slate-100 text-slate-700 font-bold text-[9.5px]">
-                            <tr>
-                              <th className="py-2 px-1.5 border-b">العميل</th>
-                              <th className="py-2 px-1 border-b text-center">النوع</th>
-                              <th className="py-2 px-1.5 border-b">المبلغ</th>
-                              <th className="py-2 px-1 border-b">التاريخ / الوقت</th>
-                              <th className="py-2 px-1.5 border-b">البيان</th>
-                              <th className="py-2 px-1 border-b text-center">الحالة</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {data.transactions.map((t) => {
-                              const isCancelled = t.status === 'cancelled';
-                              const isPayment = t.type === 'payment';
-                              return (
-                                <tr
-                                  key={t.id}
-                                  className={
-                                    isCancelled
-                                      ? 'bg-red-50/40 text-slate-400 line-through'
-                                      : 'hover:bg-slate-50'
-                                  }
-                                >
-                                  <td className="py-2.5 px-1.5 font-bold text-slate-900 break-words leading-snug">
-                                    {t.customer_name || 'عميل'}
-                                  </td>
-                                  <td className="py-2.5 px-1 font-bold text-center whitespace-nowrap">
-                                    <span
-                                      className={`inline-block px-2 pt-0.5 pb-1.5 rounded-md text-[8.5px] leading-none ${
-                                        isPayment
-                                          ? 'bg-emerald-100 text-emerald-800'
-                                          : 'bg-red-100 text-red-800'
-                                      }`}
-                                    >
-                                      {isPayment ? 'دفع' : 'سحب'}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-1.5 font-mono font-bold whitespace-nowrap text-[10px]">
-                                    {t.amount.toLocaleString()} ج.م
-                                  </td>
-                                  <td className="py-2.5 px-1 font-mono text-[8.5px] text-slate-500 whitespace-nowrap leading-tight">
-                                    <div>{t.date}</div>
-                                    {t.time && (
-                                      <div className="text-[8px] text-slate-400 mt-0.5">
-                                        {t.time}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="py-2.5 px-1.5 text-slate-600 break-words leading-snug text-[9.5px]">
-                                    {t.description || '-'}
-                                  </td>
-                                  <td className="py-2.5 px-1 text-[9px] text-center whitespace-nowrap font-sans">
-                                    {isCancelled ? (
-                                      <span className="text-red-600 font-bold no-underline">
-                                        ملغاة
+                      {data.transactions.length === 0 ? (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center text-slate-400 text-xs">
+                          لا توجد عمليات مسجلة خلال هذه الفترة.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {data.transactions.map((t) => {
+                            const isCancelled = t.status === 'cancelled';
+                            const isPayment = t.type === 'payment';
+                            return (
+                              <div
+                                key={t.id}
+                                className={`bg-white border rounded-xl p-2.5 space-y-1.5 shadow-xs ${
+                                  isCancelled
+                                    ? 'border-red-200 bg-red-50/30 opacity-80'
+                                    : 'border-slate-200'
+                                }`}
+                              >
+                                {/* Top Row: Customer Name + Type Badge + Status (Right) & Amount (Left) */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-1 min-w-0 flex-1">
+                                    <div className="font-black text-xs text-slate-900 break-words leading-snug">
+                                      {t.customer_name || 'عميل'}
+                                    </div>
+                                    <div className="flex items-center flex-wrap gap-1.5">
+                                      <span
+                                        className={`inline-block px-2 pt-0.5 pb-1.5 rounded-md text-[9px] font-bold leading-none ${
+                                          isPayment
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : 'bg-red-100 text-red-800'
+                                        }`}
+                                      >
+                                        {isPayment ? 'دفع (إيداع)' : 'سحب'}
                                       </span>
-                                    ) : (
-                                      <span className="text-emerald-600 font-bold">
-                                        نشطة
+                                      <span
+                                        className={`inline-block px-2 pt-0.5 pb-1.5 rounded-full text-[8.5px] font-bold leading-none ${
+                                          isCancelled
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        }`}
+                                      >
+                                        {isCancelled ? 'ملغاة (غير محتسبة)' : 'نشطة'}
                                       </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div
+                                    className={`font-black font-mono text-xs px-2.5 pt-1 pb-1.5 rounded-lg shrink-0 whitespace-nowrap leading-none ${
+                                      isCancelled
+                                        ? 'bg-slate-100 text-slate-400 line-through'
+                                        : isPayment
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : 'bg-red-50 text-red-700 border border-red-200'
+                                    }`}
+                                  >
+                                    {isPayment
+                                      ? `+${t.amount.toLocaleString()} ج.م`
+                                      : `-${t.amount.toLocaleString()} ج.م`}
+                                  </div>
+                                </div>
+
+                                {/* Bottom Row: Description (Right) & Date/Time (Left) */}
+                                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-[10px]">
+                                  <div className="text-slate-600 font-medium break-words leading-snug flex-1 text-right">
+                                    <span className="text-slate-400">البيان: </span>
+                                    {t.description || (isPayment ? 'عملية دفع مسجلة' : 'عملية سحب مسجلة')}
+                                  </div>
+                                  <div className="font-mono text-[9.5px] text-slate-500 shrink-0 whitespace-nowrap text-left">
+                                    {t.date}
+                                    {t.time ? ` • ${t.time}` : ''}
+                                  </div>
+                                </div>
+
+                                {isCancelled && t.cancellation_reason && (
+                                  <div className="text-[9.5px] text-red-600 font-semibold pt-1 border-t border-red-100">
+                                    سبب الإلغاء: {t.cancellation_reason}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-3 border-t border-amber-300 flex items-center justify-between text-xs text-slate-600">
@@ -2545,66 +2558,70 @@ ${divider}
                 {/* ---------------- REPORTS SUMMARY (MOBILE PORTRAIT LAYOUT) ---------------- */}
                 {data.type === 'reports_summary' && (
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-2 border-b-2 border-amber-400/40 pb-3.5">
+                    <div className="flex items-center justify-between gap-1.5 border-b-2 border-amber-400/40 pb-3.5">
                       <ShopOwnerLogo variant="report" />
-                      <div className="text-left font-mono text-[10.5px] text-slate-600 shrink-0">
-                        <div className="font-black text-xs text-slate-900 font-sans">
+                      <div className="text-left font-mono text-[10px] text-slate-600 min-w-0 pl-0.5">
+                        <div className="font-black text-[11px] text-slate-900 font-sans whitespace-nowrap">
                           تقرير الأداء والإحصائيات
                         </div>
-                        <div className="mt-0.5">التاريخ: {data.reportDate}</div>
-                        <div className="text-[10px] text-amber-700 font-sans font-bold mt-0.5">
+                        <div className="mt-0.5 whitespace-nowrap">التاريخ: {data.reportDate}</div>
+                        <div className="text-[9.5px] text-amber-700 font-sans font-bold mt-0.5 leading-snug">
                           {data.periodText}
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <span className="text-[11px] text-slate-500 font-bold block">
-                          إجمالي العملاء
+                    <div className="space-y-2.5 text-xs">
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                        <span className="text-xs text-slate-600 font-bold">
+                          إجمالي العملاء المسجلين
                         </span>
-                        <span className="text-lg font-black font-mono text-slate-800 mt-1.5 block">
+                        <span className="text-base font-black font-mono text-slate-800">
                           {data.totalCustomers} عميل
                         </span>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <span className="text-[11px] text-slate-500 font-bold block">
-                          إجمالي العمليات
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                        <span className="text-xs text-slate-600 font-bold">
+                          إجمالي العمليات النشطة
                         </span>
-                        <span className="text-lg font-black font-mono text-blue-600 mt-1.5 block">
+                        <span className="text-base font-black font-mono text-blue-600">
                           {data.totalTransactions} عملية
                         </span>
                       </div>
-                      <div className="col-span-2 bg-emerald-50 p-4 rounded-xl border border-emerald-200 flex items-center justify-between">
+                      <div className="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 flex items-center justify-between">
                         <span className="text-xs text-emerald-700 font-bold">
                           إجمالي الإيداعات / المدفوعات
                         </span>
-                        <span className="text-lg font-black font-mono text-emerald-800">
+                        <span className="text-base font-black font-mono text-emerald-800">
                           {data.totalPayments.toLocaleString()} ج.م
                         </span>
                       </div>
-                      <div className="col-span-2 bg-red-50 p-4 rounded-xl border border-red-200 flex items-center justify-between">
+                      <div className="bg-red-50 p-3.5 rounded-xl border border-red-200 flex items-center justify-between">
                         <span className="text-xs text-red-700 font-bold">
                           إجمالي السحوبات
                         </span>
-                        <span className="text-lg font-black font-mono text-red-800">
+                        <span className="text-base font-black font-mono text-red-800">
                           {data.totalWithdrawals.toLocaleString()} ج.م
                         </span>
                       </div>
                     </div>
 
-                    <div className="bg-[#0f233c] text-white p-4 rounded-xl border border-slate-700 flex items-center justify-between gap-2">
-                      <div>
-                        <span className="text-xs text-slate-300 font-bold block">
+                    <div className="bg-[#0f233c] text-white p-4 rounded-xl border border-slate-700 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-300 font-bold whitespace-nowrap">
                           صافي الموقف المالي المعتمد
                         </span>
-                        <div className="text-xl font-black font-mono text-amber-400 mt-1">
-                          {data.netBalance.toLocaleString()} ج.م
-                        </div>
+                        <span className="text-[9.5px] text-amber-300 font-mono bg-white/10 px-2 pt-1 pb-1.5 rounded-lg leading-none whitespace-nowrap shrink-0">
+                          مطابق لقاعدة البيانات
+                        </span>
                       </div>
-                      <div className="text-[10.5px] text-amber-300 font-mono bg-white/10 px-2.5 pt-1 pb-1.5 rounded-lg shrink-0 leading-none">
-                        مطابق لقاعدة البيانات
+                      <div className="text-2xl font-black font-mono text-amber-400 text-center py-1">
+                        {data.netBalance.toLocaleString()} ج.م
                       </div>
+                    </div>
+
+                    <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-2.5 text-[10px] text-slate-600 leading-relaxed">
+                      جميع المؤشرات المالية أعلاه مستخرجة من العمليات النشطة المعتمدة خلال الفترة المحددة ({data.periodText}).
                     </div>
 
                     <div className="pt-3.5 border-t border-amber-300 flex items-center justify-between text-xs text-slate-600">
