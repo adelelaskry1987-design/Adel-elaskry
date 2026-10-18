@@ -886,6 +886,16 @@ ${divider}
     kind: 'image' | 'pdf';
   } | null>(null);
 
+  const getCacheKey = () => {
+    const filterKey =
+      data.type === 'customer_statement'
+        ? `${data.customer.id}:${data.transactions.length}:${data.currentBalance}`
+        : data.type === 'all_transactions'
+        ? `${data.periodText}:${data.totalCount}:${data.netMovement}`
+        : `${data.periodText}:${data.totalCustomers}:${data.totalTransactions}:${data.netBalance}`;
+    return `${data.type}:${contentScope}:${filterKey}`;
+  };
+
   useEffect(() => {
     if (!isOpen) {
       cachedImageRef.current = {};
@@ -894,7 +904,7 @@ ${divider}
       return;
     }
     setReadySharePayload(null);
-    const cacheKey = `${data.type}:${contentScope}`;
+    const cacheKey = getCacheKey();
     const timer = setTimeout(async () => {
       if (!printableRef.current) return;
       try {
@@ -909,10 +919,10 @@ ${divider}
       }
     }, 120);
     return () => clearTimeout(timer);
-  }, [isOpen, data.type, contentScope]);
+  }, [isOpen, data, contentScope]);
 
   const getOrGenerateImageFile = async () => {
-    const cacheKey = `${data.type}:${contentScope}`;
+    const cacheKey = getCacheKey();
     if (cachedImageRef.current[cacheKey]) {
       return cachedImageRef.current[cacheKey];
     }
@@ -922,7 +932,7 @@ ${divider}
   };
 
   const getOrGeneratePdfFile = async () => {
-    const cacheKey = `${data.type}:${contentScope}`;
+    const cacheKey = getCacheKey();
     if (cachedPdfRef.current[cacheKey]) {
       return cachedPdfRef.current[cacheKey];
     }
@@ -1121,14 +1131,14 @@ ${divider}
     }
   };
 
-  // 1. WhatsApp share (strictly respects selected sendFormat: 'text' | 'image' | 'pdf' without attaching text to image/pdf and without opening api.whatsapp.com download page)
+  // 1. WhatsApp share (strictly respects selected sendFormat: 'text' | 'image' | 'pdf' across all 3 pages without attaching text to image/pdf and without opening api.whatsapp.com download page)
   const handleWhatsAppShare = async () => {
-    if (data.type === 'customer_statement' && sendFormat === 'text') {
+    if (sendFormat === 'text') {
       await handleWhatsAppTextOnly();
       return;
     }
 
-    if (data.type === 'customer_statement' && sendFormat === 'image') {
+    if (sendFormat === 'image') {
       await handleImageShare();
       return;
     }
@@ -1212,14 +1222,14 @@ ${divider}
     }
   };
 
-  // 3. Share via other apps (strictly respects selected sendFormat: 'text' | 'image' | 'pdf')
+  // 3. Share via other apps (strictly respects selected sendFormat: 'text' | 'image' | 'pdf' across all 3 pages)
   const handleOtherAppsShare = async () => {
-    if (data.type === 'customer_statement' && sendFormat === 'text') {
+    if (sendFormat === 'text') {
       await handleShareTextOnly();
       return;
     }
 
-    if (data.type === 'customer_statement' && sendFormat === 'image') {
+    if (sendFormat === 'image') {
       await handleImageShare();
       return;
     }
@@ -1244,13 +1254,13 @@ ${divider}
     window.print();
   };
 
-  // Telegram share (strictly respects selected format)
+  // Telegram share (strictly respects selected format across all 3 pages)
   const handleTelegramShare = async () => {
-    if (data.type === 'customer_statement' && sendFormat === 'image') {
+    if (sendFormat === 'image') {
       await handleImageShare();
       return;
     }
-    if (data.type === 'customer_statement' && sendFormat === 'pdf') {
+    if (sendFormat === 'pdf') {
       await handlePdfShare();
       return;
     }
@@ -1531,234 +1541,250 @@ ${divider}
                   </div>
                 </div>
               </div>
-
-              {/* القسم الثاني: اختر طريقة المشاركة */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                    <Share2 className="w-4 h-4 text-[var(--color-gold)]" />
-                    ثانيًا: اختر طريقة المشاركة
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-500">
-                    {contentScope === 'balance_only'
-                      ? 'إجمالي الحساب فقط'
-                      : 'إجمالي الحساب والعمليات'}
-                  </span>
-                </div>
-
-                {/* 3 Send Format Choices */}
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSendFormat('text')}
-                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
-                      sendFormat === 'text'
-                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
-                        : 'theme-btn-secondary hover:opacity-90'
-                    }`}
-                  >
-                    <MessageCircle
-                      className={`w-4 h-4 ${
-                        sendFormat === 'text'
-                          ? 'text-[#f3d27a]'
-                          : 'text-[var(--text-secondary)]'
-                      }`}
-                    />
-                    <span className={sendFormat === 'text' ? 'text-white' : ''}>
-                      مشاركة كنص
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSendFormat('image')}
-                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
-                      sendFormat === 'image'
-                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
-                        : 'theme-btn-secondary hover:opacity-90'
-                    }`}
-                  >
-                    <ImageIcon
-                      className={`w-4 h-4 ${
-                        sendFormat === 'image'
-                          ? 'text-[#f3d27a]'
-                          : 'text-[var(--text-secondary)]'
-                      }`}
-                    />
-                    <span className={sendFormat === 'image' ? 'text-white' : ''}>
-                      مشاركة كصورة
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSendFormat('pdf')}
-                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
-                      sendFormat === 'pdf'
-                        ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
-                        : 'theme-btn-secondary hover:opacity-90'
-                    }`}
-                  >
-                    <FileText
-                      className={`w-4 h-4 ${
-                        sendFormat === 'pdf'
-                          ? 'text-[#f3d27a]'
-                          : 'text-[var(--text-secondary)]'
-                      }`}
-                    />
-                    <span className={sendFormat === 'pdf' ? 'text-white' : ''}>
-                      مشاركة كملف PDF
-                    </span>
-                  </button>
-                </div>
-
-                {/* Actions for the selected Format + Content combination */}
-                {sendFormat === 'text' && (
-                  <div className="space-y-2.5 pt-1">
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] font-sans text-slate-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                      {generateFormattedText()}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleWhatsAppTextOnly}
-                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>
-                        {contentScope === 'balance_only'
-                          ? 'مشاركة إجمالي الحساب فقط كنص عبر واتساب'
-                          : 'مشاركة إجمالي الحساب والعمليات كنص عبر واتساب'}
-                      </span>
-                    </button>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={handleShareTextOnly}
-                        className="py-2.5 px-3 rounded-xl theme-btn-primary text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <Share2 className="w-4 h-4" />
-                        <span>مشاركة كنص</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCopyText}
-                        className="py-2.5 px-3 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="w-4 h-4 text-emerald-600" />
-                            <span className="text-emerald-700 font-black">
-                              تم نسخ النص
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 text-slate-500" />
-                            <span>نسخ النص</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {sendFormat === 'image' && (
-                  <div className="space-y-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleImageShare}
-                      disabled={isBusy}
-                      className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-                    >
-                      {isGeneratingImage ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>جاري إنشاء صورة الفاتورة...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ImageIcon className="w-4 h-4" />
-                          <span>
-                            {contentScope === 'balance_only'
-                              ? 'مشاركة إجمالي الحساب فقط كصورة'
-                              : 'مشاركة إجمالي الحساب والعمليات كصورة'}
-                          </span>
-                        </>
-                      )}
-                    </button>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={handleDownloadImage}
-                        disabled={isBusy}
-                        className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
-                      >
-                        <Download className="w-4 h-4 text-amber-700" />
-                        <span>حفظ الصورة</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleOpenImage}
-                        disabled={isBusy}
-                        className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
-                      >
-                        <ExternalLink className="w-4 h-4 text-blue-700" />
-                        <span>فتح الصورة</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {sendFormat === 'pdf' && (
-                  <div className="space-y-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={handlePdfShare}
-                      disabled={isBusy}
-                      className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-                    >
-                      {isGeneratingPdf ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>جاري إنشاء ملف PDF...</span>
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="w-4 h-4" />
-                          <span>
-                            {contentScope === 'balance_only'
-                              ? 'مشاركة إجمالي الحساب فقط كملف PDF'
-                              : 'مشاركة إجمالي الحساب والعمليات كملف PDF'}
-                          </span>
-                        </>
-                      )}
-                    </button>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={handleDownloadPdf}
-                        disabled={isBusy}
-                        className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
-                      >
-                        <Download className="w-4 h-4 text-amber-700" />
-                        <span>حفظ ملف PDF</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleOpenPdf}
-                        disabled={isBusy}
-                        className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
-                      >
-                        <ExternalLink className="w-4 h-4 text-blue-700" />
-                        <span>فتح ملف PDF</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </>
           );
         })()}
+
+        {/* ==================== UNIFIED SHARE FORMAT SELECTOR (TEXT / IMAGE / PDF FOR ALL 3 PAGES) ==================== */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <Share2 className="w-4 h-4 text-[var(--color-gold)]" />
+              {data.type === 'customer_statement'
+                ? 'ثانيًا: اختر طريقة المشاركة'
+                : 'اختر صيغة المشاركة'}
+            </span>
+            <span className="text-[10px] font-bold text-slate-500">
+              {data.type === 'customer_statement'
+                ? contentScope === 'balance_only'
+                  ? 'إجمالي الحساب فقط'
+                  : 'إجمالي الحساب والعمليات'
+                : data.periodText}
+            </span>
+          </div>
+
+          {/* 3 Send Format Choices */}
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setSendFormat('text')}
+              className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                sendFormat === 'text'
+                  ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                  : 'theme-btn-secondary hover:opacity-90'
+              }`}
+            >
+              <MessageCircle
+                className={`w-4 h-4 ${
+                  sendFormat === 'text'
+                    ? 'text-[#f3d27a]'
+                    : 'text-[var(--text-secondary)]'
+                }`}
+              />
+              <span className={sendFormat === 'text' ? 'text-white' : ''}>
+                مشاركة كنص
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSendFormat('image')}
+              className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                sendFormat === 'image'
+                  ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                  : 'theme-btn-secondary hover:opacity-90'
+              }`}
+            >
+              <ImageIcon
+                className={`w-4 h-4 ${
+                  sendFormat === 'image'
+                    ? 'text-[#f3d27a]'
+                    : 'text-[var(--text-secondary)]'
+                }`}
+              />
+              <span className={sendFormat === 'image' ? 'text-white' : ''}>
+                مشاركة كصورة
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSendFormat('pdf')}
+              className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                sendFormat === 'pdf'
+                  ? 'theme-btn-primary text-white border-[var(--color-gold)] ring-2 ring-[var(--color-gold)]/40 shadow-sm'
+                  : 'theme-btn-secondary hover:opacity-90'
+              }`}
+            >
+              <FileText
+                className={`w-4 h-4 ${
+                  sendFormat === 'pdf'
+                    ? 'text-[#f3d27a]'
+                    : 'text-[var(--text-secondary)]'
+                }`}
+              />
+              <span className={sendFormat === 'pdf' ? 'text-white' : ''}>
+                مشاركة كملف PDF
+              </span>
+            </button>
+          </div>
+
+          {/* Actions for the selected Format + Content combination */}
+          {sendFormat === 'text' && (
+            <div className="space-y-2.5 pt-1">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] font-sans text-slate-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                {generateFormattedText()}
+              </div>
+              <button
+                type="button"
+                onClick={handleWhatsAppTextOnly}
+                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>
+                  {data.type === 'customer_statement'
+                    ? contentScope === 'balance_only'
+                      ? 'مشاركة إجمالي الحساب فقط كنص عبر واتساب'
+                      : 'مشاركة إجمالي الحساب والعمليات كنص عبر واتساب'
+                    : data.type === 'all_transactions'
+                    ? 'مشاركة تقرير العمليات كنص عبر واتساب'
+                    : 'مشاركة التقرير والإحصائيات كنص عبر واتساب'}
+                </span>
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleShareTextOnly}
+                  className="py-2.5 px-3 rounded-xl theme-btn-primary text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>مشاركة كنص</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyText}
+                  className="py-2.5 px-3 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      <span className="text-emerald-700 font-black">
+                        تم نسخ النص
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-slate-500" />
+                      <span>نسخ النص</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {sendFormat === 'image' && (
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={handleImageShare}
+                disabled={isBusy}
+                className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+              >
+                {isGeneratingImage ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>جاري إنشاء الصورة...</span>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="w-4 h-4" />
+                    <span>
+                      {data.type === 'customer_statement'
+                        ? contentScope === 'balance_only'
+                          ? 'مشاركة إجمالي الحساب فقط كصورة'
+                          : 'مشاركة إجمالي الحساب والعمليات كصورة'
+                        : data.type === 'all_transactions'
+                        ? 'مشاركة تقرير العمليات كصورة'
+                        : 'مشاركة التقرير والإحصائيات كصورة'}
+                    </span>
+                  </>
+                )}
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadImage}
+                  disabled={isBusy}
+                  className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-amber-700" />
+                  <span>حفظ الصورة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenImage}
+                  disabled={isBusy}
+                  className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4 text-blue-700" />
+                  <span>فتح الصورة</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {sendFormat === 'pdf' && (
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={handlePdfShare}
+                disabled={isBusy}
+                className="w-full py-2.5 px-3 rounded-xl theme-btn-primary disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+              >
+                {isGeneratingPdf ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>جاري إنشاء ملف PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4" />
+                    <span>
+                      {data.type === 'customer_statement'
+                        ? contentScope === 'balance_only'
+                          ? 'مشاركة إجمالي الحساب فقط كملف PDF'
+                          : 'مشاركة إجمالي الحساب والعمليات كملف PDF'
+                        : data.type === 'all_transactions'
+                        ? 'مشاركة تقرير العمليات كملف PDF'
+                        : 'مشاركة التقرير والإحصائيات كملف PDF'}
+                    </span>
+                  </>
+                )}
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={isBusy}
+                  className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-amber-700" />
+                  <span>حفظ ملف PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenPdf}
+                  disabled={isBusy}
+                  className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4 text-blue-700" />
+                  <span>فتح ملف PDF</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 1. Main 35-Screens Card: مشاركة عبر التطبيقات */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
@@ -1839,47 +1865,43 @@ ${divider}
 
           {/* Action Buttons */}
           <div className="space-y-2 pt-1">
-            {data.type === 'customer_statement' && (
-              <>
-                <button
-                  onClick={handleImageShare}
-                  disabled={isBusy}
-                  className="w-full py-2.5 px-3 rounded-xl theme-btn-gold disabled:opacity-50 font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-                >
-                  {isGeneratingImage ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>جاري إنشاء صورة الفاتورة...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ImageIcon className="w-4 h-4" />
-                      <span>مشاركة وتنزيل كصورة (PNG)</span>
-                    </>
-                  )}
-                </button>
+            <button
+              onClick={handleImageShare}
+              disabled={isBusy}
+              className="w-full py-2.5 px-3 rounded-xl theme-btn-gold disabled:opacity-50 font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+            >
+              {isGeneratingImage ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>جاري إنشاء الصورة...</span>
+                </>
+              ) : (
+                <>
+                  <ImageIcon className="w-4 h-4" />
+                  <span>مشاركة وتنزيل كصورة (PNG)</span>
+                </>
+              )}
+            </button>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={handleDownloadImage}
-                    disabled={isBusy}
-                    className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-amber-700" />
-                    <span>حفظ كصورة</span>
-                  </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleDownloadImage}
+                disabled={isBusy}
+                className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 disabled:opacity-50 text-amber-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-amber-300 cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-amber-700" />
+                <span>حفظ كصورة</span>
+              </button>
 
-                  <button
-                    onClick={handleOpenImage}
-                    disabled={isBusy}
-                    className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
-                  >
-                    <ExternalLink className="w-4 h-4 text-blue-700" />
-                    <span>فتح الصورة</span>
-                  </button>
-                </div>
-              </>
-            )}
+              <button
+                onClick={handleOpenImage}
+                disabled={isBusy}
+                className="py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-900 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-blue-200 cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4 text-blue-700" />
+                <span>فتح الصورة</span>
+              </button>
+            </div>
 
             <button
               onClick={handlePdfShare}
