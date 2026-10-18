@@ -867,40 +867,176 @@ ${divider}
     return { pdf, pdfBlob, pdfFile, fileName, fileTitle };
   };
 
-  // 0a. Send as Text via WhatsApp directly
-  const handleWhatsAppTextOnly = () => {
-    const text = generateFormattedText();
-    const encoded = encodeURIComponent(text);
-    const url = `https://api.whatsapp.com/send?text=${encoded}`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showSuccessStatus('تم فتح نافذة واتساب لإرسال النص');
+  // 0. Pre-cache generated Image & PDF files per contentScope so Android Web Share API
+  //    can be invoked synchronously inside the user tap without losing transient user activation.
+  const cachedImageRef = useRef<
+    Record<
+      string,
+      { imageBlob: Blob; imageFile: File; fileName: string; fileTitle: string }
+    >
+  >({});
+  const cachedPdfRef = useRef<
+    Record<
+      string,
+      { pdf: jsPDF; pdfBlob: Blob; pdfFile: File; fileName: string; fileTitle: string }
+    >
+  >({});
+  const [readySharePayload, setReadySharePayload] = useState<{
+    file: File;
+    kind: 'image' | 'pdf';
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      cachedImageRef.current = {};
+      cachedPdfRef.current = {};
+      setReadySharePayload(null);
+      return;
+    }
+    setReadySharePayload(null);
+    const cacheKey = `${data.type}:${contentScope}`;
+    const timer = setTimeout(async () => {
+      if (!printableRef.current) return;
+      try {
+        if (!cachedImageRef.current[cacheKey]) {
+          cachedImageRef.current[cacheKey] = await generateImageFile();
+        }
+        if (!cachedPdfRef.current[cacheKey]) {
+          cachedPdfRef.current[cacheKey] = await generatePdfFile();
+        }
+      } catch {
+        // Silent background warmup; on-demand generation handles errors if needed
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [isOpen, data.type, contentScope]);
+
+  const getOrGenerateImageFile = async () => {
+    const cacheKey = `${data.type}:${contentScope}`;
+    if (cachedImageRef.current[cacheKey]) {
+      return cachedImageRef.current[cacheKey];
+    }
+    const result = await generateImageFile();
+    cachedImageRef.current[cacheKey] = result;
+    return result;
   };
 
-  // 0b. Share as Text via system share dialog or fallback to clipboard
-  const handleShareTextOnly = async () => {
-    const text = generateFormattedText();
-    const title =
-      data.type === 'customer_statement'
-        ? contentScope === 'balance_only'
-          ? `ملخص حساب العميل ${data.customer.name}`
-          : `كشف حساب العميل ${data.customer.name}`
-        : data.type === 'all_transactions'
-        ? 'تقرير كل العمليات المالية'
-        : 'تقرير الموقف المالي والإحصائيات';
+  const getOrGeneratePdfFile = async () => {
+    const cacheKey = `${data.type}:${contentScope}`;
+    if (cachedPdfRef.current[cacheKey]) {
+      return cachedPdfRef.current[cacheKey];
+    }
+    const result = await generatePdfFile();
+    cachedPdfRef.current[cacheKey] = result;
+    return result;
+  };
 
-    if (navigator.share) {
+  const isMobileEnv = () =>
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+
+  // Helper to share a single File (Image or PDF ONLY — never attaches text or title)
+  const shareSingleFileNatively = async (
+    file: File,
+    kind: 'image' | 'pdf',
+    fallbackSave: () => void
+  ) => {
+    setReadySharePayload(null);
+    const canShareFile =
+      typeof navigator.share === 'function' &&
+      (!navigator.canShare || navigator.canShare({ files: [file] }));
+
+    if (canShareFile) {
       try {
-        await navigator.share({ title, text });
-        showSuccessStatus('تم فتح نافذة المشاركة لإرسال النص');
+        await navigator.share({
+          files: [file],
+        });
+        showSuccessStatus(
+          kind === 'image'
+            ? 'تم فتح نافذة المشاركة؛ اختر واتساب لإرسال الصورة فقط'
+            : 'تم فتح نافذة المشاركة؛ اختر واتساب لإرسال ملف PDF فقط'
+        );
+        return;
+      } catch (shareErr: any) {
+        if (shareErr?.name === 'AbortError') {
+          setStatusMessage(null);
+          return;
+        }
+        // If transient user activation expired while waiting for file generation on Android,
+        // surface a 1-tap button so the next tap shares immediately in 0ms!
+        if (shareErr?.name === 'NotAllowedError') {
+          setReadySharePayload({ file, kind });
+          showSuccessStatus(
+            kind === 'image'
+              ? 'تم تجهيز صورة الفاتورة — اضغط على الزر الأخضر بالأسفل لاختيار واتساب ومشاركتها فورًا'
+              : 'تم تجهيز ملف PDF — اضغط على الزر الأخضر بالأسفل لاختيار واتساب ومشاركته فورًا'
+          );
+          return;
+        }
+      }
+    }
+
+    // Browser/WebView does not support Web Share Level 2 file sharing:
+    // Save the file locally and show an honest explanation WITHOUT opening api.whatsapp.com
+    fallbackSave();
+    showSuccessStatus(
+      kind === 'image'
+        ? 'تم حفظ صورة الفاتورة على جهازك. متصفحك الحالي لا يدعم تمرير الملفات مباشرةً؛ يمكنك إرفاق الصورة المحفوظة داخل واتساب.'
+        : 'تم حفظ ملف PDF على جهازك. متصفحك الحالي لا يدعم تمرير الملفات مباشرةً؛ يمكنك إرفاق الملف المحفوظ داخل واتساب.'
+    );
+  };
+
+  // 0a. Send as Text ONLY via WhatsApp (without using api.whatsapp.com/send web download page)
+  const handleWhatsAppTextOnly = async () => {
+    const text = generateFormattedText();
+
+    // 1. Prefer Web Share API on mobile/modern browsers so Android opens the native Share Sheet
+    //    where the installed WhatsApp / WhatsApp Business app can be selected directly
+    //    without ever triggering the api.whatsapp.com "Download WhatsApp" web page.
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ text });
+        showSuccessStatus('تم فتح نافذة المشاركة لإرسال النص عبر واتساب');
         return;
       } catch (err: any) {
-        if (err.name === 'AbortError') {
+        if (err?.name === 'AbortError') {
+          setStatusMessage(null);
+          return;
+        }
+      }
+    }
+
+    // 2. If Web Share API is unavailable on mobile WebView, use the native whatsapp:// URI scheme
+    //    (handled directly by Android OS Intent for installed WhatsApp, never opens api.whatsapp.com download page)
+    if (isMobileEnv()) {
+      try {
+        await navigator.clipboard?.writeText(text);
+      } catch {
+        // ignore clipboard error
+      }
+      const nativeSchemeUrl = `whatsapp://send?text=${encodeURIComponent(text)}`;
+      window.location.href = nativeSchemeUrl;
+      showSuccessStatus('جاري فتح تطبيق واتساب المثبت على الهاتف مع نص الفاتورة...');
+      return;
+    }
+
+    // 3. Desktop fallback without falsely claiming WhatsApp isn't installed on a phone
+    await handleCopyText();
+    showSuccessStatus(
+      'تم نسخ نص الفاتورة إلى الحافظة؛ يمكنك لصقه مباشرة داخل محادثة واتساب'
+    );
+  };
+
+  // 0b. Share as Text ONLY via system share dialog or fallback to clipboard
+  const handleShareTextOnly = async () => {
+    const text = generateFormattedText();
+
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ text });
+        showSuccessStatus('تم فتح نافذة المشاركة لإرسال النص فقط');
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
           setStatusMessage(null);
           return;
         }
@@ -910,7 +1046,7 @@ ${divider}
     await handleCopyText();
   };
 
-  // 1a. Generate and share/download actual PNG Image file
+  // 1a. Generate and share/download actual PNG Image file ONLY (never attaches text)
   const handleImageShare = async () => {
     if (!printableRef.current) {
       showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء الصورة');
@@ -921,35 +1057,10 @@ ${divider}
     setStatusMessage('جاري إعداد وتوليد صورة الفاتورة...');
 
     try {
-      const { imageBlob, imageFile, fileName, fileTitle } =
-        await generateImageFile();
-
-      if (
-        navigator.canShare &&
-        navigator.canShare({ files: [imageFile] }) &&
-        navigator.share
-      ) {
-        try {
-          await navigator.share({
-            files: [imageFile],
-            title: fileTitle,
-            text:
-              data.type === 'customer_statement' && contentScope === 'balance_only'
-                ? `ملخص حساب العميل ${data.customer.name} • ${data.projectName}`
-                : `كشف حساب معتمد • ${data.projectName}`,
-          });
-          showSuccessStatus('تم فتح نافذة المشاركة لإرسال الصورة');
-          return;
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') {
-            setStatusMessage(null);
-            return;
-          }
-        }
-      }
-
-      triggerBlobDownload(imageBlob, fileName);
-      showSuccessStatus('تم إنشاء وحفظ صورة الفاتورة بنجاح على جهازك');
+      const { imageBlob, imageFile, fileName } = await getOrGenerateImageFile();
+      await shareSingleFileNatively(imageFile, 'image', () =>
+        triggerBlobDownload(imageBlob, fileName)
+      );
     } catch (err: any) {
       console.error('Image generation error:', err);
       showErrorStatus(
@@ -971,7 +1082,7 @@ ${divider}
     setStatusMessage('جاري إنشاء وحفظ صورة الفاتورة...');
 
     try {
-      const { imageBlob, fileName } = await generateImageFile();
+      const { imageBlob, fileName } = await getOrGenerateImageFile();
       triggerBlobDownload(imageBlob, fileName);
       showSuccessStatus('تم حفظ صورة الفاتورة بنجاح على جهازك');
     } catch (err: any) {
@@ -995,7 +1106,7 @@ ${divider}
     setStatusMessage('جاري تجهيز وفتح صورة الفاتورة...');
 
     try {
-      const { imageBlob, fileName } = await generateImageFile();
+      const { imageBlob, fileName } = await getOrGenerateImageFile();
       const blobUrl = URL.createObjectURL(imageBlob);
       const opened = window.open(blobUrl, '_blank');
       if (!opened) {
@@ -1010,113 +1121,22 @@ ${divider}
     }
   };
 
-  // 1. WhatsApp share (respects selected sendFormat: 'text' | 'image' | 'pdf' and contentScope)
+  // 1. WhatsApp share (strictly respects selected sendFormat: 'text' | 'image' | 'pdf' without attaching text to image/pdf and without opening api.whatsapp.com download page)
   const handleWhatsAppShare = async () => {
     if (data.type === 'customer_statement' && sendFormat === 'text') {
-      handleWhatsAppTextOnly();
+      await handleWhatsAppTextOnly();
       return;
     }
 
     if (data.type === 'customer_statement' && sendFormat === 'image') {
-      setIsGeneratingImage(true);
-      setErrorMessage(null);
-      setStatusMessage('جاري تجهيز صورة الفاتورة للمشاركة عبر واتساب...');
-      try {
-        const { imageBlob, imageFile, fileTitle, fileName } =
-          await generateImageFile();
-        const text = generateFormattedText();
-
-        if (
-          navigator.canShare &&
-          navigator.canShare({ files: [imageFile] }) &&
-          navigator.share
-        ) {
-          try {
-            await navigator.share({
-              files: [imageFile],
-              title: fileTitle,
-              text,
-            });
-            showSuccessStatus('تم فتح نافذة المشاركة لإرسال الصورة عبر واتساب');
-            return;
-          } catch (shareErr: any) {
-            if (shareErr.name === 'AbortError') {
-              setStatusMessage(null);
-              return;
-            }
-          }
-        }
-
-        triggerBlobDownload(imageBlob, fileName);
-        const encoded = encodeURIComponent(text);
-        const url = `https://api.whatsapp.com/send?text=${encoded}`;
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        showSuccessStatus('تم تنزيل صورة الفاتورة وفتح نافذة واتساب لإرفاقها');
-      } catch (err: any) {
-        console.error('WhatsApp Image error:', err);
-        showErrorStatus(err?.message || 'تعذر إنشاء صورة الفاتورة للمشاركة');
-      } finally {
-        setIsGeneratingImage(false);
-      }
+      await handleImageShare();
       return;
     }
 
-    setIsGeneratingPdf(true);
-    setErrorMessage(null);
-    setStatusMessage('جاري تجهيز ملف الـ PDF للمشاركة عبر واتساب...');
-
-    try {
-      const { pdf, pdfFile, fileTitle, fileName } = await generatePdfFile();
-      const text = generateFormattedText();
-
-      if (
-        navigator.canShare &&
-        navigator.canShare({ files: [pdfFile] }) &&
-        navigator.share
-      ) {
-        try {
-          await navigator.share({
-            files: [pdfFile],
-            title: fileTitle,
-            text,
-          });
-          showSuccessStatus('تم فتح نافذة المشاركة لإرسال ملف PDF عبر واتساب');
-          return;
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') {
-            setStatusMessage(null);
-            return;
-          }
-        }
-      }
-
-      // Desktop / fallback: save the actual PDF file and open WhatsApp chat
-      pdf.save(fileName);
-      const encoded = encodeURIComponent(text);
-      const url = `https://api.whatsapp.com/send?text=${encoded}`;
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showSuccessStatus('تم تنزيل ملف PDF الفعلي وفتح نافذة واتساب لإرفاقه');
-    } catch (err: any) {
-      console.error('WhatsApp PDF error:', err);
-      showErrorStatus(err?.message || 'تعذر إنشاء ملف PDF للمشاركة');
-    } finally {
-      setIsGeneratingPdf(false);
-    }
+    await handlePdfShare();
   };
 
-  // 2. Generate and share/download actual PDF file
+  // 2. Generate and share/download actual PDF file ONLY (never attaches text or image)
   const handlePdfShare = async () => {
     if (!printableRef.current) {
       showErrorStatus('تعذر العثور على قالب الفاتورة لإنشاء ملف PDF');
@@ -1127,36 +1147,8 @@ ${divider}
     setStatusMessage('جاري إعداد وتوليد ملف PDF...');
 
     try {
-      const { pdf, pdfFile, fileName, fileTitle } = await generatePdfFile();
-
-      // Check if Web Share API supports file sharing
-      if (
-        navigator.canShare &&
-        navigator.canShare({ files: [pdfFile] }) &&
-        navigator.share
-      ) {
-        try {
-          await navigator.share({
-            files: [pdfFile],
-            title: fileTitle,
-            text:
-              data.type === 'customer_statement' && contentScope === 'balance_only'
-                ? `ملخص حساب العميل ${data.customer.name} • ${data.projectName}`
-                : `كشف حساب معتمد • ${data.projectName}`,
-          });
-          showSuccessStatus('تم فتح نافذة المشاركة لإرسال ملف PDF');
-          return;
-        } catch (shareErr: any) {
-          if (shareErr.name === 'AbortError') {
-            setStatusMessage(null);
-            return;
-          }
-        }
-      }
-
-      // Download file directly
-      pdf.save(fileName);
-      showSuccessStatus('تم حفظ وتنزيل ملف PDF بنجاح على جهازك');
+      const { pdf, pdfFile, fileName } = await getOrGeneratePdfFile();
+      await shareSingleFileNatively(pdfFile, 'pdf', () => pdf.save(fileName));
     } catch (err: any) {
       console.error('PDF error:', err);
       showErrorStatus(
@@ -1178,7 +1170,7 @@ ${divider}
     setStatusMessage('جاري إنشاء وحفظ ملف PDF...');
 
     try {
-      const { pdf, fileName } = await generatePdfFile();
+      const { pdf, fileName } = await getOrGeneratePdfFile();
       pdf.save(fileName);
       showSuccessStatus('تم حفظ ملف PDF بنجاح على جهازك');
     } catch (err: any) {
@@ -1200,7 +1192,7 @@ ${divider}
     setStatusMessage('جاري تجهيز وفتح ملف PDF...');
 
     try {
-      const { pdfBlob, fileName } = await generatePdfFile();
+      const { pdfBlob, fileName } = await getOrGeneratePdfFile();
       const blobUrl = URL.createObjectURL(pdfBlob);
       const opened = window.open(blobUrl, '_blank');
       if (!opened) {
@@ -1220,7 +1212,7 @@ ${divider}
     }
   };
 
-  // 3. Share via other apps (respects selected sendFormat: 'text' | 'image' | 'pdf')
+  // 3. Share via other apps (strictly respects selected sendFormat: 'text' | 'image' | 'pdf')
   const handleOtherAppsShare = async () => {
     if (data.type === 'customer_statement' && sendFormat === 'text') {
       await handleShareTextOnly();
@@ -1232,59 +1224,7 @@ ${divider}
       return;
     }
 
-    const text = generateFormattedText();
-    const title =
-      data.type === 'customer_statement'
-        ? contentScope === 'balance_only'
-          ? `ملخص حساب العميل ${data.customer.name}`
-          : `كشف حساب العميل ${data.customer.name}`
-        : data.type === 'all_transactions'
-        ? 'تقرير كل العمليات المالية'
-        : 'تقرير الموقف المالي والإحصائيات';
-
-    if (printableRef.current && navigator.share) {
-      setIsGeneratingPdf(true);
-      setErrorMessage(null);
-      setStatusMessage('جاري تجهيز ملف PDF للمشاركة...');
-      try {
-        const { pdfFile } = await generatePdfFile();
-        if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-          await navigator.share({
-            files: [pdfFile],
-            title,
-            text,
-          });
-          showSuccessStatus('تم فتح نافذة المشاركة لإرسال ملف PDF');
-          setIsGeneratingPdf(false);
-          return;
-        }
-      } catch (err: any) {
-        setIsGeneratingPdf(false);
-        if (err.name === 'AbortError') {
-          setStatusMessage(null);
-          return;
-        }
-      }
-      setIsGeneratingPdf(false);
-    }
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title,
-          text,
-        });
-        showSuccessStatus('تم فتح نافذة المشاركة');
-        return;
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          setStatusMessage(null);
-          return;
-        }
-      }
-    }
-
-    await handleCopyText();
+    await handlePdfShare();
   };
 
   const handleCopyText = async () => {
@@ -1304,12 +1244,24 @@ ${divider}
     window.print();
   };
 
-  // Telegram share
-  const handleTelegramShare = () => {
+  // Telegram share (strictly respects selected format)
+  const handleTelegramShare = async () => {
+    if (data.type === 'customer_statement' && sendFormat === 'image') {
+      await handleImageShare();
+      return;
+    }
+    if (data.type === 'customer_statement' && sendFormat === 'pdf') {
+      await handlePdfShare();
+      return;
+    }
+    if (typeof navigator.share === 'function') {
+      await handleShareTextOnly();
+      return;
+    }
     const text = generateFormattedText();
     const url = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
-    showSuccessStatus('تم فتح نافذة تيليجرام لإرسال الرسالة');
+    showSuccessStatus('تم فتح نافذة تيليجرام لإرسال النص');
   };
 
   // Gmail share
@@ -1397,6 +1349,37 @@ ${divider}
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
+        )}
+
+        {/* Instant 1-Tap Native Share Button if transient activation expired during generation */}
+        {readySharePayload && (
+          <button
+            type="button"
+            onClick={async () => {
+              const payload = readySharePayload;
+              setReadySharePayload(null);
+              try {
+                await navigator.share({ files: [payload.file] });
+                showSuccessStatus(
+                  payload.kind === 'image'
+                    ? 'تم فتح نافذة المشاركة لإرسال الصورة عبر واتساب'
+                    : 'تم فتح نافذة المشاركة لإرسال ملف PDF عبر واتساب'
+                );
+              } catch (err: any) {
+                if (err?.name !== 'AbortError') {
+                  showErrorStatus('تعذر فتح نافذة المشاركة من المتصفح الحالي');
+                }
+              }
+            }}
+            className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer animate-pulse"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>
+              {readySharePayload.kind === 'image'
+                ? 'اضغط هنا لفتح قائمة المشاركة واختيار واتساب لإرسال الصورة'
+                : 'اضغط هنا لفتح قائمة المشاركة واختيار واتساب لإرسال ملف PDF'}
+            </span>
+          </button>
         )}
 
         {/* Error Toast */}
@@ -1549,12 +1532,12 @@ ${divider}
                 </div>
               </div>
 
-              {/* القسم الثاني: اختيار طريقة الإرسال */}
+              {/* القسم الثاني: اختر طريقة المشاركة */}
               <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                   <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                     <Share2 className="w-4 h-4 text-[var(--color-gold)]" />
-                    ثانيًا: اختيار طريقة الإرسال
+                    ثانيًا: اختر طريقة المشاركة
                   </span>
                   <span className="text-[10px] font-bold text-slate-500">
                     {contentScope === 'balance_only'
@@ -1582,7 +1565,7 @@ ${divider}
                       }`}
                     />
                     <span className={sendFormat === 'text' ? 'text-white' : ''}>
-                      إرسال كنص
+                      مشاركة كنص
                     </span>
                   </button>
 
@@ -1603,7 +1586,7 @@ ${divider}
                       }`}
                     />
                     <span className={sendFormat === 'image' ? 'text-white' : ''}>
-                      إرسال كصورة
+                      مشاركة كصورة
                     </span>
                   </button>
 
@@ -1624,7 +1607,7 @@ ${divider}
                       }`}
                     />
                     <span className={sendFormat === 'pdf' ? 'text-white' : ''}>
-                      إرسال كملف PDF
+                      مشاركة كملف PDF
                     </span>
                   </button>
                 </div>
@@ -1643,8 +1626,8 @@ ${divider}
                       <MessageCircle className="w-4 h-4" />
                       <span>
                         {contentScope === 'balance_only'
-                          ? 'إرسال إجمالي الحساب فقط كنص عبر واتساب'
-                          : 'إرسال إجمالي الحساب والعمليات كنص عبر واتساب'}
+                          ? 'مشاركة إجمالي الحساب فقط كنص عبر واتساب'
+                          : 'مشاركة إجمالي الحساب والعمليات كنص عبر واتساب'}
                       </span>
                     </button>
                     <div className="grid grid-cols-2 gap-2">
@@ -1654,7 +1637,7 @@ ${divider}
                         className="py-2.5 px-3 rounded-xl theme-btn-primary text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                       >
                         <Share2 className="w-4 h-4" />
-                        <span>مشاركة النص</span>
+                        <span>مشاركة كنص</span>
                       </button>
                       <button
                         type="button"
@@ -1697,8 +1680,8 @@ ${divider}
                           <ImageIcon className="w-4 h-4" />
                           <span>
                             {contentScope === 'balance_only'
-                              ? 'إرسال وتنزيل إجمالي الحساب فقط كصورة'
-                              : 'إرسال وتنزيل إجمالي الحساب والعمليات كصورة'}
+                              ? 'مشاركة إجمالي الحساب فقط كصورة'
+                              : 'مشاركة إجمالي الحساب والعمليات كصورة'}
                           </span>
                         </>
                       )}
@@ -1744,8 +1727,8 @@ ${divider}
                           <FileText className="w-4 h-4" />
                           <span>
                             {contentScope === 'balance_only'
-                              ? 'إرسال وتنزيل إجمالي الحساب فقط كملف PDF'
-                              : 'إرسال وتنزيل إجمالي الحساب والعمليات كملف PDF'}
+                              ? 'مشاركة إجمالي الحساب فقط كملف PDF'
+                              : 'مشاركة إجمالي الحساب والعمليات كملف PDF'}
                           </span>
                         </>
                       )}
