@@ -173,8 +173,16 @@ function MainApp() {
     return <Screen4Login onNavigate={navigateTo} />;
   }
 
+  const isLoginScreen = currentScreen === 'screen-4-login';
+
   return (
-    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex flex-col antialiased transition-colors duration-200">
+    <div
+      className={`min-h-screen flex flex-col antialiased transition-colors duration-200 ${
+        isLoginScreen
+          ? 'bg-[#08172b] text-white'
+          : 'bg-[var(--bg-page)] text-[var(--text-primary)]'
+      }`}
+    >
       {/* Offline Alert Strip */}
       {!isOnline && (
         <div className="bg-amber-600 text-white text-[11px] font-bold py-1.5 px-4 text-center flex items-center justify-center gap-1.5 sticky top-0 z-50 shadow-sm">
@@ -193,7 +201,7 @@ function MainApp() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-md mx-auto">
+      <main className={isLoginScreen ? 'flex-1 w-full' : 'flex-1 w-full max-w-md mx-auto'}>
         {/* SCREEN 1: SPLASH */}
         {currentScreen === 'screen-1-splash' && <Screen1Splash onNavigate={navigateTo} />}
 

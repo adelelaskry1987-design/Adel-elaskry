@@ -882,504 +882,326 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
   return (
     <div
       dir="rtl"
-      className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-center p-4 text-[var(--text-primary)] select-none transition-colors duration-200"
+      className="login-dark-screen min-h-screen min-h-[100dvh] w-full bg-[#08172b] flex flex-col items-center justify-center p-4 text-white select-none"
     >
-      <div className="w-full max-w-sm bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xl">
-        {/* Top Dark Blue Header Section preserving logo contrast */}
-        <div className="bg-[var(--bg-header)] text-white p-6 flex flex-col items-center border-b border-[#1b3453]">
+      <div className="w-full max-w-sm bg-[#0d223c] rounded-2xl p-6 border border-slate-700 shadow-2xl">
+        {/* Unified Dark Header & Logos (Restored to exact original design without split) */}
+        <div className="flex flex-col items-center mb-6">
           <div className="flex flex-col items-center justify-center gap-3 mb-2">
             <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
             <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
           </div>
-          <h2 className="text-xl font-black mt-2 text-[#d4ab54] text-center">{headerTitle}</h2>
+          <h2 className="text-xl font-black mt-2 text-amber-400 text-center">{headerTitle}</h2>
           <p className="text-xs text-slate-300 mt-1 text-center leading-relaxed">
             {headerSubtitle}
           </p>
         </div>
 
-        <div className="p-6">
-          {error && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs flex items-start gap-2 font-bold leading-relaxed">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
+        {error && (
+          <div className="mb-4 p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-200 text-xs flex items-start gap-2 font-bold leading-relaxed">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
 
-          {successMessage && (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs flex items-start gap-2 font-bold leading-relaxed">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
-              <span>{successMessage}</span>
-            </div>
-          )}
+        {successMessage && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs flex items-start gap-2 font-bold leading-relaxed">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+            <span>{successMessage}</span>
+          </div>
+        )}
 
-          {/* ==================== MODE 1: LOGIN ==================== */}
-          {mode === 'login' && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  البريد الإلكتروني أو رقم الهاتف
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="أدخل رقم هاتفك أو بريدك الإلكتروني"
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
-                  />
-                </div>
+        {/* ==================== MODE 1: LOGIN ==================== */}
+        {mode === 'login' && (
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                البريد الإلكتروني أو رقم الهاتف
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="أدخل رقم هاتفك أو بريدك الإلكتروني"
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                />
               </div>
+            </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700">
-                    كلمة المرور
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => switchMode('forgot_password')}
-                    className="text-[11px] font-bold text-amber-700 hover:underline cursor-pointer"
-                  >
-                    نسيت كلمة المرور؟
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور"
-                    className="w-full pr-3 pl-9 py-2.5 rounded-xl border border-slate-300 text-xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                كلمة المرور
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="أدخل كلمة المرور"
+                  className="w-full pr-3 pl-9 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-200 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
-              </button>
+            {/* Primary Action Button: Login */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="login-primary-btn w-full h-11 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
+            </button>
 
-              {/* Recovery Links Row */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-bold">
-                  <button
-                    type="button"
-                    onClick={() => switchMode('forgot_password')}
-                    className="text-slate-700 hover:text-amber-700 hover:underline cursor-pointer"
-                  >
-                    نسيت كلمة المرور؟
-                  </button>
-                  <span className="text-slate-300">|</span>
-                  <button
-                    type="button"
-                    onClick={() => switchMode('forgot_email')}
-                    className="text-slate-700 hover:text-amber-700 hover:underline cursor-pointer"
-                  >
-                    نسيت البريد الإلكتروني؟
-                  </button>
-                </div>
-
+            {/* Secondary Account Recovery Options (Uniform Height, Radius & Dark Theme) */}
+            <div className="pt-3 border-t border-slate-700/80 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => switchMode('forgot_password')}
-                  className="w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="h-10 px-2.5 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 hover:border-amber-400/50 text-slate-200 hover:text-amber-300 font-semibold text-[11px] flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer"
                 >
-                  <Shield className="w-3.5 h-3.5 text-amber-600" />
-                  <span>استعادة الحساب بالبريد الإلكتروني أو رقم الهاتف</span>
+                  <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>نسيت كلمة المرور؟</span>
                 </button>
-              </div>
 
-              <div className="pt-1 text-center">
                 <button
                   type="button"
-                  onClick={() => switchMode('register')}
-                  className="text-xs text-amber-700 hover:underline font-bold cursor-pointer"
+                  onClick={() => switchMode('forgot_email')}
+                  className="h-10 px-2.5 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 hover:border-amber-400/50 text-slate-200 hover:text-amber-300 font-semibold text-[11px] flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer"
                 >
-                  ليس لديك حساب؟ أنشئ حسابك ومشروعك الآن
+                  <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>نسيت البريد الإلكتروني؟</span>
                 </button>
               </div>
-            </form>
-          )}
 
-          {/* ==================== MODE 2: FORGOT PASSWORD (EMAIL OR PHONE) ==================== */}
-          {mode === 'forgot_password' && (
-            <div className="space-y-4">
-              {/* Channel Selector Tabs */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setRecoveryChannel('email');
-                    setError(null);
-                    setSuccessMessage(null);
+                    switchMode('forgot_password');
                   }}
-                  className={`py-2 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    recoveryChannel === 'email'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className="h-10 px-2.5 rounded-xl bg-[#09182c]/80 hover:bg-[#112a4a] border border-slate-700/80 hover:border-amber-400/50 text-slate-300 hover:text-amber-300 font-semibold text-[11px] flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer"
                 >
-                  <Mail className="w-3.5 h-3.5 text-amber-600" />
-                  <span>بالبريد الإلكتروني</span>
+                  <Mail className="w-3.5 h-3.5 text-amber-400/90 shrink-0" />
+                  <span>استعادة بالبريد</span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => {
                     setRecoveryChannel('phone');
-                    setError(null);
-                    setSuccessMessage(null);
+                    switchMode('forgot_password');
                   }}
-                  className={`py-2 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    recoveryChannel === 'phone'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  className="h-10 px-2.5 rounded-xl bg-[#09182c]/80 hover:bg-[#112a4a] border border-slate-700/80 hover:border-amber-400/50 text-slate-300 hover:text-amber-300 font-semibold text-[11px] flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer"
                 >
-                  <Phone className="w-3.5 h-3.5 text-amber-600" />
-                  <span>برقم الهاتف</span>
-                </button>
-              </div>
-
-              {/* Sub-flow A: Email Password Recovery */}
-              {recoveryChannel === 'email' && (
-                <form onSubmit={handleEmailResetRequest} className="space-y-3.5">
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    أدخل البريد الإلكتروني المسجل في حسابك، وسنرسل إليك رابطًا آمنًا ومؤقتًا (صالح لمدة 15 دقيقة ويُستخدم لمرة واحدة فقط) لإعادة تعيين كلمة المرور.
-                  </p>
-
-                  {providerStatus && !providerStatus.emailProviderConfigured && (
-                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[10.5px] leading-relaxed">
-                      <strong>ملاحظة إعداد الخادم:</strong> خدمة البريد الإلكتروني الخارجية غير مهيأة بعد في متغيرات البيئة على الخادم (<code>RESEND_API_KEY</code> أو <code>SENDGRID_API_KEY</code>). يمكنك تجربة الاستعادة برقم الهاتف إذا كان مهيأً أو التواصل مع الدعم.
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      البريد الإلكتروني المسجل
-                    </label>
-                    <input
-                      type="email"
-                      dir="ltr"
-                      required
-                      value={recoveryEmail}
-                      onChange={(e) => setRecoveryEmail(e.target.value)}
-                      placeholder="user@example.com"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs text-right"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {loading ? 'جاري الإرسال...' : 'إرسال رابط إعادة تعيين كلمة المرور'}
-                  </button>
-                </form>
-              )}
-
-              {/* Sub-flow B: Phone SMS OTP Password Recovery */}
-              {recoveryChannel === 'phone' && (
-                <div className="space-y-3.5">
-                  {providerStatus && !providerStatus.smsProviderConfigured && (
-                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[10.5px] leading-relaxed">
-                      <strong>ملاحظة إعداد الخادم:</strong> خدمة الرسائل النصية (SMS) غير مهيأة بعد في متغيرات البيئة على الخادم (<code>TWILIO_ACCOUNT_SID</code> أو <code>SMS_GATEWAY_URL</code>). لا يتم توليد أي رموز وهمية حفاظًا على أمان الحساب.
-                    </div>
-                  )}
-
-                  {phoneStep === 'request_otp' && (
-                    <form onSubmit={handleRequestPhoneResetOtp} className="space-y-3.5">
-                      <p className="text-[11px] text-slate-600 leading-relaxed">
-                        أدخل رقم الهاتف المسجل والموثق في حسابك لإرسال رمز تحقق مؤقت (صالح لمدة 10 دقائق ويُستخدم لمرة واحدة).
-                      </p>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          رقم الهاتف المسجل
-                        </label>
-                        <input
-                          type="tel"
-                          dir="ltr"
-                          required
-                          value={recoveryPhone}
-                          onChange={(e) => setRecoveryPhone(e.target.value)}
-                          placeholder="01xxxxxxxxx"
-                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-mono text-right"
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {loading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق عبر SMS'}
-                      </button>
-
-                      {recoveryPhone.trim().length >= 8 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setError(null);
-                            setPhoneStep('verify_otp');
-                          }}
-                          className="w-full text-[11px] text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer"
-                        >
-                          لديك رمز تحقق بالفعل؟ اضغط هنا لإدخاله
-                        </button>
-                      )}
-                    </form>
-                  )}
-
-                  {phoneStep === 'verify_otp' && (
-                    <form onSubmit={handleVerifyPhoneResetOtp} className="space-y-3.5">
-                      <p className="text-[11px] text-slate-600 leading-relaxed">
-                        أدخل رمز التحقق المكون من 6 أرقام المرسل إلى الرقم{' '}
-                        <span className="font-mono font-bold text-slate-800" dir="ltr">
-                          {recoveryPhone}
-                        </span>
-                        :
-                      </p>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          رمز التحقق (6 أرقام)
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={6}
-                          dir="ltr"
-                          required
-                          value={otpCode}
-                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                          placeholder="123456"
-                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-center text-sm font-mono font-black tracking-widest"
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {loading ? 'جاري التحقق من الرمز...' : 'تأكيد رمز التحقق'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPhoneStep('request_otp');
-                          setOtpCode('');
-                          setError(null);
-                        }}
-                        className="w-full text-[11px] text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer"
-                      >
-                        تغيير رقم الهاتف أو طلب رمز جديد
-                      </button>
-                    </form>
-                  )}
-
-                  {phoneStep === 'new_password' && (
-                    <form onSubmit={handleCompletePhoneReset} className="space-y-3.5">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          كلمة المرور الجديدة *
-                        </label>
-                        <input
-                          type="password"
-                          required
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="لا تقل عن 6 أحرف"
-                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          تأكيد كلمة المرور الجديدة *
-                        </label>
-                        <input
-                          type="password"
-                          required
-                          value={confirmNewPassword}
-                          onChange={(e) => setConfirmNewPassword(e.target.value)}
-                          placeholder="أعد إدخال كلمة المرور الجديدة"
-                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {loading ? 'جاري الحفظ...' : 'حفظ كلمة المرور الجديدة'}
-                      </button>
-                    </form>
-                  )}
-                </div>
-              )}
-
-              {/* Support Fallback & Back to Login */}
-              <div className="pt-3 border-t border-slate-100 space-y-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => switchMode('support_recovery')}
-                  className="w-full text-[11px] text-amber-700 hover:underline font-bold cursor-pointer"
-                >
-                  لا يمكنك الوصول إلى البريد الإلكتروني أو رقم الهاتف؟ استرداد عبر الدعم
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
-                >
-                  العودة إلى شاشة تسجيل الدخول
+                  <Phone className="w-3.5 h-3.5 text-amber-400/90 shrink-0" />
+                  <span>استعادة برقم الهاتف</span>
                 </button>
               </div>
             </div>
-          )}
 
-          {/* ==================== MODE 3: FORGOT EMAIL RECOVERY ==================== */}
-          {mode === 'forgot_email' && (
-            <div className="space-y-4">
-              {providerStatus && !providerStatus.smsProviderConfigured && (
-                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[10.5px] leading-relaxed">
-                  <strong>ملاحظة إعداد الخادم:</strong> خدمة الرسائل النصية (SMS) غير مهيأة بعد في متغيرات البيئة على الخادم (<code>TWILIO_ACCOUNT_SID</code> أو <code>SMS_GATEWAY_URL</code>). إذا لم يكن بإمكانك تلقي رسائل التحقق، استخدم خيار استرداد الحساب عبر الدعم بالأسفل.
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => switchMode('register')}
+                className="text-xs text-amber-300 hover:text-amber-200 hover:underline font-semibold cursor-pointer"
+              >
+                ليس لديك حساب؟ أنشئ حسابك ومشروعك الآن
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ==================== MODE 2: FORGOT PASSWORD (EMAIL OR PHONE) ==================== */}
+        {mode === 'forgot_password' && (
+          <div className="space-y-4">
+            {/* Channel Selector Tabs (Dark Theme) */}
+            <div className="grid grid-cols-2 gap-2 bg-[#09182c] p-1.5 rounded-xl border border-slate-700/80">
+              <button
+                type="button"
+                onClick={() => {
+                  setRecoveryChannel('email');
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className={`py-2.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  recoveryChannel === 'email'
+                    ? 'bg-[#143054] text-amber-300 border border-amber-400/40 shadow-sm'
+                    : 'text-slate-300 hover:text-white border border-transparent'
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>بالبريد الإلكتروني</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRecoveryChannel('phone');
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className={`py-2.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  recoveryChannel === 'phone'
+                    ? 'bg-[#143054] text-amber-300 border border-amber-400/40 shadow-sm'
+                    : 'text-slate-300 hover:text-white border border-transparent'
+                }`}
+              >
+                <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>برقم الهاتف</span>
+              </button>
+            </div>
+
+            {/* Sub-flow A: Email Password Recovery */}
+            {recoveryChannel === 'email' && (
+              <form onSubmit={handleEmailResetRequest} className="space-y-3.5">
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  أدخل البريد الإلكتروني المسجل في حسابك، وسنرسل إليك رابطًا آمنًا ومؤقتًا (صالح لمدة 15 دقيقة ويُستخدم لمرة واحدة فقط) لإعادة تعيين كلمة المرور.
+                </p>
+
+                {providerStatus && !providerStatus.emailProviderConfigured && (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/30 text-amber-200 text-[10.5px] leading-relaxed">
+                    <strong className="text-amber-300">ملاحظة إعداد الخادم:</strong> خدمة البريد الإلكتروني الخارجية غير مهيأة بعد في متغيرات البيئة على الخادم (<code>RESEND_API_KEY</code> أو <code>SENDGRID_API_KEY</code>). يمكنك تجربة الاستعادة برقم الهاتف إذا كان مهيأً أو التواصل مع الدعم.
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    البريد الإلكتروني المسجل
+                  </label>
+                  <input
+                    type="email"
+                    dir="ltr"
+                    required
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    placeholder="user@example.com"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs text-right"
+                  />
                 </div>
-              )}
 
-              {forgotEmailStep === 'request_otp' && (
-                <form onSubmit={handleRequestForgotEmailOtp} className="space-y-3.5">
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    لاستعادة البريد الإلكتروني أو بيانات الدخول المرتبطة بحسابك، أدخل رقم الهاتف المسجل والموثق في الحساب لإرسال رمز تحقق عبر رسالة نصية (SMS).
-                  </p>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      رقم الهاتف المسجل بالحساب
-                    </label>
-                    <input
-                      type="tel"
-                      dir="ltr"
-                      required
-                      value={recoveryPhone}
-                      onChange={(e) => setRecoveryPhone(e.target.value)}
-                      placeholder="01xxxxxxxxx"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-mono text-right"
-                    />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'جاري الإرسال...' : 'إرسال رابط إعادة تعيين كلمة المرور'}
+                </button>
+              </form>
+            )}
+
+            {/* Sub-flow B: Phone SMS OTP Password Recovery */}
+            {recoveryChannel === 'phone' && (
+              <div className="space-y-3.5">
+                {providerStatus && !providerStatus.smsProviderConfigured && (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/30 text-amber-200 text-[10.5px] leading-relaxed">
+                    <strong className="text-amber-300">ملاحظة إعداد الخادم:</strong> خدمة الرسائل النصية (SMS) غير مهيأة بعد في متغيرات البيئة على الخادم (<code>TWILIO_ACCOUNT_SID</code> أو <code>SMS_GATEWAY_URL</code>). لا يتم توليد أي رموز وهمية حفاظًا على أمان الحساب.
                   </div>
+                )}
 
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {loading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق إلى الهاتف'}
-                  </button>
-                </form>
-              )}
-
-              {forgotEmailStep === 'verify_otp' && (
-                <form onSubmit={handleVerifyForgotEmailOtp} className="space-y-3.5">
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    أدخل رمز التحقق المرسل إلى رقم الهاتف{' '}
-                    <span className="font-mono font-bold text-slate-800" dir="ltr">
-                      {recoveryPhone}
-                    </span>{' '}
-                    للتحقق من ملكية الحساب قبل عرض بيانات الدخول:
-                  </p>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      رمز التحقق (6 أرقام)
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      dir="ltr"
-                      required
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="123456"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-center text-sm font-mono font-black tracking-widest"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {loading ? 'جاري التحقق...' : 'تأكيد ملكية الحساب واستعادة البيانات'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForgotEmailStep('request_otp');
-                      setOtpCode('');
-                      setError(null);
-                    }}
-                    className="w-full text-[11px] text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer"
-                  >
-                    إعادة إرسال الرمز أو تغيير الرقم
-                  </button>
-                </form>
-              )}
-
-              {forgotEmailStep === 'recovered_view' && verifiedAccountInfo && (
-                <div className="space-y-3.5">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                    <div className="font-black text-slate-800 border-b border-slate-200 pb-1.5">
-                      بيانات الدخول المعتمدة لحسابك:
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">صاحب الحساب:</span>
-                      <span className="font-bold text-slate-800">{verifiedAccountInfo.name}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">رقم الهاتف للدخول:</span>
-                      <span className="font-bold font-mono text-slate-800" dir="ltr">
-                        {verifiedAccountInfo.phone}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">البريد الإلكتروني المسجل:</span>
-                      <span className="font-bold text-slate-800" dir="ltr">
-                        {verifiedAccountInfo.email || 'غير مسجل'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleCompletePhoneReset} className="space-y-3 pt-1">
-                    <p className="text-[11px] text-slate-600 leading-relaxed">
-                      يمكنك الآن تحديث بريدك الإلكتروني وتعيين كلمة مرور جديدة للدخول الفوري إلى حسابك:
+                {phoneStep === 'request_otp' && (
+                  <form onSubmit={handleRequestPhoneResetOtp} className="space-y-3.5">
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      أدخل رقم الهاتف المسجل والموثق في حسابك لإرسال رمز تحقق مؤقت (صالح لمدة 10 دقائق ويُستخدم لمرة واحدة).
                     </p>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        البريد الإلكتروني (اختياري للتحديث أو الإضافة)
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        رقم الهاتف المسجل
                       </label>
                       <input
-                        type="email"
+                        type="tel"
                         dir="ltr"
-                        value={updatedEmailInput}
-                        onChange={(e) => setUpdatedEmailInput(e.target.value)}
-                        placeholder="user@example.com"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-right"
+                        required
+                        value={recoveryPhone}
+                        onChange={(e) => setRecoveryPhone(e.target.value)}
+                        placeholder="01xxxxxxxxx"
+                        className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs font-mono text-right"
                       />
                     </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+                    >
+                      {loading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق عبر SMS'}
+                    </button>
+
+                    {recoveryPhone.trim().length >= 8 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          setPhoneStep('verify_otp');
+                        }}
+                        className="w-full py-2 text-[11px] text-amber-300 hover:text-amber-200 font-semibold underline cursor-pointer"
+                      >
+                        لديك رمز تحقق بالفعل؟ اضغط هنا لإدخاله
+                      </button>
+                    )}
+                  </form>
+                )}
+
+                {phoneStep === 'verify_otp' && (
+                  <form onSubmit={handleVerifyPhoneResetOtp} className="space-y-3.5">
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      أدخل رمز التحقق المكون من 6 أرقام المرسل إلى الرقم{' '}
+                      <span className="font-mono font-bold text-amber-300" dir="ltr">
+                        {recoveryPhone}
+                      </span>
+                      :
+                    </p>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        رمز التحقق (6 أرقام)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        dir="ltr"
+                        required
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                        placeholder="123456"
+                        className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-center text-sm font-mono font-black tracking-widest"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+                    >
+                      {loading ? 'جاري التحقق من الرمز...' : 'تأكيد رمز التحقق'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhoneStep('request_otp');
+                        setOtpCode('');
+                        setError(null);
+                      }}
+                      className="w-full py-2 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 text-[11px] text-slate-300 hover:text-amber-300 font-semibold transition-all cursor-pointer"
+                    >
+                      تغيير رقم الهاتف أو طلب رمز جديد
+                    </button>
+                  </form>
+                )}
+
+                {phoneStep === 'new_password' && (
+                  <form onSubmit={handleCompletePhoneReset} className="space-y-3.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                         كلمة المرور الجديدة *
                       </label>
                       <input
@@ -1388,11 +1210,12 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="لا تقل عن 6 أحرف"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                        className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                         تأكيد كلمة المرور الجديدة *
                       </label>
                       <input
@@ -1401,70 +1224,172 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                         placeholder="أعد إدخال كلمة المرور الجديدة"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                        className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
                       />
                     </div>
 
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
                     >
-                      {loading ? 'جاري الحفظ...' : 'حفظ بيانات الدخول وكلمة المرور الجديدة'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIdentifier(
-                          verifiedAccountInfo.email || verifiedAccountInfo.phone || ''
-                        );
-                        switchMode('login');
-                      }}
-                      className="w-full py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition-colors cursor-pointer"
-                    >
-                      استخدام بيانات الدخول الحالية والانتقال لتسجيل الدخول
+                      {loading ? 'جاري الحفظ...' : 'حفظ كلمة المرور الجديدة'}
                     </button>
                   </form>
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-slate-100 space-y-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => switchMode('support_recovery')}
-                  className="w-full text-[11px] text-amber-700 hover:underline font-bold cursor-pointer"
-                >
-                  لم يعد لديك وصول إلى رقم الهاتف المسجل؟ تواصل مع الدعم لاسترداد الحساب
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
-                >
-                  العودة إلى شاشة تسجيل الدخول
-                </button>
+                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ==================== MODE 4: EMAIL LINK RESET ==================== */}
-          {mode === 'email_link_reset' && (
-            <div className="space-y-4">
-              {verifyingEmailLink ? (
-                <div className="py-6 text-center space-y-2">
-                  <Loader2 className="w-7 h-7 animate-spin text-amber-600 mx-auto" />
-                  <p className="text-xs font-bold text-slate-600">
-                    جاري التحقق من صلاحية رابط استعادة كلمة المرور...
-                  </p>
+            {/* Support Fallback & Back to Login */}
+            <div className="pt-3 border-t border-slate-700/80 space-y-2.5 text-center">
+              <button
+                type="button"
+                onClick={() => switchMode('support_recovery')}
+                className="w-full py-2 px-3 rounded-xl bg-[#09182c]/70 hover:bg-[#112a4a] border border-slate-700/80 hover:border-amber-400/40 text-[11px] text-amber-300 hover:text-amber-200 font-semibold transition-all cursor-pointer"
+              >
+                لا يمكنك الوصول إلى البريد الإلكتروني أو رقم الهاتف؟ استرداد عبر الدعم
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                className="w-full py-2.5 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer"
+              >
+                العودة إلى شاشة تسجيل الدخول
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== MODE 3: FORGOT EMAIL RECOVERY ==================== */}
+        {mode === 'forgot_email' && (
+          <div className="space-y-4">
+            {providerStatus && !providerStatus.smsProviderConfigured && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-400/30 text-amber-200 text-[10.5px] leading-relaxed">
+                <strong className="text-amber-300">ملاحظة إعداد الخادم:</strong> خدمة الرسائل النصية (SMS) غير مهيأة بعد في متغيرات البيئة على الخادم (<code>TWILIO_ACCOUNT_SID</code> أو <code>SMS_GATEWAY_URL</code>). إذا لم يكن بإمكانك تلقي رسائل التحقق، استخدم خيار استرداد الحساب عبر الدعم بالأسفل.
+              </div>
+            )}
+
+            {forgotEmailStep === 'request_otp' && (
+              <form onSubmit={handleRequestForgotEmailOtp} className="space-y-3.5">
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  لاستعادة البريد الإلكتروني أو بيانات الدخول المرتبطة بحسابك، أدخل رقم الهاتف المسجل والموثق في الحساب لإرسال رمز تحقق عبر رسالة نصية (SMS).
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    رقم الهاتف المسجل بالحساب
+                  </label>
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    required
+                    value={recoveryPhone}
+                    onChange={(e) => setRecoveryPhone(e.target.value)}
+                    placeholder="01xxxxxxxxx"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs font-mono text-right"
+                  />
                 </div>
-              ) : emailLinkValid ? (
-                <form onSubmit={handleEmailLinkResetSubmit} className="space-y-3.5">
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    تم التحقق من صلاحية الرابط. يرجى إدخال كلمة المرور الجديدة لحسابك:
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق إلى الهاتف'}
+                </button>
+              </form>
+            )}
+
+            {forgotEmailStep === 'verify_otp' && (
+              <form onSubmit={handleVerifyForgotEmailOtp} className="space-y-3.5">
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  أدخل رمز التحقق المرسل إلى رقم الهاتف{' '}
+                  <span className="font-mono font-bold text-amber-300" dir="ltr">
+                    {recoveryPhone}
+                  </span>{' '}
+                  للتحقق من ملكية الحساب قبل عرض بيانات الدخول:
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    رمز التحقق (6 أرقام)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    dir="ltr"
+                    required
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-center text-sm font-mono font-black tracking-widest"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'جاري التحقق...' : 'تأكيد ملكية الحساب واستعادة البيانات'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotEmailStep('request_otp');
+                    setOtpCode('');
+                    setError(null);
+                  }}
+                  className="w-full py-2 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 text-[11px] text-slate-300 hover:text-amber-300 font-semibold transition-all cursor-pointer"
+                >
+                  إعادة إرسال الرمز أو تغيير الرقم
+                </button>
+              </form>
+            )}
+
+            {forgotEmailStep === 'recovered_view' && verifiedAccountInfo && (
+              <div className="space-y-3.5">
+                <div className="p-3.5 rounded-xl bg-[#09182c] border border-slate-700 space-y-2 text-xs">
+                  <div className="font-black text-amber-400 border-b border-slate-700/80 pb-1.5">
+                    بيانات الدخول المعتمدة لحسابك:
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">صاحب الحساب:</span>
+                    <span className="font-bold text-white">{verifiedAccountInfo.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">رقم الهاتف للدخول:</span>
+                    <span className="font-bold font-mono text-white" dir="ltr">
+                      {verifiedAccountInfo.phone}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">البريد الإلكتروني المسجل:</span>
+                    <span className="font-bold text-amber-300" dir="ltr">
+                      {verifiedAccountInfo.email || 'غير مسجل'}
+                    </span>
+                  </div>
+                </div>
+
+                <form onSubmit={handleCompletePhoneReset} className="space-y-3 pt-1">
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    يمكنك الآن تحديث بريدك الإلكتروني وتعيين كلمة مرور جديدة للدخول الفوري إلى حسابك:
                   </p>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      البريد الإلكتروني (اختياري للتحديث أو الإضافة)
+                    </label>
+                    <input
+                      type="email"
+                      dir="ltr"
+                      value={updatedEmailInput}
+                      onChange={(e) => setUpdatedEmailInput(e.target.value)}
+                      placeholder="user@example.com"
+                      className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs text-right"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                       كلمة المرور الجديدة *
                     </label>
                     <input
@@ -1473,11 +1398,11 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="لا تقل عن 6 أحرف"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
+                      className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                       تأكيد كلمة المرور الجديدة *
                     </label>
                     <input
@@ -1486,269 +1411,353 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
                       placeholder="أعد إدخال كلمة المرور الجديدة"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
+                      className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
                     />
                   </div>
+
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                    className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
                   >
-                    {loading ? 'جاري حفظ كلمة المرور...' : 'حفظ كلمة المرور الجديدة'}
+                    {loading ? 'جاري الحفظ...' : 'حفظ بيانات الدخول وكلمة المرور الجديدة'}
                   </button>
-                </form>
-              ) : (
-                <div className="space-y-3 text-center">
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    لا يمكن استخدام هذا الرابط لإعادة تعيين كلمة المرور. يمكنك طلب رابط جديد أو الاستعادة عبر رقم الهاتف.
-                  </p>
+
                   <button
                     type="button"
                     onClick={() => {
-                      window.history.replaceState({}, '', window.location.pathname);
-                      switchMode('forgot_password');
+                      setIdentifier(
+                        verifiedAccountInfo.email || verifiedAccountInfo.phone || ''
+                      );
+                      switchMode('login');
                     }}
-                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs cursor-pointer"
+                    className="w-full py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 font-bold text-xs transition-colors cursor-pointer"
                   >
-                    طلب رابط استعادة جديد
-                  </button>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  window.history.replaceState({}, '', window.location.pathname);
-                  switchMode('login');
-                }}
-                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
-              >
-                العودة إلى شاشة تسجيل الدخول
-              </button>
-            </div>
-          )}
-
-          {/* ==================== MODE 5: SUPPORT OWNERSHIP RECOVERY ==================== */}
-          {mode === 'support_recovery' && (
-            <div className="space-y-4">
-              {supportReferenceId ? (
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
-                  <div className="text-xs font-bold text-slate-600">رقم مرجع طلب الاسترداد:</div>
-                  <div className="text-base font-black font-mono text-amber-700">
-                    {supportReferenceId}
-                  </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    احتفظ برقم المرجع هذا لمتابعة حالة التحقق من ملكية الحساب واسترداد بيانات الدخول.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={handleSupportRecoverySubmit} className="space-y-3">
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    في حال عدم توفر البريد الإلكتروني أو فقدان الوصول إلى رقم الهاتف المسجل، أدخل بيانات ملكية المشروع التالية ليتم التحقق من الملكية واسترداد الحساب بأمان:
-                  </p>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      الاسم الكامل المسجل بالحساب *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={supportFullName}
-                      onChange={(e) => setSupportFullName(e.target.value)}
-                      placeholder="أدخل اسم صاحب الحساب"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      اسم المشروع المسجل *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={supportProjectName}
-                      onChange={(e) => setSupportProjectName(e.target.value)}
-                      placeholder="أدخل اسم المشروع كما هو مسجل"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      رقم الهاتف أو البريد القديم بالحساب *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={supportOldContact}
-                      onChange={(e) => setSupportOldContact(e.target.value)}
-                      placeholder="رقم الهاتف أو البريد المسجل سابقًا"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      وسيلة تواصل بديلة حالية (هاتف أو بريد) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={supportAltContact}
-                      onChange={(e) => setSupportAltContact(e.target.value)}
-                      placeholder="رقم هاتف أو بريد إلكتروني متاح للتواصل"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      بيانات إضافية لتأكيد الملكية (اختياري)
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={supportNotes}
-                      onChange={(e) => setSupportNotes(e.target.value)}
-                      placeholder="مثال: أسماء بعض العملاء المسجلين أو تاريخ إنشاء المشروع"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {loading ? 'جاري تسجيل الطلب...' : 'إرسال طلب التحقق واسترداد الحساب'}
+                    استخدام بيانات الدخول الحالية والانتقال لتسجيل الدخول
                   </button>
                 </form>
-              )}
+              </div>
+            )}
 
+            <div className="pt-3 border-t border-slate-700/80 space-y-2.5 text-center">
+              <button
+                type="button"
+                onClick={() => switchMode('support_recovery')}
+                className="w-full py-2 px-3 rounded-xl bg-[#09182c]/70 hover:bg-[#112a4a] border border-slate-700/80 hover:border-amber-400/40 text-[11px] text-amber-300 hover:text-amber-200 font-semibold transition-all cursor-pointer"
+              >
+                لم يعد لديك وصول إلى رقم الهاتف المسجل؟ تواصل مع الدعم لاسترداد الحساب
+              </button>
               <button
                 type="button"
                 onClick={() => switchMode('login')}
-                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer"
               >
                 العودة إلى شاشة تسجيل الدخول
               </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* ==================== MODE 6: REGISTER ==================== */}
-          {mode === 'register' && (
-            <form onSubmit={handleRegisterSubmit} className="space-y-3 max-h-[60vh] overflow-y-auto px-1">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  اسم صاحب المشروع *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="أحمد محمد علي"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                />
+        {/* ==================== MODE 4: EMAIL LINK RESET ==================== */}
+        {mode === 'email_link_reset' && (
+          <div className="space-y-4">
+            {verifyingEmailLink ? (
+              <div className="py-6 text-center space-y-2">
+                <Loader2 className="w-7 h-7 animate-spin text-amber-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-300">
+                  جاري التحقق من صلاحية رابط استعادة كلمة المرور...
+                </p>
               </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  اسم المشروع / النشاط التجاري *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="شركة الأمل للتجارة"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  رقم الهاتف (فريد لتسجيل الدخول) *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="01012345678"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  البريد الإلكتروني (موصى به لاستعادة الحساب)
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ahmed@example.com"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  كلمة مرور الحساب *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="لا تقل عن 6 رموز"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  تأكيد كلمة المرور *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="أعد إدخال كلمة المرور"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-amber-700 mb-1">
-                  كلمة مرور المشروع (للعمليات الحساسة)
-                </label>
-                <input
-                  type="password"
-                  value={projectPassword}
-                  onChange={(e) => setProjectPassword(e.target.value)}
-                  placeholder="اختياري (الافتراضي نفس كلمة المرور)"
-                  className="w-full px-3 py-2 rounded-xl border border-amber-300 text-xs"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? 'جاري الإنشاء...' : 'تأكيد وإنشاء المشروع'}
-              </button>
-
-              <div className="pt-1 text-center">
+            ) : emailLinkValid ? (
+              <form onSubmit={handleEmailLinkResetSubmit} className="space-y-3.5">
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  تم التحقق من صلاحية الرابط. يرجى إدخال كلمة المرور الجديدة لحسابك:
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    كلمة المرور الجديدة *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="لا تقل عن 6 أحرف"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    تأكيد كلمة المرور الجديدة *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="أعد إدخال كلمة المرور الجديدة"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'جاري حفظ كلمة المرور...' : 'حفظ كلمة المرور الجديدة'}
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-3 text-center">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  لا يمكن استخدام هذا الرابط لإعادة تعيين كلمة المرور. يمكنك طلب رابط جديد أو الاستعادة عبر رقم الهاتف.
+                </p>
                 <button
                   type="button"
-                  onClick={() => switchMode('login')}
-                  className="text-xs text-slate-500 hover:underline font-semibold cursor-pointer"
+                  onClick={() => {
+                    window.history.replaceState({}, '', window.location.pathname);
+                    switchMode('forgot_password');
+                  }}
+                  className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md cursor-pointer"
                 >
-                  لديك حساب بالفعل؟ سجل دخولك
+                  طلب رابط استعادة جديد
                 </button>
               </div>
-            </form>
-          )}
-        </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                window.history.replaceState({}, '', window.location.pathname);
+                switchMode('login');
+              }}
+              className="w-full py-2.5 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer"
+            >
+              العودة إلى شاشة تسجيل الدخول
+            </button>
+          </div>
+        )}
+
+        {/* ==================== MODE 5: SUPPORT OWNERSHIP RECOVERY ==================== */}
+        {mode === 'support_recovery' && (
+          <div className="space-y-4">
+            {supportReferenceId ? (
+              <div className="p-4 rounded-xl bg-[#09182c] border border-slate-700 text-center space-y-2">
+                <div className="text-xs font-bold text-slate-300">رقم مرجع طلب الاسترداد:</div>
+                <div className="text-base font-black font-mono text-amber-400">
+                  {supportReferenceId}
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  احتفظ برقم المرجع هذا لمتابعة حالة التحقق من ملكية الحساب واسترداد بيانات الدخول.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSupportRecoverySubmit} className="space-y-3">
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  في حال عدم توفر البريد الإلكتروني أو فقدان الوصول إلى رقم الهاتف المسجل، أدخل بيانات ملكية المشروع التالية ليتم التحقق من الملكية واسترداد الحساب بأمان:
+                </p>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    الاسم الكامل المسجل بالحساب *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={supportFullName}
+                    onChange={(e) => setSupportFullName(e.target.value)}
+                    placeholder="أدخل اسم صاحب الحساب"
+                    className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    اسم المشروع المسجل *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={supportProjectName}
+                    onChange={(e) => setSupportProjectName(e.target.value)}
+                    placeholder="أدخل اسم المشروع كما هو مسجل"
+                    className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    رقم الهاتف أو البريد القديم بالحساب *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={supportOldContact}
+                    onChange={(e) => setSupportOldContact(e.target.value)}
+                    placeholder="رقم الهاتف أو البريد المسجل سابقًا"
+                    className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    وسيلة تواصل بديلة حالية (هاتف أو بريد) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={supportAltContact}
+                    onChange={(e) => setSupportAltContact(e.target.value)}
+                    placeholder="رقم هاتف أو بريد إلكتروني متاح للتواصل"
+                    className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    بيانات إضافية لتأكيد الملكية (اختياري)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={supportNotes}
+                    onChange={(e) => setSupportNotes(e.target.value)}
+                    placeholder="مثال: أسماء بعض العملاء المسجلين أو تاريخ إنشاء المشروع"
+                    className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 focus:border-amber-400 focus:outline-none text-white text-xs"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="login-primary-btn w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? 'جاري تسجيل الطلب...' : 'إرسال طلب التحقق واسترداد الحساب'}
+                </button>
+              </form>
+            )}
+
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              className="w-full py-2.5 rounded-xl bg-[#09182c] hover:bg-[#112a4a] border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all cursor-pointer"
+            >
+              العودة إلى شاشة تسجيل الدخول
+            </button>
+          </div>
+        )}
+
+        {/* ==================== MODE 6: REGISTER ==================== */}
+        {mode === 'register' && (
+          <form onSubmit={handleRegisterSubmit} className="space-y-3 max-h-[60vh] overflow-y-auto px-1">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                اسم صاحب المشروع *
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="أحمد محمد علي"
+                className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 text-white text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                اسم المشروع / النشاط التجاري *
+              </label>
+              <input
+                type="text"
+                required
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="شركة الأمل للتجارة"
+                className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 text-white text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                رقم الهاتف (فريد لتسجيل الدخول) *
+              </label>
+              <input
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="01012345678"
+                className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 text-white text-xs font-mono focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                البريد الإلكتروني (موصى به لاستعادة الحساب)
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="ahmed@example.com"
+                className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 text-white text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                كلمة مرور الحساب *
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="لا تقل عن 6 رموز"
+                className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 text-white text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                تأكيد كلمة المرور *
+              </label>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="أعد إدخال كلمة المرور"
+                className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-slate-600 text-white text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-amber-300 mb-1">
+                كلمة مرور المشروع (للعمليات الحساسة)
+              </label>
+              <input
+                type="password"
+                value={projectPassword}
+                onChange={(e) => setProjectPassword(e.target.value)}
+                placeholder="اختياري (الافتراضي نفس كلمة المرور)"
+                className="w-full px-3 py-2 rounded-xl bg-[#09182c] border border-amber-500/50 text-white text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="login-primary-btn w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? 'جاري الإنشاء...' : 'تأكيد وإنشاء المشروع'}
+            </button>
+
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                className="text-xs text-slate-300 hover:text-amber-300 hover:underline font-semibold cursor-pointer"
+              >
+                لديك حساب بالفعل؟ سجل دخولك
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

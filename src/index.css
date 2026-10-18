@@ -237,15 +237,15 @@ body {
 }
 
 /* 5. Secondary Calm Gold Unification */
-.bg-amber-400:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
-.from-amber-500.to-amber-400:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+.bg-amber-400:not(.printable-invoice-sheet):not(.printable-invoice-sheet *):not(.login-dark-screen *),
+.from-amber-500.to-amber-400:not(.printable-invoice-sheet):not(.printable-invoice-sheet *):not(.login-dark-screen *) {
   background-image: none !important;
   background-color: var(--color-gold) !important;
   color: #0f233c !important;
 }
 
-.hover\:bg-amber-300:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *),
-.hover\:from-amber-400:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *) {
+.hover\:bg-amber-300:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *):not(.login-dark-screen *),
+.hover\:from-amber-400:hover:not(.printable-invoice-sheet):not(.printable-invoice-sheet *):not(.login-dark-screen *) {
   background-image: none !important;
   background-color: var(--color-gold-hover) !important;
 }
@@ -298,25 +298,77 @@ body {
 }
 
 /* 8. Form Inputs, Textareas & Selects */
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.printable-invoice-sheet *),
-textarea:not(.printable-invoice-sheet *),
-select:not(.printable-invoice-sheet *) {
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.printable-invoice-sheet *):not(.login-dark-screen *),
+textarea:not(.printable-invoice-sheet *):not(.login-dark-screen *),
+select:not(.printable-invoice-sheet *):not(.login-dark-screen *) {
   background-color: var(--bg-input) !important;
   color: var(--text-primary) !important;
   border-color: var(--border-input) !important;
 }
 
-input:not(.printable-invoice-sheet *)::placeholder,
-textarea:not(.printable-invoice-sheet *)::placeholder {
+input:not(.printable-invoice-sheet *):not(.login-dark-screen *)::placeholder,
+textarea:not(.printable-invoice-sheet *):not(.login-dark-screen *)::placeholder {
   color: var(--text-muted) !important;
   opacity: 0.8;
 }
 
-input:not(.printable-invoice-sheet *):focus,
-textarea:not(.printable-invoice-sheet *):focus,
-select:not(.printable-invoice-sheet *):focus {
+input:not(.printable-invoice-sheet *):not(.login-dark-screen *):focus,
+textarea:not(.printable-invoice-sheet *):not(.login-dark-screen *):focus,
+select:not(.printable-invoice-sheet *):not(.login-dark-screen *):focus {
   border-color: var(--color-gold) !important;
   outline: none !important;
+}
+
+/* Dedicated Original Dark Theme Preservation for Login Screen (.login-dark-screen) */
+html:has(.login-dark-screen),
+body:has(.login-dark-screen),
+.login-dark-screen {
+  background-color: #08172b !important;
+  color: #ffffff !important;
+}
+
+.login-dark-screen input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.login-dark-screen textarea,
+.login-dark-screen select {
+  background-color: #09182c !important;
+  color: #ffffff !important;
+  border-color: #475569 !important;
+}
+
+.login-dark-screen input::placeholder,
+.login-dark-screen textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 0.85 !important;
+}
+
+.login-dark-screen input:focus,
+.login-dark-screen textarea:focus,
+.login-dark-screen select:focus {
+  border-color: #fbbf24 !important;
+  outline: none !important;
+}
+
+.login-dark-screen .login-primary-btn {
+  background-image: linear-gradient(to right, #f59e0b, #fbbf24) !important;
+  background-color: #f59e0b !important;
+  color: #020617 !important;
+}
+
+.login-dark-screen .login-primary-btn:hover:not(:disabled) {
+  background-image: linear-gradient(to right, #fbbf24, #fcd34d) !important;
+  background-color: #fbbf24 !important;
+}
+
+.login-dark-screen .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+.login-dark-screen .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.login-dark-screen .text-slate-200 {
+  color: #e2e8f0 !important;
 }
 
 /* 9. Functional Positive (Green) Surfaces & Text in Light/Dark Mode */
