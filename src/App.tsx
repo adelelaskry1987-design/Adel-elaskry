@@ -66,7 +66,13 @@ import { WifiOff } from 'lucide-react';
 
 function MainApp() {
   const { user, isLoading } = useAuth();
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>('screen-1-splash');
+  const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reset_token') && params.get('uid')) {
+      return 'screen-4-login';
+    }
+    return 'screen-1-splash';
+  });
   const [history, setHistory] = useState<ScreenId[]>([]);
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);

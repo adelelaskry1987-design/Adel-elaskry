@@ -91,6 +91,84 @@ export const api = {
       body: JSON.stringify({ currentPassword, newProjectPassword }),
     }),
 
+  // Account & Password Recovery
+  getRecoveryStatus: () =>
+    request<{ emailProviderConfigured: boolean; smsProviderConfigured: boolean }>(
+      '/api/auth/recovery/status'
+    ),
+
+  requestEmailPasswordReset: (email: string) =>
+    request<{ message: string }>('/api/auth/recovery/email/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  verifyEmailResetToken: (userId: string, token: string) =>
+    request<{ valid: boolean }>('/api/auth/recovery/email/verify-token', {
+      method: 'POST',
+      body: JSON.stringify({ userId, token }),
+    }),
+
+  completeEmailPasswordReset: (payload: {
+    userId: string;
+    token: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) =>
+    request<{ message: string }>('/api/auth/recovery/email/reset', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  requestPhoneOtp: (phone: string, purpose: 'reset_password_sms' | 'forgot_email_sms') =>
+    request<{ message: string }>('/api/auth/recovery/phone/request', {
+      method: 'POST',
+      body: JSON.stringify({ phone, purpose }),
+    }),
+
+  verifyPhoneOtp: (
+    phone: string,
+    code: string,
+    purpose: 'reset_password_sms' | 'forgot_email_sms'
+  ) =>
+    request<{
+      verified: boolean;
+      resetSessionToken: string;
+      accountInfo?: {
+        name: string;
+        phone: string;
+        email: string | null;
+        hasEmail: boolean;
+      };
+    }>('/api/auth/recovery/phone/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone, code, purpose }),
+    }),
+
+  completePhonePasswordReset: (payload: {
+    phone: string;
+    resetSessionToken: string;
+    newPassword: string;
+    confirmPassword: string;
+    newEmail?: string;
+  }) =>
+    request<{ message: string }>('/api/auth/recovery/phone/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  submitSupportRecoveryRequest: (payload: {
+    fullName: string;
+    projectName: string;
+    enteredContact: string;
+    alternativeContact: string;
+    notes?: string;
+  }) =>
+    request<{ referenceId: string; message: string }>('/api/auth/recovery/support-request', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
   // Customers
   getCustomers: (search?: string) =>
     request<Customer[]>(`/api/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),

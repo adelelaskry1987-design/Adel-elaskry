@@ -10,6 +10,14 @@ import {
   generateId,
   normalizePhoneNumber,
 } from './server/db.js';
+import {
+  getRecoveryProviderStatus,
+  checkAndIncrementRateLimit,
+  generateSecureLinkToken,
+  generateSecureOtpCode,
+  sendPasswordResetEmail,
+  sendOtpSms,
+} from './server/recovery.js';
 
 initDatabase();
 
@@ -450,6 +458,697 @@ app.post('/api/auth/set-project-password', authMiddleware, (req: AuthRequest, re
     return res.json({ message: 'تم تحديث كلمة مرور المشروع بنجاح' });
   } catch (error) {
     return res.status(500).json({ error: 'حدث خطأ في تعيين كلمة المرور' });
+  }
+});
+
+// ================= ACCOUNT & PASSWORD RECOVERY ENDPOINTS =================
+
+function getClientIp(req: Request): string {
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.trim()) {
+    return xff.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || '127.0.0.1';
+}
+
+function findUserPrimaryProject(userId: string): any {
+  let project = db.prepare('SELECT * FROM projects WHERE owner_id = ?').get(userId) as any;
+  if (!project) {
+    const membership = db
+      .prepare('SELECT project_id FROM project_memberships WHERE user_id = ? AND status = "active"')
+      .get(userId) as any;
+    if (membership) {
+      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(membership.project_id) as any;
+    }
+  }
+  return project;
+}
+
+// 0. Check configured recovery providers (never exposes API keys)
+app.get('/api/auth/recovery/status', (_req: Request, res: Response) => {
+  const status = getRecoveryProviderStatus();
+  return res.json({
+    emailProviderConfigured: status.emailProviderConfigured,
+    smsProviderConfigured: status.smsProviderConfigured,
+  });
+});
+
+// 1. Request Password Reset Link via Email
+app.post('/api/auth/recovery/email/request', async (req: Request, res: Response) => {
+  try {
+    const rawEmail = String(req.body?.email || '').trim().toLowerCase();
+    if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+      return res.status(400).json({ error: 'يرجى إدخال عنوان بريد إلكتروني صحيح' });
+    }
+
+    const ip = getClientIp(req);
+    const ipLimit = checkAndIncrementRateLimit(`send:email:ip:${ip}`, 5, 15 * 60 * 1000);
+    if (!ipLimit.allowed) {
+      return res.status(429).json({
+        error: `تم تجاوز الحد المسموح لطلبات الاستعادة. يرجى الانتظار ${ipLimit.retryAfterSec} ثانية قبل المحاولة مجددًا.`,
+      });
+    }
+
+    const targetLimit = checkAndIncrementRateLimit(`send:email:target:${rawEmail}`, 3, 15 * 60 * 1000);
+    if (!targetLimit.allowed) {
+      return res.status(429).json({
+        error: `تم إرسال عدة طلبات لهذا البريد مؤخرًا. يرجى الانتظار ${targetLimit.retryAfterSec} ثانية قبل طلب رابط جديد.`,
+      });
+    }
+
+    const providerStatus = getRecoveryProviderStatus();
+    if (!providerStatus.emailProviderConfigured) {
+      return res.status(503).json({
+        providerConfigured: false,
+        error:
+          'خدمة إرسال البريد الإلكتروني غير مهيأة حاليًا على الخادم. يرجى ضبط مفاتيح مزود البريد (مثل RESEND_API_KEY أو SENDGRID_API_KEY أو BREVO_API_KEY أو EMAIL_WEBHOOK_URL) في إعدادات الخادم أولاً.',
+      });
+    }
+
+    const user = db
+      .prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?')
+      .get(rawEmail) as any;
+
+    const genericSuccessMessage =
+      'إذا كان البريد الإلكتروني مسجلاً في النظام، فقد تم إرسال رابط آمن ومؤقت لإعادة تعيين كلمة المرور إليه.';
+
+    if (!user) {
+      return res.json({ message: genericSuccessMessage });
+    }
+
+    // Invalidate previous unused email reset tokens for this user
+    const now = Date.now();
+    db.prepare(
+      `UPDATE account_recovery_tokens SET used_at = ? WHERE user_id = ? AND purpose = 'reset_password_email' AND used_at IS NULL`
+    ).run(now, user.id);
+
+    const rawToken = generateSecureLinkToken();
+    const tokenHash = hashSecret(rawToken);
+    const expiresInMinutes = 15;
+    const expiresAt = now + expiresInMinutes * 60 * 1000;
+    const tokenId = generateId();
+
+    db.prepare(
+      `INSERT INTO account_recovery_tokens (id, user_id, channel, purpose, secret_hash, expires_at, used_at, attempts, max_attempts, ip_address, created_at)
+       VALUES (?, ?, 'email', 'reset_password_email', ?, ?, NULL, 0, 5, ?, ?)`
+    ).run(tokenId, user.id, tokenHash, expiresAt, ip, new Date(now).toISOString());
+
+    const baseUrl = (
+      process.env.APP_URL || `${req.protocol}://${req.get('host') || 'localhost:3000'}`
+    ).replace(/\/+$/, '');
+    const resetUrl = `${baseUrl}/?reset_token=${encodeURIComponent(rawToken)}&uid=${encodeURIComponent(user.id)}`;
+
+    try {
+      await sendPasswordResetEmail({
+        toEmail: user.email,
+        userName: user.name,
+        resetUrl,
+        expiresInMinutes,
+      });
+    } catch (sendErr: any) {
+      // Roll back the token if actual email delivery failed so we never claim fake success
+      db.prepare('DELETE FROM account_recovery_tokens WHERE id = ?').run(tokenId);
+      return res.status(502).json({
+        error: sendErr?.message || 'تعذر إرسال رسالة البريد الإلكتروني عبر المزود المهيأ',
+      });
+    }
+
+    const project = findUserPrimaryProject(user.id);
+    if (project) {
+      logActivity(
+        project.id,
+        user.id,
+        user.name,
+        'PASSWORD_RESET_REQUEST_EMAIL',
+        'تم طلب رابط إعادة تعيين كلمة المرور عبر البريد الإلكتروني',
+        'USER',
+        user.id
+      );
+    }
+
+    return res.json({ message: genericSuccessMessage });
+  } catch (error: any) {
+    console.error('Email recovery request error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء معالجة طلب استعادة كلمة المرور' });
+  }
+});
+
+// 2. Verify Email Password Reset Link Token
+app.post('/api/auth/recovery/email/verify-token', (req: Request, res: Response) => {
+  try {
+    const userId = String(req.body?.userId || '').trim();
+    const token = String(req.body?.token || '').trim();
+    if (!userId || !token) {
+      return res.status(400).json({ valid: false, error: 'رابط إعادة تعيين كلمة المرور غير مكتمل أو غير صالح' });
+    }
+
+    const ip = getClientIp(req);
+    const verifyLimit = checkAndIncrementRateLimit(`verify:email:${ip}:${userId}`, 10, 15 * 60 * 1000);
+    if (!verifyLimit.allowed) {
+      return res.status(429).json({
+        valid: false,
+        error: `تم تجاوز الحد المسموح لمحاولات التحقق. يرجى الانتظار ${verifyLimit.retryAfterSec} ثانية.`,
+      });
+    }
+
+    const record = db
+      .prepare(
+        `SELECT * FROM account_recovery_tokens
+         WHERE user_id = ? AND purpose = 'reset_password_email'
+         ORDER BY created_at DESC LIMIT 1`
+      )
+      .get(userId) as any;
+
+    if (!record) {
+      return res.status(400).json({ valid: false, error: 'رابط إعادة تعيين كلمة المرور غير صالح' });
+    }
+
+    if (record.used_at !== null && record.used_at !== undefined) {
+      return res.status(400).json({
+        valid: false,
+        error: 'تم استخدام رابط إعادة تعيين كلمة المرور هذا مسبقًا ولا يمكن استخدامه مرة أخرى',
+      });
+    }
+
+    if (Number(record.expires_at) <= Date.now()) {
+      return res.status(400).json({
+        valid: false,
+        error: 'انتهت صلاحية رابط إعادة تعيين كلمة المرور، يرجى طلب رابط جديد',
+      });
+    }
+
+    if (Number(record.attempts) >= Number(record.max_attempts)) {
+      return res.status(429).json({
+        valid: false,
+        error: 'تم تجاوز الحد الأقصى لمحاولات التحقق من هذا الرابط، يرجى طلب رابط جديد',
+      });
+    }
+
+    if (!verifySecret(token, record.secret_hash)) {
+      db.prepare('UPDATE account_recovery_tokens SET attempts = attempts + 1 WHERE id = ?').run(record.id);
+      return res.status(400).json({ valid: false, error: 'رابط إعادة تعيين كلمة المرور غير صالح' });
+    }
+
+    return res.json({ valid: true });
+  } catch (error) {
+    return res.status(500).json({ valid: false, error: 'حدث خطأ أثناء التحقق من صلاحية الرابط' });
+  }
+});
+
+// 3. Complete Password Reset via Email Link Token
+app.post('/api/auth/recovery/email/reset', (req: Request, res: Response) => {
+  try {
+    const userId = String(req.body?.userId || '').trim();
+    const token = String(req.body?.token || '').trim();
+    const newPassword = String(req.body?.newPassword || '');
+    const confirmPassword = String(req.body?.confirmPassword || '');
+
+    if (!userId || !token || !newPassword) {
+      return res.status(400).json({ error: 'يرجى إدخال جميع البيانات المطلوبة' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' });
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({ error: 'كلمة المرور الجديدة وتأكيدها غير متطابقين' });
+    }
+
+    const record = db
+      .prepare(
+        `SELECT * FROM account_recovery_tokens
+         WHERE user_id = ? AND purpose = 'reset_password_email'
+         ORDER BY created_at DESC LIMIT 1`
+      )
+      .get(userId) as any;
+
+    if (!record) {
+      return res.status(400).json({ error: 'رابط إعادة تعيين كلمة المرور غير صالح' });
+    }
+
+    if (record.used_at !== null && record.used_at !== undefined) {
+      return res.status(400).json({
+        error: 'تم استخدام رابط إعادة تعيين كلمة المرور هذا مسبقًا ولا يمكن استخدامه مرة أخرى',
+      });
+    }
+
+    if (Number(record.expires_at) <= Date.now()) {
+      return res.status(400).json({
+        error: 'انتهت صلاحية رابط إعادة تعيين كلمة المرور، يرجى طلب رابط جديد',
+      });
+    }
+
+    if (Number(record.attempts) >= Number(record.max_attempts)) {
+      return res.status(429).json({
+        error: 'تم تجاوز الحد الأقصى لمحاولات التحقق من هذا الرابط، يرجى طلب رابط جديد',
+      });
+    }
+
+    if (!verifySecret(token, record.secret_hash)) {
+      db.prepare('UPDATE account_recovery_tokens SET attempts = attempts + 1 WHERE id = ?').run(record.id);
+      return res.status(400).json({ error: 'رابط إعادة تعيين كلمة المرور غير صالح' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+    if (!user) {
+      return res.status(404).json({ error: 'الحساب غير موجود' });
+    }
+
+    const now = Date.now();
+    const newHash = hashSecret(newPassword);
+
+    // Mark token as used and update user's password hash without altering any project/customer/transaction data
+    db.prepare('UPDATE account_recovery_tokens SET used_at = ? WHERE id = ?').run(now, record.id);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.id);
+    db.prepare('DELETE FROM auth_tokens WHERE user_id = ?').run(user.id);
+
+    const project = findUserPrimaryProject(user.id);
+    if (project) {
+      logActivity(
+        project.id,
+        user.id,
+        user.name,
+        'PASSWORD_RESET_COMPLETED_EMAIL',
+        'تم إعادة تعيين كلمة المرور بنجاح عبر رابط البريد الإلكتروني',
+        'USER',
+        user.id
+      );
+      createNotification(
+        project.id,
+        user.id,
+        'SECURITY',
+        'تم استعادة كلمة المرور',
+        'تم تغيير كلمة المرور الخاصة بحسابك بنجاح عبر البريد الإلكتروني.'
+      );
+    }
+
+    return res.json({
+      message: 'تم إعادة تعيين كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة.',
+    });
+  } catch (error) {
+    console.error('Email reset error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء حفظ كلمة المرور الجديدة' });
+  }
+});
+
+// 4. Request SMS OTP for Phone Password Reset or Forgot Email Recovery
+app.post('/api/auth/recovery/phone/request', async (req: Request, res: Response) => {
+  try {
+    const rawPhone = String(req.body?.phone || '').trim();
+    const purpose: 'reset_password_sms' | 'forgot_email_sms' =
+      req.body?.purpose === 'forgot_email_sms' ? 'forgot_email_sms' : 'reset_password_sms';
+
+    const cleanPhone = normalizePhoneNumber(rawPhone);
+    if (!cleanPhone || cleanPhone.length < 8) {
+      return res.status(400).json({ error: 'يرجى إدخال رقم هاتف صحيح' });
+    }
+
+    const ip = getClientIp(req);
+    const ipLimit = checkAndIncrementRateLimit(`send:sms:ip:${ip}`, 5, 15 * 60 * 1000);
+    if (!ipLimit.allowed) {
+      return res.status(429).json({
+        error: `تم تجاوز الحد المسموح لطلبات إرسال الرسائل. يرجى الانتظار ${ipLimit.retryAfterSec} ثانية قبل المحاولة مجددًا.`,
+      });
+    }
+
+    const phoneLimit = checkAndIncrementRateLimit(
+      `send:sms:target:${cleanPhone}:${purpose}`,
+      3,
+      15 * 60 * 1000
+    );
+    if (!phoneLimit.allowed) {
+      return res.status(429).json({
+        error: `تم إرسال عدة رموز تحقق لهذا الرقم مؤخرًا. يرجى الانتظار ${phoneLimit.retryAfterSec} ثانية قبل طلب رمز جديد.`,
+      });
+    }
+
+    const providerStatus = getRecoveryProviderStatus();
+    if (!providerStatus.smsProviderConfigured) {
+      return res.status(503).json({
+        providerConfigured: false,
+        error:
+          'خدمة إرسال الرسائل النصية (SMS) غير مهيأة حاليًا على الخادم. يرجى ضبط مفاتيح مزود الرسائل (مثل TWILIO أو VONAGE أو SMS_GATEWAY_URL) في إعدادات الخادم أولاً.',
+      });
+    }
+
+    const user = db
+      .prepare('SELECT * FROM users WHERE phone = ? OR phone = ?')
+      .get(cleanPhone, rawPhone) as any;
+
+    const genericSuccessMessage =
+      'إذا كان رقم الهاتف مسجلاً وموثقاً في النظام، فقد تم إرسال رمز التحقق المؤقت إليه عبر رسالة نصية (SMS).';
+
+    // Only allow recovery if the phone belongs to a registered user AND is verified
+    if (!user || Number(user.phone_verified ?? 1) !== 1) {
+      return res.json({ message: genericSuccessMessage });
+    }
+
+    const now = Date.now();
+    db.prepare(
+      `UPDATE account_recovery_tokens SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL`
+    ).run(now, user.id, purpose);
+
+    const otpCode = generateSecureOtpCode();
+    const otpHash = hashSecret(otpCode);
+    const expiresInMinutes = 10;
+    const expiresAt = now + expiresInMinutes * 60 * 1000;
+    const tokenId = generateId();
+
+    db.prepare(
+      `INSERT INTO account_recovery_tokens (id, user_id, channel, purpose, secret_hash, expires_at, used_at, attempts, max_attempts, ip_address, created_at)
+       VALUES (?, ?, 'sms', ?, ?, ?, NULL, 0, 5, ?, ?)`
+    ).run(tokenId, user.id, purpose, otpHash, expiresAt, ip, new Date(now).toISOString());
+
+    try {
+      await sendOtpSms({
+        phone: cleanPhone,
+        otpCode,
+        purpose,
+        expiresInMinutes,
+      });
+    } catch (sendErr: any) {
+      // Roll back the OTP token if real SMS delivery failed so we never claim fake success
+      db.prepare('DELETE FROM account_recovery_tokens WHERE id = ?').run(tokenId);
+      return res.status(502).json({
+        error: sendErr?.message || 'تعذر إرسال الرسالة النصية عبر مزود الـ SMS المهيأ',
+      });
+    }
+
+    const project = findUserPrimaryProject(user.id);
+    if (project) {
+      logActivity(
+        project.id,
+        user.id,
+        user.name,
+        purpose === 'forgot_email_sms'
+          ? 'ACCOUNT_RECOVERY_OTP_SENT'
+          : 'PASSWORD_RESET_OTP_SENT',
+        'تم إرسال رمز تحقق عبر الهاتف لاستعادة الحساب',
+        'USER',
+        user.id
+      );
+    }
+
+    return res.json({ message: genericSuccessMessage });
+  } catch (error) {
+    console.error('Phone recovery request error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء معالجة طلب إرسال رمز التحقق' });
+  }
+});
+
+// 5. Verify SMS OTP Code (for Phone Password Reset OR Forgot Email Recovery)
+app.post('/api/auth/recovery/phone/verify-otp', (req: Request, res: Response) => {
+  try {
+    const rawPhone = String(req.body?.phone || '').trim();
+    const code = String(req.body?.code || '').trim();
+    const purpose: 'reset_password_sms' | 'forgot_email_sms' =
+      req.body?.purpose === 'forgot_email_sms' ? 'forgot_email_sms' : 'reset_password_sms';
+
+    const cleanPhone = normalizePhoneNumber(rawPhone);
+    if (!cleanPhone || !code) {
+      return res.status(400).json({ error: 'يرجى إدخال رقم الهاتف ورمز التحقق المكون من 6 أرقام' });
+    }
+
+    const ip = getClientIp(req);
+    const verifyLimit = checkAndIncrementRateLimit(
+      `verify:sms:${ip}:${cleanPhone}`,
+      10,
+      15 * 60 * 1000
+    );
+    if (!verifyLimit.allowed) {
+      return res.status(429).json({
+        error: `تم تجاوز الحد المسموح لمحاولات التحقق. يرجى الانتظار ${verifyLimit.retryAfterSec} ثانية قبل المحاولة مجددًا.`,
+      });
+    }
+
+    const user = db
+      .prepare('SELECT * FROM users WHERE phone = ? OR phone = ?')
+      .get(cleanPhone, rawPhone) as any;
+
+    if (!user || Number(user.phone_verified ?? 1) !== 1) {
+      return res.status(400).json({ error: 'رمز التحقق غير صحيح أو غير صالح لهذا الرقم' });
+    }
+
+    const record = db
+      .prepare(
+        `SELECT * FROM account_recovery_tokens
+         WHERE user_id = ? AND purpose = ?
+         ORDER BY created_at DESC LIMIT 1`
+      )
+      .get(user.id, purpose) as any;
+
+    if (!record) {
+      return res.status(400).json({ error: 'لم يتم العثور على رمز تحقق نشط، يرجى طلب رمز جديد' });
+    }
+
+    if (record.used_at !== null && record.used_at !== undefined) {
+      return res.status(400).json({
+        error: 'تم استخدام رمز التحقق هذا مسبقًا ولا يمكن استخدامه مرة أخرى',
+      });
+    }
+
+    if (Number(record.expires_at) <= Date.now()) {
+      return res.status(400).json({
+        error: 'انتهت صلاحية رمز التحقق، يرجى طلب رمز جديد',
+      });
+    }
+
+    if (Number(record.attempts) >= Number(record.max_attempts)) {
+      return res.status(429).json({
+        error: 'تم تجاوز الحد الأقصى لمحاولات إدخال الرمز، يرجى طلب رمز جديد',
+      });
+    }
+
+    if (!verifySecret(code, record.secret_hash)) {
+      const nextAttempts = Number(record.attempts) + 1;
+      db.prepare('UPDATE account_recovery_tokens SET attempts = ? WHERE id = ?').run(
+        nextAttempts,
+        record.id
+      );
+      const remaining = Math.max(0, Number(record.max_attempts) - nextAttempts);
+      if (remaining === 0) {
+        return res.status(429).json({
+          error: 'رمز التحقق غير صحيح، وقد تم استنفاد جميع المحاولات المتاحة. يرجى طلب رمز جديد.',
+        });
+      }
+      return res.status(400).json({
+        error: `رمز التحقق غير صحيح (المحاولات المتبقية: ${remaining})`,
+      });
+    }
+
+    // Valid OTP: mark it as used immediately so it can NEVER be reused
+    const now = Date.now();
+    db.prepare('UPDATE account_recovery_tokens SET used_at = ? WHERE id = ?').run(now, record.id);
+
+    // Issue a single-use short-lived reset session token (10 minutes)
+    const resetSessionToken = generateSecureLinkToken();
+    const sessionHash = hashSecret(resetSessionToken);
+    db.prepare(
+      `INSERT INTO account_recovery_tokens (id, user_id, channel, purpose, secret_hash, expires_at, used_at, attempts, max_attempts, ip_address, created_at)
+       VALUES (?, ?, 'sms', 'reset_session', ?, ?, NULL, 0, 3, ?, ?)`
+    ).run(
+      generateId(),
+      user.id,
+      sessionHash,
+      now + 10 * 60 * 1000,
+      ip,
+      new Date(now).toISOString()
+    );
+
+    if (purpose === 'forgot_email_sms') {
+      const project = findUserPrimaryProject(user.id);
+      if (project) {
+        logActivity(
+          project.id,
+          user.id,
+          user.name,
+          'FORGOT_EMAIL_VERIFIED',
+          'تم التحقق من ملكية الحساب عبر الهاتف لاستعادة البريد الإلكتروني وبيانات الدخول',
+          'USER',
+          user.id
+        );
+      }
+
+      return res.json({
+        verified: true,
+        resetSessionToken,
+        accountInfo: {
+          name: user.name,
+          phone: user.phone,
+          email: user.email || null,
+          hasEmail: Boolean(user.email),
+        },
+      });
+    }
+
+    return res.json({
+      verified: true,
+      resetSessionToken,
+    });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء التحقق من الرمز' });
+  }
+});
+
+// 6. Complete Password Reset (and optional Email update) after Phone OTP Verification
+app.post('/api/auth/recovery/phone/reset-password', (req: Request, res: Response) => {
+  try {
+    const rawPhone = String(req.body?.phone || '').trim();
+    const resetSessionToken = String(req.body?.resetSessionToken || '').trim();
+    const newPassword = String(req.body?.newPassword || '');
+    const confirmPassword = String(req.body?.confirmPassword || '');
+    const newEmail = req.body?.newEmail !== undefined ? String(req.body.newEmail).trim() : undefined;
+
+    const cleanPhone = normalizePhoneNumber(rawPhone);
+    if (!cleanPhone || !resetSessionToken || !newPassword) {
+      return res.status(400).json({ error: 'يرجى إدخال جميع البيانات المطلوبة' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف' });
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({ error: 'كلمة المرور الجديدة وتأكيدها غير متطابقين' });
+    }
+
+    const user = db
+      .prepare('SELECT * FROM users WHERE phone = ? OR phone = ?')
+      .get(cleanPhone, rawPhone) as any;
+
+    if (!user || Number(user.phone_verified ?? 1) !== 1) {
+      return res.status(404).json({ error: 'الحساب غير موجود أو غير موثق' });
+    }
+
+    const sessionRecord = db
+      .prepare(
+        `SELECT * FROM account_recovery_tokens
+         WHERE user_id = ? AND purpose = 'reset_session'
+         ORDER BY created_at DESC LIMIT 1`
+      )
+      .get(user.id) as any;
+
+    if (!sessionRecord) {
+      return res.status(400).json({ error: 'جلسة الاستعادة غير صالحة، يرجى إعادة التحقق من الرقم' });
+    }
+
+    if (sessionRecord.used_at !== null && sessionRecord.used_at !== undefined) {
+      return res.status(400).json({ error: 'تم استخدام جلسة الاستعادة هذه مسبقًا' });
+    }
+
+    if (Number(sessionRecord.expires_at) <= Date.now()) {
+      return res.status(400).json({ error: 'انتهت صلاحية جلسة الاستعادة، يرجى إعادة التحقق من الرقم' });
+    }
+
+    if (!verifySecret(resetSessionToken, sessionRecord.secret_hash)) {
+      db.prepare('UPDATE account_recovery_tokens SET attempts = attempts + 1 WHERE id = ?').run(
+        sessionRecord.id
+      );
+      return res.status(400).json({ error: 'جلسة الاستعادة غير صالحة' });
+    }
+
+    let updatedEmail = user.email;
+    if (newEmail !== undefined && newEmail !== '') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        return res.status(400).json({ error: 'يرجى إدخال بريد إلكتروني صحيح' });
+      }
+      const existingEmail = db
+        .prepare('SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND id != ?')
+        .get(newEmail, user.id) as any;
+      if (existingEmail) {
+        return res.status(400).json({ error: 'البريد الإلكتروني مستخدم بالفعل من قبل حساب آخر' });
+      }
+      updatedEmail = newEmail;
+    }
+
+    const now = Date.now();
+    const newHash = hashSecret(newPassword);
+
+    db.prepare('UPDATE account_recovery_tokens SET used_at = ? WHERE id = ?').run(now, sessionRecord.id);
+    db.prepare('UPDATE users SET password_hash = ?, email = ? WHERE id = ?').run(
+      newHash,
+      updatedEmail,
+      user.id
+    );
+    db.prepare('DELETE FROM auth_tokens WHERE user_id = ?').run(user.id);
+
+    const project = findUserPrimaryProject(user.id);
+    if (project) {
+      logActivity(
+        project.id,
+        user.id,
+        user.name,
+        'PASSWORD_RESET_COMPLETED_PHONE',
+        'تم استعادة الحساب وتحديث كلمة المرور بنجاح عبر التحقق برقم الهاتف',
+        'USER',
+        user.id
+      );
+      createNotification(
+        project.id,
+        user.id,
+        'SECURITY',
+        'تم استعادة الحساب وتغيير كلمة المرور',
+        'تم تحديث كلمة المرور الخاصة بحسابك بنجاح بعد التحقق من رقم الهاتف.'
+      );
+    }
+
+    return res.json({
+      message: 'تم تحديث كلمة المرور واستعادة الحساب بنجاح. يمكنك الآن تسجيل الدخول.',
+    });
+  } catch (error) {
+    console.error('Phone password reset error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء حفظ كلمة المرور الجديدة' });
+  }
+});
+
+// 7. Submit Official Support Account Ownership Recovery Request (when neither email nor phone is accessible)
+app.post('/api/auth/recovery/support-request', (req: Request, res: Response) => {
+  try {
+    const fullName = String(req.body?.fullName || '').trim();
+    const projectName = String(req.body?.projectName || '').trim();
+    const enteredContact = String(req.body?.enteredContact || '').trim();
+    const alternativeContact = String(req.body?.alternativeContact || '').trim();
+    const notes = String(req.body?.notes || '').trim();
+
+    if (!fullName || !projectName || !enteredContact || !alternativeContact) {
+      return res.status(400).json({
+        error: 'يرجى ملء جميع الحقول المطلوبة (الاسم، اسم المشروع، بيانات الحساب، ووسيلة التواصل البديلة)',
+      });
+    }
+
+    const ip = getClientIp(req);
+    const supportLimit = checkAndIncrementRateLimit(`support:ip:${ip}`, 3, 30 * 60 * 1000);
+    if (!supportLimit.allowed) {
+      return res.status(429).json({
+        error: `تم إرسال عدة طلبات دعم مؤخرًا. يرجى الانتظار ${supportLimit.retryAfterSec} ثانية.`,
+      });
+    }
+
+    const requestId = `REQ-${Date.now().toString(36).toUpperCase()}`;
+    db.prepare(
+      `INSERT INTO support_recovery_requests (id, full_name, project_name, entered_contact, alternative_contact, notes, status, ip_address, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+    ).run(
+      requestId,
+      fullName,
+      projectName,
+      enteredContact,
+      alternativeContact,
+      notes,
+      ip,
+      new Date().toISOString()
+    );
+
+    return res.status(201).json({
+      referenceId: requestId,
+      message:
+        'تم تسجيل طلب استرداد الحساب والتحقق من الملكية بنجاح. سيتواصل معك فريق الدعم بعد مراجعة بيانات ملكية المشروع.',
+    });
+  } catch (error) {
+    console.error('Support recovery request error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء إرسال طلب استرداد الحساب' });
   }
 });
 

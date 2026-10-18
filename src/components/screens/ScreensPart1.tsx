@@ -448,15 +448,30 @@ export const Screen3Profile: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
   );
 };
 
-// ================= SCREEN 4: LOGIN & REGISTER =================
+// ================= SCREEN 4: LOGIN, REGISTER & ACCOUNT RECOVERY =================
+type AuthScreenMode =
+  | 'login'
+  | 'register'
+  | 'forgot_password'
+  | 'forgot_email'
+  | 'email_link_reset'
+  | 'support_recovery';
+
 export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   const { login, register } = useAuth();
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [mode, setMode] = useState<AuthScreenMode>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Form states
+  // Provider configuration status from server
+  const [providerStatus, setProviderStatus] = useState<{
+    emailProviderConfigured: boolean;
+    smsProviderConfigured: boolean;
+  } | null>(null);
+
+  // Login form states
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
@@ -468,9 +483,95 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [projectPassword, setProjectPassword] = useState('');
 
+  // Recovery states
+  const [recoveryChannel, setRecoveryChannel] = useState<'email' | 'phone'>('email');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryPhone, setRecoveryPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [phoneStep, setPhoneStep] = useState<'request_otp' | 'verify_otp' | 'new_password'>(
+    'request_otp'
+  );
+  const [forgotEmailStep, setForgotEmailStep] = useState<
+    'request_otp' | 'verify_otp' | 'recovered_view'
+  >('request_otp');
+  const [resetSessionToken, setResetSessionToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [updatedEmailInput, setUpdatedEmailInput] = useState('');
+  const [verifiedAccountInfo, setVerifiedAccountInfo] = useState<{
+    name: string;
+    phone: string;
+    email: string | null;
+    hasEmail: boolean;
+  } | null>(null);
+
+  // Email reset link parameters (?reset_token=...&uid=...)
+  const [emailResetUid, setEmailResetUid] = useState('');
+  const [emailResetToken, setEmailResetToken] = useState('');
+  const [verifyingEmailLink, setVerifyingEmailLink] = useState(false);
+  const [emailLinkValid, setEmailLinkValid] = useState(false);
+
+  // Support ownership recovery fields
+  const [supportFullName, setSupportFullName] = useState('');
+  const [supportProjectName, setSupportProjectName] = useState('');
+  const [supportOldContact, setSupportOldContact] = useState('');
+  const [supportAltContact, setSupportAltContact] = useState('');
+  const [supportNotes, setSupportNotes] = useState('');
+  const [supportReferenceId, setSupportReferenceId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    api
+      .getRecoveryStatus()
+      .then((st) => setProviderStatus(st))
+      .catch(() => {});
+
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get('reset_token');
+    const uidParam = params.get('uid');
+    if (tokenParam && uidParam) {
+      setEmailResetToken(tokenParam);
+      setEmailResetUid(uidParam);
+      setMode('email_link_reset');
+      setVerifyingEmailLink(true);
+      setError(null);
+      api
+        .verifyEmailResetToken(uidParam, tokenParam)
+        .then(() => {
+          setEmailLinkValid(true);
+        })
+        .catch((err: any) => {
+          setEmailLinkValid(false);
+          setError(err?.message || 'رابط إعادة تعيين كلمة المرور غير صالح أو منتهي الصلاحية');
+        })
+        .finally(() => {
+          setVerifyingEmailLink(false);
+        });
+    }
+  }, []);
+
+  const switchMode = (nextMode: AuthScreenMode) => {
+    setMode(nextMode);
+    setError(null);
+    setSuccessMessage(null);
+    setOtpCode('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    if (nextMode === 'forgot_password') {
+      setPhoneStep('request_otp');
+    }
+    if (nextMode === 'forgot_email') {
+      setForgotEmailStep('request_otp');
+      setVerifiedAccountInfo(null);
+    }
+    if (nextMode === 'support_recovery') {
+      setSupportReferenceId(null);
+    }
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     if (!identifier || !password) {
       setError('يرجى إدخال اسم المستخدم / الهاتف وكلمة المرور');
       return;
@@ -490,6 +591,7 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
 
     if (!name || !projectName || !phone || !password) {
       setError('يرجى ملء جميع الحقول المطلوبة');
@@ -520,8 +622,268 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
     }
   };
 
+  // 1. Request Password Reset Link by Email
+  const handleEmailResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!recoveryEmail.trim()) {
+      setError('يرجى إدخال البريد الإلكتروني المسجل في الحساب');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.requestEmailPasswordReset(recoveryEmail.trim());
+      setSuccessMessage(res.message);
+    } catch (err: any) {
+      setError(err.message || 'تعذر إرسال رابط إعادة تعيين كلمة المرور');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Complete Password Reset from Email Link
+  const handleEmailLinkResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!newPassword || newPassword.length < 6) {
+      setError('كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setError('كلمة المرور الجديدة وتأكيدها غير متطابقين');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.completeEmailPasswordReset({
+        userId: emailResetUid,
+        token: emailResetToken,
+        newPassword,
+        confirmPassword: confirmNewPassword,
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+      setMode('login');
+      setPassword('');
+      setSuccessMessage(res.message);
+    } catch (err: any) {
+      setError(err.message || 'تعذر إعادة تعيين كلمة المرور');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3A. Request SMS OTP for Phone Password Reset
+  const handleRequestPhoneResetOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!recoveryPhone.trim() || recoveryPhone.trim().length < 8) {
+      setError('يرجى إدخال رقم الهاتف المسجل بالحساب');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.requestPhoneOtp(recoveryPhone.trim(), 'reset_password_sms');
+      setSuccessMessage(res.message);
+      setPhoneStep('verify_otp');
+    } catch (err: any) {
+      setError(err.message || 'تعذر إرسال رمز التحقق عبر الرسائل النصية');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3B. Verify SMS OTP for Phone Password Reset
+  const handleVerifyPhoneResetOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!otpCode.trim() || otpCode.trim().length < 6) {
+      setError('يرجى إدخال رمز التحقق المكون من 6 أرقام');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.verifyPhoneOtp(
+        recoveryPhone.trim(),
+        otpCode.trim(),
+        'reset_password_sms'
+      );
+      setResetSessionToken(res.resetSessionToken);
+      setPhoneStep('new_password');
+      setSuccessMessage('تم التحقق من الرمز بنجاح. يمكنك الآن تعيين كلمة مرور جديدة.');
+    } catch (err: any) {
+      setError(err.message || 'رمز التحقق غير صحيح أو منتهي الصلاحية');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3C. Save New Password after Phone OTP Verification
+  const handleCompletePhoneReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!newPassword || newPassword.length < 6) {
+      setError('كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setError('كلمة المرور الجديدة وتأكيدها غير متطابقين');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.completePhonePasswordReset({
+        phone: recoveryPhone.trim(),
+        resetSessionToken,
+        newPassword,
+        confirmPassword: confirmNewPassword,
+        newEmail: updatedEmailInput.trim() || undefined,
+      });
+      setIdentifier(updatedEmailInput.trim() || recoveryPhone.trim());
+      setPassword('');
+      setMode('login');
+      setSuccessMessage(res.message);
+    } catch (err: any) {
+      setError(err.message || 'تعذر حفظ كلمة المرور الجديدة');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 4A. Request SMS OTP for Forgot Email Recovery
+  const handleRequestForgotEmailOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!recoveryPhone.trim() || recoveryPhone.trim().length < 8) {
+      setError('يرجى إدخال رقم الهاتف المسجل بالحساب');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.requestPhoneOtp(recoveryPhone.trim(), 'forgot_email_sms');
+      setSuccessMessage(res.message);
+      setForgotEmailStep('verify_otp');
+    } catch (err: any) {
+      setError(err.message || 'تعذر إرسال رمز التحقق عبر الرسائل النصية');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 4B. Verify SMS OTP for Forgot Email Recovery (only reveals account info AFTER verification)
+  const handleVerifyForgotEmailOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (!otpCode.trim() || otpCode.trim().length < 6) {
+      setError('يرجى إدخال رمز التحقق المكون من 6 أرقام');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.verifyPhoneOtp(
+        recoveryPhone.trim(),
+        otpCode.trim(),
+        'forgot_email_sms'
+      );
+      setResetSessionToken(res.resetSessionToken);
+      if (res.accountInfo) {
+        setVerifiedAccountInfo(res.accountInfo);
+        setUpdatedEmailInput(res.accountInfo.email || '');
+      }
+      setForgotEmailStep('recovered_view');
+      setSuccessMessage('تم التحقق من ملكية الحساب بنجاح.');
+    } catch (err: any) {
+      setError(err.message || 'رمز التحقق غير صحيح أو منتهي الصلاحية');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 5. Submit Official Support Ownership Recovery Request
+  const handleSupportRecoverySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    if (
+      !supportFullName.trim() ||
+      !supportProjectName.trim() ||
+      !supportOldContact.trim() ||
+      !supportAltContact.trim()
+    ) {
+      setError('يرجى ملء جميع الحقول الإلزامية لتوثيق طلب استرداد الملكية');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.submitSupportRecoveryRequest({
+        fullName: supportFullName.trim(),
+        projectName: supportProjectName.trim(),
+        enteredContact: supportOldContact.trim(),
+        alternativeContact: supportAltContact.trim(),
+        notes: supportNotes.trim(),
+      });
+      setSupportReferenceId(res.referenceId);
+      setSuccessMessage(res.message);
+    } catch (err: any) {
+      setError(err.message || 'تعذر إرسال طلب استرداد الحساب');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const headerTitle =
+    mode === 'register'
+      ? 'إنشاء حساب ومشروع جديد'
+      : mode === 'forgot_password'
+      ? 'استعادة كلمة المرور'
+      : mode === 'forgot_email'
+      ? 'استعادة البريد الإلكتروني والحساب'
+      : mode === 'email_link_reset'
+      ? 'تعيين كلمة مرور جديدة'
+      : mode === 'support_recovery'
+      ? 'استرداد الحساب عبر التحقق من الملكية'
+      : 'مرحبًا بك';
+
+  const headerSubtitle =
+    mode === 'register'
+      ? 'أدخل بياناتك لإنشاء مشروعك وحسابك المستقل'
+      : mode === 'forgot_password'
+      ? 'استعد كلمة مرورك بأمان عبر البريد الإلكتروني أو رقم الهاتف'
+      : mode === 'forgot_email'
+      ? 'تحقق من رقم هاتفك الموثق لاستعادة البريد الإلكتروني وبيانات الدخول'
+      : mode === 'email_link_reset'
+      ? 'أدخل كلمة المرور الجديدة لحسابك'
+      : mode === 'support_recovery'
+      ? 'في حال فقدان الوصول إلى البريد الإلكتروني ورقم الهاتف معًا'
+      : 'سجل دخولك للمتابعة وإدارة حساباتك';
+
   return (
-    <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-center p-4 text-[var(--text-primary)] select-none transition-colors duration-200">
+    <div
+      dir="rtl"
+      className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-center p-4 text-[var(--text-primary)] select-none transition-colors duration-200"
+    >
       <div className="w-full max-w-sm bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xl">
         {/* Top Dark Blue Header Section preserving logo contrast */}
         <div className="bg-[var(--bg-header)] text-white p-6 flex flex-col items-center border-b border-[#1b3453]">
@@ -529,45 +891,58 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
             <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
             <Ah2Logo variant="emblem" size="sm" showSubtitle={false} />
           </div>
-          <h2 className="text-xl font-black mt-2 text-[#d4ab54]">
-            {isRegisterMode ? 'إنشاء حساب ومشروع جديد' : 'مرحبًا بك'}
-          </h2>
-          <p className="text-xs text-slate-300 mt-1 text-center">
-            {isRegisterMode
-              ? 'أدخل بياناتك لإنشاء مشروعك وحسابك المستقل'
-              : 'سجل دخولك للمتابعة وإدارة حساباتك'}
+          <h2 className="text-xl font-black mt-2 text-[#d4ab54] text-center">{headerTitle}</h2>
+          <p className="text-xs text-slate-300 mt-1 text-center leading-relaxed">
+            {headerSubtitle}
           </p>
         </div>
 
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs flex items-center gap-2 font-bold">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-300 text-red-700 text-xs flex items-start gap-2 font-bold leading-relaxed">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          {!isRegisterMode ? (
+          {successMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs flex items-start gap-2 font-bold leading-relaxed">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {/* ==================== MODE 1: LOGIN ==================== */}
+          {mode === 'login' && (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  اسم المستخدم / رقم الهاتف
+                  البريد الإلكتروني أو رقم الهاتف
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="أدخل رقم هاتفك أو بريدك"
+                    placeholder="أدخل رقم هاتفك أو بريدك الإلكتروني"
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  كلمة المرور
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    كلمة المرور
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot_password')}
+                    className="text-[11px] font-bold text-amber-700 hover:underline cursor-pointer"
+                  >
+                    نسيت كلمة المرور؟
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -589,25 +964,674 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all active:scale-98 disabled:opacity-50"
+                className="w-full py-3 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
               >
                 {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
               </button>
 
-              <div className="pt-2 text-center">
+              {/* Recovery Links Row */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot_password')}
+                    className="text-slate-700 hover:text-amber-700 hover:underline cursor-pointer"
+                  >
+                    نسيت كلمة المرور؟
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot_email')}
+                    className="text-slate-700 hover:text-amber-700 hover:underline cursor-pointer"
+                  >
+                    نسيت البريد الإلكتروني؟
+                  </button>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsRegisterMode(true);
-                    setError(null);
-                  }}
-                  className="text-xs text-amber-700 hover:underline font-bold"
+                  onClick={() => switchMode('forgot_password')}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5 text-amber-600" />
+                  <span>استعادة الحساب بالبريد الإلكتروني أو رقم الهاتف</span>
+                </button>
+              </div>
+
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => switchMode('register')}
+                  className="text-xs text-amber-700 hover:underline font-bold cursor-pointer"
                 >
                   ليس لديك حساب؟ أنشئ حسابك ومشروعك الآن
                 </button>
               </div>
             </form>
-          ) : (
+          )}
+
+          {/* ==================== MODE 2: FORGOT PASSWORD (EMAIL OR PHONE) ==================== */}
+          {mode === 'forgot_password' && (
+            <div className="space-y-4">
+              {/* Channel Selector Tabs */}
+              <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecoveryChannel('email');
+                    setError(null);
+                    setSuccessMessage(null);
+                  }}
+                  className={`py-2 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    recoveryChannel === 'email'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5 text-amber-600" />
+                  <span>بالبريد الإلكتروني</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecoveryChannel('phone');
+                    setError(null);
+                    setSuccessMessage(null);
+                  }}
+                  className={`py-2 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    recoveryChannel === 'phone'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Phone className="w-3.5 h-3.5 text-amber-600" />
+                  <span>برقم الهاتف</span>
+                </button>
+              </div>
+
+              {/* Sub-flow A: Email Password Recovery */}
+              {recoveryChannel === 'email' && (
+                <form onSubmit={handleEmailResetRequest} className="space-y-3.5">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    أدخل البريد الإلكتروني المسجل في حسابك، وسنرسل إليك رابطًا آمنًا ومؤقتًا (صالح لمدة 15 دقيقة ويُستخدم لمرة واحدة فقط) لإعادة تعيين كلمة المرور.
+                  </p>
+
+                  {providerStatus && !providerStatus.emailProviderConfigured && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[10.5px] leading-relaxed">
+                      <strong>ملاحظة إعداد الخادم:</strong> خدمة البريد الإلكتروني الخارجية غير مهيأة بعد في متغيرات البيئة على الخادم (<code>RESEND_API_KEY</code> أو <code>SENDGRID_API_KEY</code>). يمكنك تجربة الاستعادة برقم الهاتف إذا كان مهيأً أو التواصل مع الدعم.
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      البريد الإلكتروني المسجل
+                    </label>
+                    <input
+                      type="email"
+                      dir="ltr"
+                      required
+                      value={recoveryEmail}
+                      onChange={(e) => setRecoveryEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs text-right"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? 'جاري الإرسال...' : 'إرسال رابط إعادة تعيين كلمة المرور'}
+                  </button>
+                </form>
+              )}
+
+              {/* Sub-flow B: Phone SMS OTP Password Recovery */}
+              {recoveryChannel === 'phone' && (
+                <div className="space-y-3.5">
+                  {providerStatus && !providerStatus.smsProviderConfigured && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[10.5px] leading-relaxed">
+                      <strong>ملاحظة إعداد الخادم:</strong> خدمة الرسائل النصية (SMS) غير مهيأة بعد في متغيرات البيئة على الخادم (<code>TWILIO_ACCOUNT_SID</code> أو <code>SMS_GATEWAY_URL</code>). لا يتم توليد أي رموز وهمية حفاظًا على أمان الحساب.
+                    </div>
+                  )}
+
+                  {phoneStep === 'request_otp' && (
+                    <form onSubmit={handleRequestPhoneResetOtp} className="space-y-3.5">
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        أدخل رقم الهاتف المسجل والموثق في حسابك لإرسال رمز تحقق مؤقت (صالح لمدة 10 دقائق ويُستخدم لمرة واحدة).
+                      </p>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          رقم الهاتف المسجل
+                        </label>
+                        <input
+                          type="tel"
+                          dir="ltr"
+                          required
+                          value={recoveryPhone}
+                          onChange={(e) => setRecoveryPhone(e.target.value)}
+                          placeholder="01xxxxxxxxx"
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-mono text-right"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {loading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق عبر SMS'}
+                      </button>
+
+                      {recoveryPhone.trim().length >= 8 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            setPhoneStep('verify_otp');
+                          }}
+                          className="w-full text-[11px] text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer"
+                        >
+                          لديك رمز تحقق بالفعل؟ اضغط هنا لإدخاله
+                        </button>
+                      )}
+                    </form>
+                  )}
+
+                  {phoneStep === 'verify_otp' && (
+                    <form onSubmit={handleVerifyPhoneResetOtp} className="space-y-3.5">
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        أدخل رمز التحقق المكون من 6 أرقام المرسل إلى الرقم{' '}
+                        <span className="font-mono font-bold text-slate-800" dir="ltr">
+                          {recoveryPhone}
+                        </span>
+                        :
+                      </p>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          رمز التحقق (6 أرقام)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          dir="ltr"
+                          required
+                          value={otpCode}
+                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                          placeholder="123456"
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-center text-sm font-mono font-black tracking-widest"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {loading ? 'جاري التحقق من الرمز...' : 'تأكيد رمز التحقق'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhoneStep('request_otp');
+                          setOtpCode('');
+                          setError(null);
+                        }}
+                        className="w-full text-[11px] text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer"
+                      >
+                        تغيير رقم الهاتف أو طلب رمز جديد
+                      </button>
+                    </form>
+                  )}
+
+                  {phoneStep === 'new_password' && (
+                    <form onSubmit={handleCompletePhoneReset} className="space-y-3.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          كلمة المرور الجديدة *
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="لا تقل عن 6 أحرف"
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          تأكيد كلمة المرور الجديدة *
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          placeholder="أعد إدخال كلمة المرور الجديدة"
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {loading ? 'جاري الحفظ...' : 'حفظ كلمة المرور الجديدة'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* Support Fallback & Back to Login */}
+              <div className="pt-3 border-t border-slate-100 space-y-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => switchMode('support_recovery')}
+                  className="w-full text-[11px] text-amber-700 hover:underline font-bold cursor-pointer"
+                >
+                  لا يمكنك الوصول إلى البريد الإلكتروني أو رقم الهاتف؟ استرداد عبر الدعم
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  العودة إلى شاشة تسجيل الدخول
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== MODE 3: FORGOT EMAIL RECOVERY ==================== */}
+          {mode === 'forgot_email' && (
+            <div className="space-y-4">
+              {providerStatus && !providerStatus.smsProviderConfigured && (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[10.5px] leading-relaxed">
+                  <strong>ملاحظة إعداد الخادم:</strong> خدمة الرسائل النصية (SMS) غير مهيأة بعد في متغيرات البيئة على الخادم (<code>TWILIO_ACCOUNT_SID</code> أو <code>SMS_GATEWAY_URL</code>). إذا لم يكن بإمكانك تلقي رسائل التحقق، استخدم خيار استرداد الحساب عبر الدعم بالأسفل.
+                </div>
+              )}
+
+              {forgotEmailStep === 'request_otp' && (
+                <form onSubmit={handleRequestForgotEmailOtp} className="space-y-3.5">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    لاستعادة البريد الإلكتروني أو بيانات الدخول المرتبطة بحسابك، أدخل رقم الهاتف المسجل والموثق في الحساب لإرسال رمز تحقق عبر رسالة نصية (SMS).
+                  </p>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      رقم الهاتف المسجل بالحساب
+                    </label>
+                    <input
+                      type="tel"
+                      dir="ltr"
+                      required
+                      value={recoveryPhone}
+                      onChange={(e) => setRecoveryPhone(e.target.value)}
+                      placeholder="01xxxxxxxxx"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-mono text-right"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق إلى الهاتف'}
+                  </button>
+                </form>
+              )}
+
+              {forgotEmailStep === 'verify_otp' && (
+                <form onSubmit={handleVerifyForgotEmailOtp} className="space-y-3.5">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    أدخل رمز التحقق المرسل إلى رقم الهاتف{' '}
+                    <span className="font-mono font-bold text-slate-800" dir="ltr">
+                      {recoveryPhone}
+                    </span>{' '}
+                    للتحقق من ملكية الحساب قبل عرض بيانات الدخول:
+                  </p>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      رمز التحقق (6 أرقام)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      dir="ltr"
+                      required
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-center text-sm font-mono font-black tracking-widest"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? 'جاري التحقق...' : 'تأكيد ملكية الحساب واستعادة البيانات'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmailStep('request_otp');
+                      setOtpCode('');
+                      setError(null);
+                    }}
+                    className="w-full text-[11px] text-slate-500 hover:text-slate-800 font-bold underline cursor-pointer"
+                  >
+                    إعادة إرسال الرمز أو تغيير الرقم
+                  </button>
+                </form>
+              )}
+
+              {forgotEmailStep === 'recovered_view' && verifiedAccountInfo && (
+                <div className="space-y-3.5">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                    <div className="font-black text-slate-800 border-b border-slate-200 pb-1.5">
+                      بيانات الدخول المعتمدة لحسابك:
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">صاحب الحساب:</span>
+                      <span className="font-bold text-slate-800">{verifiedAccountInfo.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">رقم الهاتف للدخول:</span>
+                      <span className="font-bold font-mono text-slate-800" dir="ltr">
+                        {verifiedAccountInfo.phone}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">البريد الإلكتروني المسجل:</span>
+                      <span className="font-bold text-slate-800" dir="ltr">
+                        {verifiedAccountInfo.email || 'غير مسجل'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleCompletePhoneReset} className="space-y-3 pt-1">
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      يمكنك الآن تحديث بريدك الإلكتروني وتعيين كلمة مرور جديدة للدخول الفوري إلى حسابك:
+                    </p>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        البريد الإلكتروني (اختياري للتحديث أو الإضافة)
+                      </label>
+                      <input
+                        type="email"
+                        dir="ltr"
+                        value={updatedEmailInput}
+                        onChange={(e) => setUpdatedEmailInput(e.target.value)}
+                        placeholder="user@example.com"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-right"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        كلمة المرور الجديدة *
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="لا تقل عن 6 أحرف"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        تأكيد كلمة المرور الجديدة *
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="أعد إدخال كلمة المرور الجديدة"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {loading ? 'جاري الحفظ...' : 'حفظ بيانات الدخول وكلمة المرور الجديدة'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIdentifier(
+                          verifiedAccountInfo.email || verifiedAccountInfo.phone || ''
+                        );
+                        switchMode('login');
+                      }}
+                      className="w-full py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      استخدام بيانات الدخول الحالية والانتقال لتسجيل الدخول
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 space-y-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => switchMode('support_recovery')}
+                  className="w-full text-[11px] text-amber-700 hover:underline font-bold cursor-pointer"
+                >
+                  لم يعد لديك وصول إلى رقم الهاتف المسجل؟ تواصل مع الدعم لاسترداد الحساب
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  العودة إلى شاشة تسجيل الدخول
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== MODE 4: EMAIL LINK RESET ==================== */}
+          {mode === 'email_link_reset' && (
+            <div className="space-y-4">
+              {verifyingEmailLink ? (
+                <div className="py-6 text-center space-y-2">
+                  <Loader2 className="w-7 h-7 animate-spin text-amber-600 mx-auto" />
+                  <p className="text-xs font-bold text-slate-600">
+                    جاري التحقق من صلاحية رابط استعادة كلمة المرور...
+                  </p>
+                </div>
+              ) : emailLinkValid ? (
+                <form onSubmit={handleEmailLinkResetSubmit} className="space-y-3.5">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    تم التحقق من صلاحية الرابط. يرجى إدخال كلمة المرور الجديدة لحسابك:
+                  </p>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      كلمة المرور الجديدة *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="لا تقل عن 6 أحرف"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      تأكيد كلمة المرور الجديدة *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="أعد إدخال كلمة المرور الجديدة"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? 'جاري حفظ كلمة المرور...' : 'حفظ كلمة المرور الجديدة'}
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-3 text-center">
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    لا يمكن استخدام هذا الرابط لإعادة تعيين كلمة المرور. يمكنك طلب رابط جديد أو الاستعادة عبر رقم الهاتف.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.history.replaceState({}, '', window.location.pathname);
+                      switchMode('forgot_password');
+                    }}
+                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs cursor-pointer"
+                  >
+                    طلب رابط استعادة جديد
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.history.replaceState({}, '', window.location.pathname);
+                  switchMode('login');
+                }}
+                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                العودة إلى شاشة تسجيل الدخول
+              </button>
+            </div>
+          )}
+
+          {/* ==================== MODE 5: SUPPORT OWNERSHIP RECOVERY ==================== */}
+          {mode === 'support_recovery' && (
+            <div className="space-y-4">
+              {supportReferenceId ? (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-2">
+                  <div className="text-xs font-bold text-slate-600">رقم مرجع طلب الاسترداد:</div>
+                  <div className="text-base font-black font-mono text-amber-700">
+                    {supportReferenceId}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    احتفظ برقم المرجع هذا لمتابعة حالة التحقق من ملكية الحساب واسترداد بيانات الدخول.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleSupportRecoverySubmit} className="space-y-3">
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    في حال عدم توفر البريد الإلكتروني أو فقدان الوصول إلى رقم الهاتف المسجل، أدخل بيانات ملكية المشروع التالية ليتم التحقق من الملكية واسترداد الحساب بأمان:
+                  </p>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      الاسم الكامل المسجل بالحساب *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={supportFullName}
+                      onChange={(e) => setSupportFullName(e.target.value)}
+                      placeholder="أدخل اسم صاحب الحساب"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      اسم المشروع المسجل *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={supportProjectName}
+                      onChange={(e) => setSupportProjectName(e.target.value)}
+                      placeholder="أدخل اسم المشروع كما هو مسجل"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      رقم الهاتف أو البريد القديم بالحساب *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={supportOldContact}
+                      onChange={(e) => setSupportOldContact(e.target.value)}
+                      placeholder="رقم الهاتف أو البريد المسجل سابقًا"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      وسيلة تواصل بديلة حالية (هاتف أو بريد) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={supportAltContact}
+                      onChange={(e) => setSupportAltContact(e.target.value)}
+                      placeholder="رقم هاتف أو بريد إلكتروني متاح للتواصل"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      بيانات إضافية لتأكيد الملكية (اختياري)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={supportNotes}
+                      onChange={(e) => setSupportNotes(e.target.value)}
+                      placeholder="مثال: أسماء بعض العملاء المسجلين أو تاريخ إنشاء المشروع"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? 'جاري تسجيل الطلب...' : 'إرسال طلب التحقق واسترداد الحساب'}
+                  </button>
+                </form>
+              )}
+
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                العودة إلى شاشة تسجيل الدخول
+              </button>
+            </div>
+          )}
+
+          {/* ==================== MODE 6: REGISTER ==================== */}
+          {mode === 'register' && (
             <form onSubmit={handleRegisterSubmit} className="space-y-3 max-h-[60vh] overflow-y-auto px-1">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -653,7 +1677,7 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  البريد الإلكتروني (اختياري)
+                  البريد الإلكتروني (موصى به لاستعادة الحساب)
                 </label>
                 <input
                   type="email"
@@ -708,7 +1732,7 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all active:scale-98 disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs shadow-sm transition-all active:scale-98 disabled:opacity-50 cursor-pointer"
               >
                 {loading ? 'جاري الإنشاء...' : 'تأكيد وإنشاء المشروع'}
               </button>
@@ -716,11 +1740,8 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
               <div className="pt-1 text-center">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsRegisterMode(false);
-                    setError(null);
-                  }}
-                  className="text-xs text-slate-500 hover:underline font-semibold"
+                  onClick={() => switchMode('login')}
+                  className="text-xs text-slate-500 hover:underline font-semibold cursor-pointer"
                 >
                   لديك حساب بالفعل؟ سجل دخولك
                 </button>

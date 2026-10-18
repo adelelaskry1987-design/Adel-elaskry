@@ -127,7 +127,52 @@ export function initDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS account_recovery_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      purpose TEXT NOT NULL,
+      secret_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 5,
+      ip_address TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS recovery_rate_limits (
+      key TEXT PRIMARY KEY,
+      count INTEGER NOT NULL DEFAULT 0,
+      window_start INTEGER NOT NULL,
+      locked_until INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS support_recovery_requests (
+      id TEXT PRIMARY KEY,
+      full_name TEXT NOT NULL,
+      project_name TEXT NOT NULL,
+      entered_contact TEXT NOT NULL,
+      alternative_contact TEXT NOT NULL,
+      notes TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      ip_address TEXT,
+      created_at TEXT NOT NULL
+    );
   `);
+
+  // Safe migration: ensure users table has phone_verified column (default 1 for registered phone numbers)
+  try {
+    const cols = db.prepare(`PRAGMA table_info(users)`).all() as any[];
+    const hasPhoneVerified = cols.some((c) => c.name === 'phone_verified');
+    if (!hasPhoneVerified) {
+      db.exec(`ALTER TABLE users ADD COLUMN phone_verified INTEGER NOT NULL DEFAULT 1;`);
+    }
+  } catch (err) {
+    console.warn('Migration check warning (users.phone_verified):', err);
+  }
 
   // Detect any existing duplicate customer phones safely before creating unique index
   try {
