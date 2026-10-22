@@ -204,7 +204,7 @@ function staticCoverageCheck() {
     unguarded.length === 0,
     unguarded.join(' · ')
   );
-  ok('عدد مسارات الـ API المحمية 20', guarded === 20, String(guarded));
+  ok('عدد مسارات الـ API المحمية 29 (20 + 9 إدارة حسابات)', guarded === 29, String(guarded));
   ok('المسارات العامة مسجّلة صراحةً', PUBLIC_ROUTES.size === 10);
 
   // حماية إضافية: لا مسارات لتعديل/حذف سجل التدقيق
@@ -341,7 +341,18 @@ async function main() {
     );
     const createdPerms: string[] = JSON.parse(created?.permissions ?? '[]');
     ok('المخزّن لا يحتوي reset_data', !createdPerms.includes('reset_data'), JSON.stringify(createdPerms));
-    ok('المخزّن يحتوي view_customers فقط', createdPerms.length === 1 && createdPerms[0] === 'view_customers');
+    // المدير ينشئ حسابًا بحالة "في انتظار الاعتماد": الصلاحيات المفعّلة فارغة،
+    // والمقترحة تحتوي ما تم قبوله فقط.
+    const createdRow = withDb((db) =>
+      db.prepare(
+        `SELECT pm.status, pm.proposed_permissions FROM project_memberships pm
+         JOIN users u ON u.id = pm.user_id WHERE u.phone = '01077777778'`
+      ).get() as any
+    );
+    const proposed: string[] = JSON.parse(createdRow?.proposed_permissions ?? '[]');
+    ok('الحساب الذي أنشأه المدير = في انتظار الاعتماد', createdRow?.status === 'pending', String(createdRow?.status));
+    ok('المقترح يحتوي view_customers فقط', proposed.length === 1 && proposed[0] === 'view_customers', JSON.stringify(proposed));
+    ok('لا صلاحيات مفعّلة قبل الاعتماد', createdPerms.length === 0, JSON.stringify(createdPerms));
 
     // ══ اختبار #15/#16: منع الموظف من الوظائف المحظورة ══
     console.log('\n— اختبار #15/#16: منع الموظف من الوظائف المحظورة (طلب مباشر) —');
