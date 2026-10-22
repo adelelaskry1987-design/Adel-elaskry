@@ -6,3 +6,12 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local database files (never commit runtime data)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# AI Studio local artifacts
+.aistudio/

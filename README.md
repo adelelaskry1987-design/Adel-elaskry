@@ -14,6 +14,8 @@
 [![SQLite](https://img.shields.io/badge/SQLite-node%3Asqlite-003B57?logo=sqlite&logoColor=white)](https://nodejs.org/api/sqlite.html)
 [![License](https://img.shields.io/badge/License-Private-lightgrey)](#-الترخيص)
 
+**العربية · 🌍 [English](README.en.md)**
+
 </div>
 
 ---
