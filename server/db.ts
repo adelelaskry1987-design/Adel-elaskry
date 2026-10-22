@@ -294,6 +294,29 @@ export function runUserManagementMigrations() {
       ON activity_logs(project_id, created_at);
   `);
 
+  // 4.ب) حصانة سجل التدقيق على مستوى قاعدة البيانات:
+  //      يمنع أي تعديل أو حذف لأي سجل تدقيق — حتى لو جاء من كود خاطئ أو SQL مباشر.
+  //      (لا يوجد في التطبيق أي مسار يعدّل أو يحذف السجل، وهذه الطبقة تحصين إضافي.)
+  let auditGuards = 0;
+  try {
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS trg_activity_logs_no_update
+      BEFORE UPDATE ON activity_logs
+      BEGIN
+        SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: سجل التدقيق لا يقبل التعديل');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_activity_logs_no_delete
+      BEFORE DELETE ON activity_logs
+      BEGIN
+        SELECT RAISE(ABORT, 'AUDIT_LOG_IMMUTABLE: سجل التدقيق لا يقبل الحذف');
+      END;
+    `);
+    auditGuards = 2;
+  } catch (err) {
+    console.warn('Audit guard trigger warning:', err);
+  }
+
   // 5) ترحيل بيانات الصلاحيات القائمة (مرة واحدة فعليًا — والخطوة قابلة للتكرار)
   let migratedMemberships = 0;
   try {
@@ -355,6 +378,9 @@ export function runUserManagementMigrations() {
     console.log(
       `[migration] نظام إدارة المستخدمين: ${addedColumns} عمود جديد، ${migratedMemberships} عضوية تم ترحيل صلاحياتها.`
     );
+  }
+  if (auditGuards > 0) {
+    console.log('[migration] حصانة سجل التدقيق: مفعّلة (لا تعديل ولا حذف).');
   }
 }
 

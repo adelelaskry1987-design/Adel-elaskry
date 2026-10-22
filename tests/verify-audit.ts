@@ -397,6 +397,31 @@ async function main() {
     const afterCount = withDb((db) => Number((db.prepare('SELECT COUNT(*) c FROM activity_logs').get() as any).c));
     ok('عدد السجلات لم يتغيّر بعد المحاولات', afterCount === beforeCount, `${beforeCount} → ${afterCount}`);
 
+    // حصانة على مستوى قاعدة البيانات: أي تعديل/حذف مباشر يجب أن يُرفض
+    const dbGuardUpdate = withDb((db) => {
+      try {
+        db.prepare("UPDATE activity_logs SET description = 'مُعدَّل مباشرة'").run();
+        return { blocked: false, message: '' };
+      } catch (err: any) {
+        return { blocked: true, message: String(err?.message ?? err) };
+      }
+    });
+    ok('قاعدة البيانات ترفض تعديل سجل التدقيق', dbGuardUpdate.blocked, dbGuardUpdate.message.slice(0, 80));
+    ok('رسالة الرفض واضحة (AUDIT_LOG_IMMUTABLE)', dbGuardUpdate.message.includes('AUDIT_LOG_IMMUTABLE'), dbGuardUpdate.message.slice(0, 80));
+
+    const dbGuardDelete = withDb((db) => {
+      try {
+        db.prepare('DELETE FROM activity_logs').run();
+        return { blocked: false, message: '' };
+      } catch (err: any) {
+        return { blocked: true, message: String(err?.message ?? err) };
+      }
+    });
+    ok('قاعدة البيانات ترفض حذف سجل التدقيق', dbGuardDelete.blocked, dbGuardDelete.message.slice(0, 80));
+
+    const countAfterGuards = withDb((db) => Number((db.prepare('SELECT COUNT(*) c FROM activity_logs').get() as any).c));
+    ok('عدد السجلات سليم بعد محاولات التعديل/الحذف المباشرة', countAfterGuards === beforeCount, `${beforeCount} → ${countAfterGuards}`);
+
     const empLogs = await api('/api/activity-logs', { token: empToken });
     ok('الموظف لا يقرأ سجل التدقيق (403)', empLogs.status === 403, String(empLogs.status));
     const ownerLogs = await api('/api/activity-logs', { token: owner });
