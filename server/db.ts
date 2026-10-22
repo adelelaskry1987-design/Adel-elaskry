@@ -249,6 +249,19 @@ export function runUserManagementMigrations() {
   if (ensureColumn('activity_logs', 'reason', 'TEXT')) addedColumns++;
 
   // 4) جدول طلبات إدارة الحسابات
+  //    + جدول حدّ محاولات الدخول (Rate limiting)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS login_throttle (
+      id TEXT PRIMARY KEY,
+      throttle_key TEXT NOT NULL UNIQUE,
+      failures INTEGER NOT NULL DEFAULT 0,
+      window_started_at TEXT NOT NULL,
+      locked_until TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_throttle_locked ON login_throttle(locked_until);
+  `);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS account_requests (
       id TEXT PRIMARY KEY,

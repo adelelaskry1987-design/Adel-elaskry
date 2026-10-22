@@ -41,6 +41,15 @@ import {
   sendPasswordResetEmail,
   sendOtpSms,
 } from './server/recovery.js';
+import {
+  buildThrottleKey,
+  checkLoginThrottle,
+  clearLoginFailures,
+  recordLoginFailure,
+  pruneLoginThrottle,
+  MAX_LOGIN_FAILURES,
+  LOGIN_LOCK_MINUTES,
+} from './server/rateLimit.js';
 
 initDatabase();
 
@@ -214,6 +223,30 @@ function requireOwner() {
   };
 }
 
+/**
+ * يستنتج معرّف المحل من معرّف الدخول (هاتف/بريد) — يُستخدم لتسجيل أحداث الحجب
+ * في سجل التدقيق داخل نطاق محل صحيح (سجل التدقيق مقيّد بالمحل دائمًا).
+ */
+function resolveProjectIdForIdentifier(identifier: string): string | null {
+  try {
+    const norm = normalizePhoneNumber(identifier);
+    const user = db
+      .prepare('SELECT id FROM users WHERE phone = ? OR phone = ? OR email = ?')
+      .get(norm, identifier, identifier) as any;
+    if (!user) return null;
+
+    const owned = db.prepare('SELECT id FROM projects WHERE owner_id = ?').get(user.id) as any;
+    if (owned) return owned.id;
+
+    const membership = db
+      .prepare("SELECT project_id FROM project_memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1")
+      .get(user.id) as any;
+    return membership?.project_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function logActivity(
   projectId: string,
   userId: string,
@@ -374,17 +407,74 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
     const cleanIdentifier = identifier.trim();
     const normIdentifier = normalizePhoneNumber(identifier);
+
+    // ── حدّ محاولات الدخول: يمنع التخمين الآلي ──
+    const throttleKey = buildThrottleKey(cleanIdentifier || normIdentifier, req.ip);
+    const throttle = checkLoginThrottle(throttleKey);
+    if (throttle.blocked) {
+      const waitMinutes = Math.ceil(throttle.retryAfterSeconds / 60);
+      const blockedProjectId = resolveProjectIdForIdentifier(cleanIdentifier || normIdentifier);
+      if (blockedProjectId) {
+        logDenied({
+          projectId: blockedProjectId,
+          actorId: null,
+          actorName: cleanIdentifier,
+          actionType: 'LOGIN_THROTTLED',
+          description: `تم حجب محاولة دخول متكررة على الحساب: ${cleanIdentifier}`,
+          entityType: 'USER',
+          reason: `too_many_attempts retry_after=${throttle.retryAfterSeconds}s`,
+        });
+      }
+      return res.status(429).json({
+        error: `تم إيقاف المحاولات مؤقتًا بسبب تكرار كلمة مرور خاطئة. أعد المحاولة بعد ${waitMinutes} دقيقة.`,
+        code: 'TOO_MANY_ATTEMPTS',
+        retry_after_seconds: throttle.retryAfterSeconds,
+      });
+    }
+
     const user = db.prepare(`
       SELECT * FROM users WHERE phone = ? OR phone = ? OR email = ?
     `).get(normIdentifier, cleanIdentifier, cleanIdentifier) as any;
 
     if (!user) {
-      return res.status(401).json({ error: 'بيانات الدخول غير صحيحة، يرجى التأكد والمحاولة ثانية' });
+      const state = recordLoginFailure(throttleKey);
+      return res.status(401).json({
+        error: 'بيانات الدخول غير صحيحة، يرجى التأكد والمحاولة ثانية',
+        remaining_attempts: state.remaining,
+      });
     }
 
     if (!verifySecret(password, user.password_hash)) {
-      return res.status(401).json({ error: 'بيانات الدخول غير صحيحة، يرجى التأكد والمحاولة ثانية' });
+      const state = recordLoginFailure(throttleKey);
+      if (state.blocked) {
+        const lockProjectId = resolveProjectIdForIdentifier(user.phone) ?? resolveProjectIdForIdentifier(user.email ?? '');
+        if (lockProjectId) {
+          logDenied({
+            projectId: lockProjectId,
+            actorId: user.id,
+            actorName: user.name,
+            actionType: 'LOGIN_THROTTLED',
+            description: `تم قفل محاولات الدخول بعد ${MAX_LOGIN_FAILURES} محاولة فاشلة`,
+            entityType: 'USER',
+            entityId: user.id,
+            targetUserId: user.id,
+            reason: `locked_for=${LOGIN_LOCK_MINUTES}m`,
+          });
+        }
+        return res.status(429).json({
+          error: `تم إيقاف المحاولات مؤقتًا بسبب تكرار كلمة مرور خاطئة. أعد المحاولة بعد ${LOGIN_LOCK_MINUTES} دقيقة.`,
+          code: 'TOO_MANY_ATTEMPTS',
+          retry_after_seconds: LOGIN_LOCK_MINUTES * 60,
+        });
+      }
+      return res.status(401).json({
+        error: 'بيانات الدخول غير صحيحة، يرجى التأكد والمحاولة ثانية',
+        remaining_attempts: state.remaining,
+      });
     }
+
+    // دخول صحيح بكلمة المرور ⇒ صفر العدّاد
+    clearLoginFailures(throttleKey);
 
     // Find user's project (بدون أي تصفية على الحالة — الحالة تُفحص بعد ذلك بقرار واضح)
     let project = db.prepare('SELECT * FROM projects WHERE owner_id = ?').get(user.id) as any;
@@ -2305,6 +2395,11 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // تنظيف دوري لسجلّات حدّ المحاولات المنتهية (لا يؤثر على أي قفل ساري)
+  pruneLoginThrottle();
+  const throttleCleanup = setInterval(pruneLoginThrottle, 10 * 60_000);
+  throttleCleanup.unref?.();
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`AH2 Backend & UI server running at http://0.0.0.0:${PORT}`);
