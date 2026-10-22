@@ -66,7 +66,7 @@ import {
 import { WifiOff, ShieldAlert, LogIn } from 'lucide-react';
 
 function MainApp() {
-  const { user, isLoading, inactiveAccount, clearInactiveAccount } = useAuth();
+  const { user, isLoading, inactiveAccount, clearInactiveAccount, hasPermission } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('reset_token') && params.get('uid')) {
@@ -221,6 +221,34 @@ function MainApp() {
 
   const isLoginScreen = currentScreen === 'screen-4-login';
 
+  /**
+   * خريطة الشاشات الحساسة والصلاحيات المطلوبة لكل شاشة.
+   * تُطبَّق هنا كبوابة واجهة (دفاع في العمق) — والحماية الفعلية على الخادم.
+   * كل شاشة تحتاج أن يملك المستخدم أيًّا من الصلاحيات المذكورة.
+   */
+  const SCREEN_PERMISSIONS: Partial<Record<ScreenId, string[]>> = {
+    'screen-6-customer-delete': ['delete_customer'],
+    'screen-7-customer-add': ['add_customer'],
+    'screen-14-new-transaction': ['create_transaction'],
+    'screen-17-share-menu': ['share_invoices'],
+    'screen-18-all-transactions': ['view_all_transactions', 'view_customer_transactions'],
+    'screen-19-customer-transactions': ['view_customer_transactions'],
+    'screen-20-backup': ['manage_backups'],
+    'screen-21-backup-create': ['manage_backups'],
+    'screen-22-backup-restore': ['restore_data'],
+    'screen-24-reset-data': ['reset_data'],
+    'screen-25-data-import': ['restore_data'],
+    'screen-27-data-export': ['manage_backups'],
+    'screen-31-customer-edit': ['edit_customer'],
+    'screen-33-reports': ['view_reports'],
+    'screen-36-users': ['manage_users'],
+    'screen-37-user-add': ['create_employees'],
+    'screen-38-user-requests': ['approve_requests'],
+  };
+
+  const requiredPerms = SCREEN_PERMISSIONS[currentScreen];
+  const screenDenied = !!requiredPerms && !requiredPerms.some((p) => hasPermission(p));
+
   return (
     <div
       className={`min-h-screen flex flex-col antialiased transition-colors duration-200 ${
@@ -248,8 +276,30 @@ function MainApp() {
 
       {/* Main Content Area */}
       <main className={isLoginScreen ? 'flex-1 w-full' : 'flex-1 w-full max-w-md mx-auto'}>
+        {/* بوابة الصلاحيات: لا تُعرَض الشاشة الحساسة لمن لا يملك صلاحيتها */}
+        {screenDenied && (
+          <div className="p-4 max-w-md mx-auto space-y-3 pb-24 select-none">
+            <div className="bg-white rounded-2xl border border-red-200 shadow-sm p-6 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-red-50 border-2 border-red-200 mx-auto flex items-center justify-center">
+                <ShieldAlert className="w-7 h-7 text-red-600" />
+              </div>
+              <h2 className="font-black text-sm text-slate-800">لا تملك صلاحية لهذه الشاشة</h2>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                هذه الصفحة تتطلب صلاحية لا يمتلكها حسابك داخل المحل. تواصل مع صاحب المحل إذا كنت
+                تحتاج هذه الصلاحية — لا يمكن منحها إلا من صاحبه.
+              </p>
+              <button
+                onClick={() => navigateTo('screen-5-home')}
+                className="w-full py-2.5 rounded-xl theme-btn-primary font-bold text-xs"
+              >
+                العودة إلى الرئيسية
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* SCREEN 1: SPLASH */}
-        {currentScreen === 'screen-1-splash' && <Screen1Splash onNavigate={navigateTo} />}
+        {!screenDenied && currentScreen === 'screen-1-splash' && <Screen1Splash onNavigate={navigateTo} />}
 
         {/* SCREEN 2: CUSTOMER ADDED SUCCESS */}
         {currentScreen === 'screen-2-customer-added-success' && (
@@ -268,7 +318,7 @@ function MainApp() {
         )}
 
         {/* SCREEN 6: CUSTOMER DELETE */}
-        {currentScreen === 'screen-6-customer-delete' && (
+        {!screenDenied && currentScreen === 'screen-6-customer-delete' && (
           <Screen6CustomerDelete
             customer={selectedCustomer}
             onNavigate={navigateTo}
@@ -277,7 +327,7 @@ function MainApp() {
         )}
 
         {/* SCREEN 7: CUSTOMER ADD */}
-        {currentScreen === 'screen-7-customer-add' && (
+        {!screenDenied && currentScreen === 'screen-7-customer-add' && (
           <Screen7CustomerAdd onNavigate={navigateTo} onCustomerAdded={refreshAllData} />
         )}
 
@@ -310,7 +360,7 @@ function MainApp() {
         )}
 
         {/* SCREEN 14: NEW TRANSACTION ("عملية جديدة" per requirement #1) */}
-        {currentScreen === 'screen-14-new-transaction' && (
+        {!screenDenied && currentScreen === 'screen-14-new-transaction' && (
           <Screen14NewTransaction
             customer={selectedCustomer}
             onNavigate={navigateTo}
@@ -334,10 +384,10 @@ function MainApp() {
         )}
 
         {/* SCREEN 17: SHARE MENU */}
-        {currentScreen === 'screen-17-share-menu' && <Screen17ShareMenu onNavigate={navigateTo} />}
+        {!screenDenied && currentScreen === 'screen-17-share-menu' && <Screen17ShareMenu onNavigate={navigateTo} />}
 
         {/* SCREEN 18: ALL TRANSACTIONS */}
-        {currentScreen === 'screen-18-all-transactions' && (
+        {!screenDenied && currentScreen === 'screen-18-all-transactions' && (
           <Screen18AllTransactions
             transactions={transactions}
             onNavigate={navigateTo}
@@ -346,20 +396,20 @@ function MainApp() {
         )}
 
         {/* SCREEN 19: CUSTOMER TRANSACTIONS */}
-        {currentScreen === 'screen-19-customer-transactions' && (
+        {!screenDenied && currentScreen === 'screen-19-customer-transactions' && (
           <Screen19CustomerTransactions customer={selectedCustomer} onNavigate={navigateTo} />
         )}
 
         {/* SCREEN 20: BACKUP OVERVIEW */}
-        {currentScreen === 'screen-20-backup' && <Screen20Backup onNavigate={navigateTo} />}
+        {!screenDenied && currentScreen === 'screen-20-backup' && <Screen20Backup onNavigate={navigateTo} />}
 
         {/* SCREEN 21: BACKUP CREATE */}
-        {currentScreen === 'screen-21-backup-create' && (
+        {!screenDenied && currentScreen === 'screen-21-backup-create' && (
           <Screen21BackupCreate onNavigate={navigateTo} />
         )}
 
         {/* SCREEN 22: BACKUP RESTORE */}
-        {currentScreen === 'screen-22-backup-restore' && (
+        {!screenDenied && currentScreen === 'screen-22-backup-restore' && (
           <Screen22BackupRestore onNavigate={navigateTo} onRestored={refreshAllData} />
         )}
 
@@ -369,12 +419,12 @@ function MainApp() {
         )}
 
         {/* SCREEN 24: RESET DATA */}
-        {currentScreen === 'screen-24-reset-data' && (
+        {!screenDenied && currentScreen === 'screen-24-reset-data' && (
           <Screen24ResetData onNavigate={navigateTo} onDataReset={refreshAllData} />
         )}
 
         {/* SCREEN 25: DATA IMPORT */}
-        {currentScreen === 'screen-25-data-import' && (
+        {!screenDenied && currentScreen === 'screen-25-data-import' && (
           <Screen25DataImport onNavigate={navigateTo} onImportComplete={setImportCounts} />
         )}
 
@@ -384,7 +434,7 @@ function MainApp() {
         )}
 
         {/* SCREEN 27: DATA EXPORT */}
-        {currentScreen === 'screen-27-data-export' && (
+        {!screenDenied && currentScreen === 'screen-27-data-export' && (
           <Screen27DataExport onNavigate={navigateTo} onExportDone={setExportedData} />
         )}
 
@@ -406,7 +456,7 @@ function MainApp() {
         {currentScreen === 'screen-30-about' && <Screen30About onNavigate={navigateTo} />}
 
         {/* SCREEN 31: CUSTOMER EDIT */}
-        {currentScreen === 'screen-31-customer-edit' && (
+        {!screenDenied && currentScreen === 'screen-31-customer-edit' && (
           <Screen31CustomerEdit
             customer={selectedCustomer}
             onNavigate={navigateTo}
@@ -418,7 +468,7 @@ function MainApp() {
         {currentScreen === 'screen-32-settings' && <Screen32Settings onNavigate={navigateTo} />}
 
         {/* SCREEN 33: REPORTS */}
-        {currentScreen === 'screen-33-reports' && <Screen33Reports onNavigate={navigateTo} />}
+        {!screenDenied && currentScreen === 'screen-33-reports' && <Screen33Reports onNavigate={navigateTo} />}
 
         {/* SCREEN 34: DATA MANAGEMENT */}
         {currentScreen === 'screen-34-data-management' && (
@@ -429,13 +479,13 @@ function MainApp() {
         {currentScreen === 'screen-35-support' && <Screen35Support onNavigate={navigateTo} />}
 
         {/* SCREEN 36: USER MANAGEMENT */}
-        {currentScreen === 'screen-36-users' && <Screen36Users onNavigate={navigateTo} />}
+        {!screenDenied && currentScreen === 'screen-36-users' && <Screen36Users onNavigate={navigateTo} />}
 
         {/* SCREEN 37: ADD USER */}
-        {currentScreen === 'screen-37-user-add' && <Screen37UserAdd onNavigate={navigateTo} />}
+        {!screenDenied && currentScreen === 'screen-37-user-add' && <Screen37UserAdd onNavigate={navigateTo} />}
 
         {/* SCREEN 38: ACCOUNT REQUESTS */}
-        {currentScreen === 'screen-38-user-requests' && <Screen38UserRequests onNavigate={navigateTo} />}
+        {!screenDenied && currentScreen === 'screen-38-user-requests' && <Screen38UserRequests onNavigate={navigateTo} />}
       </main>
 
       {/* 5-Tab Bottom Navigation Bar */}
