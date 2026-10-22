@@ -10,6 +10,7 @@ import {
   generateId,
   normalizePhoneNumber,
 } from './server/db.js';
+import { logAudit, logDenied } from './server/audit.js';
 import {
   getRecoveryProviderStatus,
   checkAndIncrementRateLimit,
@@ -88,26 +89,20 @@ function logActivity(
   actionType: string,
   description: string,
   entityType: string,
-  entityId: string | null = null
+  entityId: string | null = null,
+  actorRole: string | null = null
 ) {
-  try {
-    db.prepare(`
-      INSERT INTO activity_logs (id, project_id, user_id, user_name, action_type, description, entity_type, entity_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      generateId(),
-      projectId,
-      userId,
-      userName,
-      actionType,
-      description,
-      entityType,
-      entityId,
-      new Date().toISOString()
-    );
-  } catch (err) {
-    console.error('Error logging activity:', err);
-  }
+  // التوقيع متوافق مع الاستخدامات القائمة؛ التفاصيل الإضافية تُمرَّر عند الحاجة فقط.
+  logAudit({
+    projectId,
+    actorId: userId,
+    actorName: userName,
+    actorRole,
+    actionType,
+    description,
+    entityType,
+    entityId,
+  });
 }
 
 function createNotification(
