@@ -6,6 +6,7 @@ import { api } from './services/api';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { ScreenSwitcher } from './components/ScreenSwitcher';
+import { Screen36Users, Screen37UserAdd, Screen38UserRequests } from './components/screens/ScreensPart6';
 
 // Screens Part 1 (1 to 7)
 import {
@@ -426,6 +427,15 @@ function MainApp() {
 
         {/* SCREEN 35: SUPPORT */}
         {currentScreen === 'screen-35-support' && <Screen35Support onNavigate={navigateTo} />}
+
+        {/* SCREEN 36: USER MANAGEMENT */}
+        {currentScreen === 'screen-36-users' && <Screen36Users onNavigate={navigateTo} />}
+
+        {/* SCREEN 37: ADD USER */}
+        {currentScreen === 'screen-37-user-add' && <Screen37UserAdd onNavigate={navigateTo} />}
+
+        {/* SCREEN 38: ACCOUNT REQUESTS */}
+        {currentScreen === 'screen-38-user-requests' && <Screen38UserRequests onNavigate={navigateTo} />}
       </main>
 
       {/* 5-Tab Bottom Navigation Bar */}

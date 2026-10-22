@@ -45,6 +45,9 @@ export const ALL_35_SCREENS: { id: ScreenId; num: number; title: string; categor
   { id: 'screen-33-reports', num: 33, title: 'التقارير والإحصائيات المالية', category: 'التقارير' },
   { id: 'screen-34-data-management', num: 34, title: 'إدارة البيانات المركزية', category: 'البيانات والنسخ' },
   { id: 'screen-35-support', num: 35, title: 'الدعم والمساعدة والأسئلة الشائعة', category: 'المساعدة' },
+  { id: 'screen-36-users', num: 36, title: 'إدارة المستخدمين والصلاحيات', category: 'المستخدمون' },
+  { id: 'screen-37-user-add', num: 37, title: 'إضافة مستخدم جديد', category: 'المستخدمون' },
+  { id: 'screen-38-user-requests', num: 38, title: 'طلبات إدارة المستخدمين والاعتماد', category: 'المستخدمون' },
 ];
 
 export const ScreenSwitcher: React.FC<ScreenSwitcherProps> = ({
@@ -72,7 +75,7 @@ export const ScreenSwitcher: React.FC<ScreenSwitcherProps> = ({
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-[#d4ab54]" />
             <div>
-              <h2 className="font-bold text-base leading-tight">خريطة شاشات AH2 الـ35 الأصلية</h2>
+              <h2 className="font-bold text-base leading-tight">خريطة شاشات AH2 الـ38</h2>
               <p className="text-[11px] text-slate-300">اختر أي شاشة للانتقال المباشر إليها وفحصها</p>
             </div>
           </div>
@@ -154,7 +157,7 @@ export const ScreenSwitcher: React.FC<ScreenSwitcherProps> = ({
 
         {/* Footer info */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 text-center text-[11px] text-slate-500">
-          جميع الشاشات الـ35 مطبقة بكامل وظائفها الحقيقية وقواعد البيانات
+          جميع الشاشات الـ38 مطبقة بكامل وظائفها الحقيقية وقواعد البيانات
         </div>
       </div>
     </div>

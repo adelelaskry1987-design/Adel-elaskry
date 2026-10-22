@@ -417,6 +417,7 @@ export const Screen31CustomerEdit: React.FC<{
 
 // ================= SCREEN 32: SETTINGS =================
 export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  const { hasPermission, role: settingsRole } = useAuth();
   const { user, project, logout } = useAuth();
   const { themeMode, resolvedTheme, setThemeMode } = useTheme();
 
@@ -498,6 +499,25 @@ export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> =
           </div>
           <ChevronLeft className="w-4 h-4 text-slate-400" />
         </button>
+
+        {/* Users Management — يظهر فقط لمن يملك صلاحية إدارة المستخدمين */}
+        {hasPermission('manage_users') && (
+          <button
+            onClick={() => onNavigate('screen-36-users')}
+            className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors text-right"
+          >
+            <div className="flex items-center gap-3">
+              <Users className="w-4 h-4 text-blue-600" />
+              <span className="font-bold text-slate-800">إدارة المستخدمين</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9.5px] font-black text-slate-400">
+                {settingsRole === 'owner' ? 'صاحب المحل' : 'مدير'}
+              </span>
+              <ChevronLeft className="w-4 h-4 text-slate-400" />
+            </div>
+          </button>
+        )}
 
         {/* Backup */}
         <button

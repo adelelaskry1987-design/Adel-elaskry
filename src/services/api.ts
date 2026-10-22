@@ -7,6 +7,11 @@ import {
   BackupItem,
   User,
   Project,
+  AccountRow,
+  AccountRequestRow,
+  AuditActivityRow,
+  AccountRequestType,
+  PermissionCode,
 } from '../types';
 
 const TOKEN_KEY = 'ah2_auth_token';
@@ -317,7 +322,66 @@ export const api = {
       body: JSON.stringify({ projectPassword }),
     }),
 
-  // Employees
+  // ── إدارة المستخدمين والصلاحيات ──
+  getAccounts: () => request<AccountRow[]>('/api/accounts'),
+
+  createAccount: (payload: {
+    name: string;
+    phone: string;
+    email?: string;
+    password: string;
+    role: 'manager' | 'employee';
+    permissions?: PermissionCode[];
+  }) =>
+    request<{
+      message: string;
+      status: string;
+      account_status: string;
+      membership_id: string;
+      user_id: string;
+      request_id: string | null;
+      permissions: PermissionCode[];
+      proposed_permissions: PermissionCode[];
+      rejected_permissions: string[];
+    }>('/api/accounts', { method: 'POST', body: JSON.stringify(payload) }),
+
+  getAccountRequests: (status: 'pending' | 'all' | 'approved' | 'rejected' = 'pending') =>
+    request<AccountRequestRow[]>(`/api/accounts/requests?status=${status}`),
+
+  decideAccountRequest: (requestId: string, payload: { decision: 'approve' | 'reject'; note?: string; permissions?: PermissionCode[] }) =>
+    request<{ message: string; request_status: string }>(`/api/accounts/requests/${requestId}/decide`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  requestAccountAction: (membershipId: string, payload: { type: Exclude<AccountRequestType, 'create_account'>; reason?: string }) =>
+    request<{ message: string; request_id: string; status: string; account_status: string }>(
+      `/api/accounts/${membershipId}/request`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
+
+  disableAccount: (membershipId: string, reason?: string) =>
+    request<{ message: string; account_status: string }>(`/api/accounts/${membershipId}/disable`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  enableAccount: (membershipId: string) =>
+    request<{ message: string; account_status: string; permissions: PermissionCode[] }>(
+      `/api/accounts/${membershipId}/enable`,
+      { method: 'POST', body: JSON.stringify({}) }
+    ),
+
+  deleteAccount: (membershipId: string) =>
+    request<{ message: string; account_status: string; preserved_transactions: number }>(
+      `/api/accounts/${membershipId}/delete`,
+      { method: 'POST', body: JSON.stringify({ confirm: true }) }
+    ),
+
+  getAccountActivity: (membershipId: string) =>
+    request<AuditActivityRow[]>(`/api/accounts/${membershipId}/activity`),
+
+  // Employees (مسارات قديمة — محفوظة للتوافق)
   getEmployees: () => request<any[]>('/api/employees'),
   addEmployee: (data: any) =>
     request<{ message: string }>('/api/employees', { method: 'POST', body: JSON.stringify(data) }),

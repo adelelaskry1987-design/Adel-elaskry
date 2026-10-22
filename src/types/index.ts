@@ -138,4 +138,95 @@ export type ScreenId =
   | 'screen-32-settings'
   | 'screen-33-reports'
   | 'screen-34-data-management'
-  | 'screen-35-support';
+  | 'screen-35-support'
+  | 'screen-36-users'
+  | 'screen-37-user-add'
+  | 'screen-38-user-requests';
+
+// ─────────────────────────────────────────────────────────────
+// إدارة المستخدمين والصلاحيات (المرحلة 5)
+// ─────────────────────────────────────────────────────────────
+
+/** كود الصلاحية كما يُعرَّف في المصفوفة المركزية على الخادم */
+export type PermissionCode =
+  | 'view_customers'
+  | 'add_customer'
+  | 'edit_customer'
+  | 'delete_customer'
+  | 'create_transaction'
+  | 'view_customer_transactions'
+  | 'edit_transaction'
+  | 'cancel_transaction'
+  | 'view_balances'
+  | 'view_all_transactions'
+  | 'view_reports'
+  | 'share_invoices'
+  | 'manage_users'
+  | 'create_employees'
+  | 'request_disable_account'
+  | 'request_delete_account'
+  | 'request_enable_account'
+  | 'approve_requests'
+  | 'manage_backups'
+  | 'restore_data'
+  | 'reset_data';
+
+/** حساب مستخدم داخل المحل (كما يعيده GET /api/accounts) */
+export interface AccountRow {
+  membership_id: string;
+  user_id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  role: UserRole;
+  role_label: string;
+  status: AccountStatus;
+  status_label: string;
+  permissions: PermissionCode[];
+  proposed_permissions: PermissionCode[];
+  created_at: string;
+  approved_at: string | null;
+  status_changed_at: string | null;
+  status_reason: string | null;
+  last_login_at: string | null;
+}
+
+export type AccountRequestType = 'create_account' | 'disable_account' | 'enable_account' | 'delete_account';
+export type AccountRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+/** طلب إدارة حساب (اعتماد إنشاء / تعطيل / إعادة تفعيل / حذف) */
+export interface AccountRequestRow {
+  id: string;
+  type: AccountRequestType;
+  type_label: string;
+  status: AccountRequestStatus;
+  target_user_id: string | null;
+  target_membership_id: string | null;
+  target_name: string | null;
+  target_phone: string | null;
+  payload: { reason?: string | null; target_name?: string; proposed_permissions?: PermissionCode[]; [key: string]: unknown };
+  requested_by: string | null;
+  requested_by_name: string | null;
+  requested_by_role: string | null;
+  requested_at: string;
+  decided_by: string | null;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+}
+
+/** سجل نشاط مستخدم */
+export interface AuditActivityRow {
+  id: string;
+  user_id: string;
+  user_name: string;
+  action_type: string;
+  description: string;
+  entity_type: string;
+  entity_id: string | null;
+  actor_role: string | null;
+  target_user_id: string | null;
+  result: string | null;
+  reason: string | null;
+  created_at: string;
+}

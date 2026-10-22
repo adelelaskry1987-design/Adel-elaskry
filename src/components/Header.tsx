@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
           {isHome ? (
             <button
               onClick={onOpenScreenSwitcher}
-              title="خريطة الشاشات الـ35 والقائمة"
+              title="خريطة الشاشات الـ38 والقائمة"
               className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white transition-colors"
             >
               <Menu className="w-5 h-5" />
