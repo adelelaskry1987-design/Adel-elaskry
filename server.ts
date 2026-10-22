@@ -520,6 +520,20 @@ app.post('/api/auth/logout', authMiddleware, (req: AuthRequest, res: Response) =
     const token = authHeader.split(' ')[1];
     db.prepare('DELETE FROM auth_tokens WHERE token = ?').run(token);
   }
+
+  logAudit({
+    projectId: req.project.id,
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.membership?.role ?? null,
+    actionType: 'LOGOUT',
+    description: 'تم تسجيل الخروج',
+    entityType: 'USER',
+    entityId: req.user.id,
+    targetUserId: req.user.id,
+    result: 'success',
+  });
+
   return res.json({ message: 'تم تسجيل الخروج بنجاح' });
 });
 
@@ -1749,15 +1763,18 @@ app.post('/api/transactions/:id/cancel', authMiddleware, requirePermission('canc
       WHERE id = ? AND project_id = ?
     `).run(req.user.id, now, reason ? reason.trim() : 'تم الإلغاء بواسطة المستخدم', req.params.id, req.project.id);
 
-    logActivity(
-      req.project.id,
-      req.user.id,
-      req.user.name,
-      'CANCEL_TRANSACTION',
-      `تم إلغاء عملية ${tx.type === 'payment' ? 'دفع' : 'سحب'} بمبلغ ${tx.amount} ج.م للعميل ${tx.customer_name}`,
-      'TRANSACTION',
-      req.params.id
-    );
+    logAudit({
+      projectId: req.project.id,
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.membership?.role ?? null,
+      actionType: 'CANCEL_TRANSACTION',
+      description: `تم إلغاء عملية ${tx.type === 'payment' ? 'دفع' : 'سحب'} بمبلغ ${tx.amount} ج.م للعميل ${tx.customer_name}`,
+      entityType: 'TRANSACTION',
+      entityId: req.params.id,
+      result: 'success',
+      reason: reason ? String(reason).trim() : 'تم الإلغاء بواسطة المستخدم',
+    });
 
     createNotification(
       req.project.id,

@@ -484,6 +484,7 @@ export function enableAccountDirect(req: Request, res: Response) {
     }
 
     const now = new Date().toISOString();
+    const reason = req.body?.reason ? String(req.body.reason).trim() : null;
     // (9) استعادة الصلاحيات المعتمدة كما هي — لا منح صلاحيات جديدة
     const approvedPermissions = normalizePermissions(targetRole, membership.permissions);
 
@@ -510,6 +511,8 @@ export function enableAccountDirect(req: Request, res: Response) {
       entityType: 'USER',
       entityId: membership.user_id,
       targetUserId: membership.user_id,
+      result: 'success',
+      reason,
     });
 
     notify(actor.projectId, membership.user_id, 'ACCOUNT_ENABLED', 'تم إعادة تفعيل حسابك', 'تم إعادة تفعيل حسابك، يمكنك الدخول الآن.');
@@ -918,6 +921,32 @@ export function decideAccountRequest(req: Request, res: Response) {
           membership.id,
           actor.projectId
         );
+
+        // حدث مستقل لتغيير الصلاحيات: يوضّح ما مُنح وما رُفض عند الاعتماد
+        const previousPermissions = normalizePermissions(membership.role, membership.permissions ?? '[]');
+        const added = grant.granted.filter((p) => !previousPermissions.includes(p));
+        const removed = previousPermissions.filter((p) => !grant.granted.includes(p));
+        if (added.length || removed.length) {
+          logAudit({
+            projectId: actor.projectId,
+            actorId: actor.userId,
+            actorName: actor.userName,
+            actorRole: actor.role,
+            actionType: 'PERMISSION_CHANGE',
+            description: `تعديل صلاحيات ${membership.user_name} عند الاعتماد: +${added.length} / -${removed.length}`,
+            entityType: 'USER',
+            entityId: membership.user_id,
+            targetUserId: membership.user_id,
+            result: 'success',
+            reason: [
+              added.length ? `granted=${added.join(',')}` : null,
+              removed.length ? `revoked=${removed.join(',')}` : null,
+              grant.rejected.length ? `rejected=${grant.rejected.join(',')}` : null,
+            ]
+              .filter(Boolean)
+              .join(' | ') || null,
+          });
+        }
 
         logAudit({
           projectId: actor.projectId,

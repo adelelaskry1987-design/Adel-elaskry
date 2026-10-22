@@ -40,6 +40,22 @@ export interface AuditEvent {
 }
 
 /**
+ * يستنتج دور المنفّذ من عضويته في المشروع عند عدم تمريره صريحًا.
+ * (يمنع أن تُسجَّل أحداث قديمة بلا دور، دون الحاجة لتعديل كل نقاط النداء)
+ */
+function resolveActorRole(projectId: string, actorId: string | null | undefined): string | null {
+  if (!actorId) return null;
+  try {
+    const row = db
+      .prepare('SELECT role FROM project_memberships WHERE project_id = ? AND user_id = ?')
+      .get(projectId, actorId) as { role?: string } | undefined;
+    return row?.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * يسجّل حدثًا في سجل التدقيق. آمن تمامًا: لا يرمي استثناءات.
  */
 export function logAudit(event: AuditEvent): void {
@@ -59,7 +75,7 @@ export function logAudit(event: AuditEvent): void {
       event.entityType,
       event.entityId ?? null,
       new Date().toISOString(),
-      event.actorRole ?? null,
+      event.actorRole ?? resolveActorRole(event.projectId, event.actorId),
       event.targetUserId ?? null,
       event.result ?? 'success',
       event.reason ?? null
