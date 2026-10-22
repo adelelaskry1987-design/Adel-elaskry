@@ -519,7 +519,8 @@ export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> =
           </button>
         )}
 
-        {/* Backup */}
+        {/* Backup — لمن يملك إدارة النسخ الاحتياطي */}
+        {hasPermission('manage_backups') && (
         <button
           onClick={() => onNavigate('screen-20-backup')}
           className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors text-right"
@@ -530,8 +531,10 @@ export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> =
           </div>
           <ChevronLeft className="w-4 h-4 text-slate-400" />
         </button>
+        )}
 
-        {/* Data Management */}
+        {/* Data Management — لمن يملك أرشفة/تعديل بيانات أو استرجاع/تصفير */}
+        {(hasPermission('manage_backups') || hasPermission('restore_data') || hasPermission('reset_data') || hasPermission('view_reports')) && (
         <button
           onClick={() => onNavigate('screen-34-data-management')}
           className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors text-right"
@@ -542,6 +545,7 @@ export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> =
           </div>
           <ChevronLeft className="w-4 h-4 text-slate-400" />
         </button>
+        )}
 
         {/* Notifications */}
         <button
@@ -864,9 +868,11 @@ export const Screen33Reports: React.FC<{
 
 // ================= SCREEN 34: DATA MANAGEMENT =================
 export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  const { hasPermission } = useAuth();
   const items = [
     {
       title: 'إدارة العملاء',
+      perm: 'view_customers',
       desc: 'إضافة وتعديل وحذف بيانات العملاء وحساباتهم',
       target: 'screen-15-customers' as ScreenId,
       icon: Users,
@@ -874,6 +880,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
     },
     {
       title: 'إدارة العمليات',
+      perm: 'view_all_transactions',
       desc: 'عرض وتنظيم جميع العمليات المالية والمصادقات',
       target: 'screen-18-all-transactions' as ScreenId,
       icon: FileSpreadsheet,
@@ -881,6 +888,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
     },
     {
       title: 'إدارة التقارير',
+      perm: 'view_reports',
       desc: 'إدارة بيانات التقارير والإحصائيات والتحليلات',
       target: 'screen-33-reports' as ScreenId,
       icon: BarChart3,
@@ -888,6 +896,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
     },
     {
       title: 'إعادة تعيين البيانات',
+      perm: 'reset_data',
       desc: 'حذف جميع البيانات وإعادة ضبط التطبيق للوضع الافتراضي',
       target: 'screen-24-reset-data' as ScreenId,
       icon: Trash2,
@@ -895,6 +904,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
     },
     {
       title: 'استيراد البيانات',
+      perm: 'restore_data',
       desc: 'استيراد البيانات وقواعد الحسابات من ملف خارجي',
       target: 'screen-25-data-import' as ScreenId,
       icon: Upload,
@@ -902,6 +912,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
     },
     {
       title: 'تصدير البيانات',
+      perm: 'manage_backups',
       desc: 'تصدير البيانات إلى ملف خارجي بصيغة مدعومة',
       target: 'screen-27-data-export' as ScreenId,
       icon: Download,
@@ -914,7 +925,7 @@ export const Screen34DataManagement: React.FC<{ onNavigate: (s: ScreenId) => voi
       <PageTitle title="إدارة البيانات" />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
-        {items.map((item, idx) => {
+        {items.filter((item) => hasPermission(item.perm)).map((item, idx) => {
           const Icon = item.icon;
           return (
             <button

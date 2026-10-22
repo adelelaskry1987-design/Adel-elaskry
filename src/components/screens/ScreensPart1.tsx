@@ -1770,7 +1770,7 @@ export const Screen5Home: React.FC<{
   onNavigate: (s: ScreenId) => void;
   summary: any;
 }> = ({ onNavigate, summary }) => {
-  const { project, user } = useAuth();
+  const { project, user, hasPermission } = useAuth();
 
   const positive = summary?.positiveBalanceSum ?? 0;
   const negative = summary?.negativeBalanceSum ?? 0;
@@ -1780,7 +1780,8 @@ export const Screen5Home: React.FC<{
       {/* Title banner */}
       <PageTitle title="إدارة العملاء والحسابات" />
 
-      {/* Two Balance Cards (Negative & Positive) */}
+      {/* Two Balance Cards (Negative & Positive) — لمن يملك صلاحية مشاهدة الأرصدة */}
+      {hasPermission('view_balances') && (
       <div className="grid grid-cols-2 gap-3">
         {/* Negative Balance Card (Red) */}
         <div className="bg-red-50 border border-red-300 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
@@ -1814,10 +1815,12 @@ export const Screen5Home: React.FC<{
           </div>
         </div>
       </div>
+      )}
 
       {/* Action Buttons Grid (Unified Palette: Functional Green for Add, Primary Dark Blue + Calm Gold Icon for Main Sections) */}
       <div className="space-y-2.5 pt-1">
-        {/* + إضافة عميل Button */}
+        {/* + إضافة عميل Button — لمن يملك صلاحية الإضافة */}
+        {hasPermission('add_customer') && (
         <button
           onClick={() => onNavigate('screen-7-customer-add')}
           className="w-full py-3.5 px-4 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-sm flex items-center justify-between active:scale-98 transition-all"
@@ -1828,8 +1831,10 @@ export const Screen5Home: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4" />
         </button>
+        )}
 
-        {/* العملاء Button */}
+        {/* العملاء Button — لمن يملك مشاهدة العملاء */}
+        {hasPermission('view_customers') && (
         <button
           onClick={() => onNavigate('screen-15-customers')}
           className="w-full py-3.5 px-4 rounded-2xl theme-btn-primary font-bold text-sm shadow-sm flex items-center justify-between active:scale-98 transition-all"
@@ -1840,8 +1845,10 @@ export const Screen5Home: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4 text-[#d4ab54]" />
         </button>
+        )}
 
-        {/* التقارير Button */}
+        {/* التقارير Button — لمن يملك صلاحية التقارير */}
+        {hasPermission('view_reports') && (
         <button
           onClick={() => onNavigate('screen-33-reports')}
           className="w-full py-3.5 px-4 rounded-2xl theme-btn-primary font-bold text-sm shadow-sm flex items-center justify-between active:scale-98 transition-all"
@@ -1852,8 +1859,10 @@ export const Screen5Home: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4 text-[#d4ab54]" />
         </button>
+        )}
 
-        {/* العمليات Button */}
+        {/* العمليات Button — لمن يملك مشاهدة العمليات */}
+        {(hasPermission('view_all_transactions') || hasPermission('view_customer_transactions')) && (
         <button
           onClick={() => onNavigate('screen-18-all-transactions')}
           className="w-full py-3.5 px-4 rounded-2xl theme-btn-primary font-bold text-sm shadow-sm flex items-center justify-between active:scale-98 transition-all"
@@ -1864,6 +1873,7 @@ export const Screen5Home: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4 text-[#d4ab54]" />
         </button>
+        )}
 
         {/* الإعدادات Button */}
         <button

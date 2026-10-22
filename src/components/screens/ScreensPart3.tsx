@@ -39,6 +39,7 @@ export const Screen15Customers: React.FC<{
   onNavigate: (s: ScreenId) => void;
   onRefresh: () => void;
 }> = ({ customers, onSelectCustomer, onNavigate, onRefresh }) => {
+  const { hasPermission } = useAuth();
   const [search, setSearch] = useState('');
 
   const filtered = customers.filter(
@@ -54,6 +55,7 @@ export const Screen15Customers: React.FC<{
       <PageTitle title="العملاء" />
 
       {/* زر إضافة عميل بعرض الشاشة */}
+      {hasPermission('add_customer') && (
       <button
         type="button"
         onClick={() => onNavigate('screen-7-customer-add')}
@@ -62,6 +64,7 @@ export const Screen15Customers: React.FC<{
         <UserPlus className="w-4 h-4" />
         <span>إضافة عميل جديد +</span>
       </button>
+      )}
 
       {/* Search Input */}
       <div className="relative">
@@ -119,7 +122,7 @@ export const Screen15Customers: React.FC<{
             <p className="text-xs font-semibold">
               {customers.length === 0 ? 'لا يوجد عملاء مضافون في المشروع بعد' : 'لا توجد نتائج مطابقة لبحثك'}
             </p>
-            {customers.length === 0 && (
+            {customers.length === 0 && hasPermission('add_customer') && (
               <button
                 onClick={() => onNavigate('screen-7-customer-add')}
                 className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold"
@@ -243,7 +246,7 @@ export const Screen18AllTransactions: React.FC<{
   onNavigate: (s: ScreenId) => void;
   onRefresh: () => void;
 }> = ({ transactions, onNavigate, onRefresh }) => {
-  const { project } = useAuth();
+  const { project, hasPermission } = useAuth();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [cancelModalTx, setCancelModalTx] = useState<Transaction | null>(null);
@@ -400,7 +403,7 @@ export const Screen18AllTransactions: React.FC<{
                     {isPayment ? '+' : '-'} {t.amount.toLocaleString()} ج.م
                   </div>
 
-                  {!isCancelled && (
+                  {!isCancelled && hasPermission('cancel_transaction') && (
                     <button
                       onClick={() => setCancelModalTx(t)}
                       className="mt-2 text-[10px] text-red-600 hover:text-red-800 font-bold flex items-center gap-1"
@@ -518,7 +521,7 @@ export const Screen19CustomerTransactions: React.FC<{
   customer: Customer | null;
   onNavigate: (s: ScreenId) => void;
 }> = ({ customer, onNavigate }) => {
-  const { project } = useAuth();
+  const { project , hasPermission } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [fromDate, setFromDate] = useState('');
@@ -582,6 +585,7 @@ export const Screen19CustomerTransactions: React.FC<{
           <span>مشاركة كشف الحساب والعمليات</span>
         </button>
 
+        {hasPermission('create_transaction') && (
         <button
           type="button"
           onClick={() => onNavigate('screen-14-new-transaction')}
@@ -589,6 +593,7 @@ export const Screen19CustomerTransactions: React.FC<{
         >
           <span>+ تسجيل عملية جديدة</span>
         </button>
+        )}
       </div>
 
       {/* Date Filter Strip */}
@@ -742,6 +747,7 @@ export const Screen19CustomerTransactions: React.FC<{
 
 // ================= SCREEN 20: BACKUP OVERVIEW =================
 export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  const { hasPermission } = useAuth();
   const [autoBackup, setAutoBackup] = useState(true);
 
   return (
@@ -749,7 +755,8 @@ export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
       <PageTitle title="النسخ الاحتياطي" />
 
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        {/* Create Backup */}
+        {/* Create Backup — لمن يملك إدارة النسخ الاحتياطي */}
+        {hasPermission('manage_backups') && (
         <button
           onClick={() => onNavigate('screen-21-backup-create')}
           className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-between shadow-md transition-all active:scale-98"
@@ -760,8 +767,10 @@ export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
           </div>
           <ChevronLeft className="w-4 h-4" />
         </button>
+        )}
 
-        {/* Restore Backup */}
+        {/* Restore Backup — لمن يملك استرجاع البيانات */}
+        {hasPermission('restore_data') && (
         <button
           onClick={() => onNavigate('screen-22-backup-restore')}
           className="w-full py-3 px-4 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-between transition-all"
@@ -772,6 +781,7 @@ export const Screen20Backup: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
           </div>
           <ChevronLeft className="w-4 h-4 text-slate-400" />
         </button>
+        )}
       </div>
 
       {/* Auto Backup Toggle */}

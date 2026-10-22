@@ -123,7 +123,7 @@ export const Screen11CustomerDetails: React.FC<{
     );
   }
 
-  const { project } = useAuth();
+  const { project , hasPermission } = useAuth();
   const [showInvoice, setShowInvoice] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [customerTxs, setCustomerTxs] = useState<Transaction[]>([]);
@@ -191,6 +191,7 @@ export const Screen11CustomerDetails: React.FC<{
       {/* Action Buttons */}
       <div className="space-y-2.5 pt-1">
         {/* New Transaction */}
+        {hasPermission('create_transaction') && (
         <button
           onClick={() => onNavigate('screen-14-new-transaction')}
           className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md flex items-center justify-between active:scale-98 transition-all"
@@ -201,8 +202,10 @@ export const Screen11CustomerDetails: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4" />
         </button>
+        )}
 
         {/* View Customer Transactions */}
+        {hasPermission('view_customer_transactions') && (
         <button
           onClick={() => onNavigate('screen-19-customer-transactions')}
           className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md flex items-center justify-between active:scale-98 transition-all"
@@ -213,8 +216,10 @@ export const Screen11CustomerDetails: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4" />
         </button>
+        )}
 
         {/* Print Invoice with Shop Owner Identity */}
+        {hasPermission('share_invoices') && (
         <button
           onClick={() => setShowInvoice(true)}
           className="w-full py-3 px-4 rounded-xl theme-btn-gold font-black text-xs shadow-sm flex items-center justify-between active:scale-98 transition-all"
@@ -225,8 +230,10 @@ export const Screen11CustomerDetails: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4 text-[#0f233c]" />
         </button>
+        )}
 
         {/* Edit Customer */}
+        {hasPermission('edit_customer') && (
         <button
           onClick={() => onNavigate('screen-31-customer-edit')}
           className="w-full py-2.5 px-4 rounded-xl theme-btn-secondary font-bold text-xs flex items-center justify-between transition-all"
@@ -237,8 +244,10 @@ export const Screen11CustomerDetails: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4 text-slate-400" />
         </button>
+        )}
 
         {/* Delete Customer */}
+        {hasPermission('delete_customer') && (
         <button
           onClick={() => onNavigate('screen-6-customer-delete')}
           className="w-full py-2.5 px-4 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs border border-red-200 flex items-center justify-between transition-all"
@@ -249,6 +258,7 @@ export const Screen11CustomerDetails: React.FC<{
           </div>
           <ArrowRight className="w-4 h-4 text-red-400" />
         </button>
+        )}
       </div>
 
       {/* Invoice / Statement Modal carrying Shop Owner Identity */}
