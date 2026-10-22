@@ -14,10 +14,13 @@ import { logAudit, logDenied } from './server/audit.js';
 import {
   type Role,
   type AccountStatus,
+  type PermissionCode,
   ACCOUNT_STATUS_LABELS,
   canLoginWithStatus,
+  hasPermission,
   isRole,
   normalizePermissions,
+  validatePermissionGrant,
 } from './server/permissions.js';
 import {
   getRecoveryProviderStatus,
@@ -135,6 +138,69 @@ function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   };
 
   next();
+}
+
+// ================= PERMISSION GUARDS =================
+/**
+ * حرّاس الصلاحيات: التحقق الفعلي (والملزم) يحدث هنا على الخادم، وليس بإخفاء الأزرار.
+ * أي طلب لا يملك صلاحيته يُرفض بـ 403 ويُسجَّل في سجل التدقيق كنتيجة "denied".
+ * صاحب المحل يملك كل الصلاحيات دائمًا (normalizePermissions).
+ */
+function currentActor(req: AuthRequest) {
+  return {
+    projectId: req.project?.id ?? '',
+    actorId: req.user?.id ?? null,
+    actorName: req.user?.name ?? null,
+    actorRole: (req.membership?.role as Role) ?? null,
+  };
+}
+
+function actorHas(req: AuthRequest, code: PermissionCode): boolean {
+  const role = req.membership?.role as Role | undefined;
+  if (!role) return false;
+  return hasPermission(role, req.membership?.permissions ?? [], code);
+}
+
+function denyWith(res: Response, req: AuthRequest, code: string | null) {
+  logDenied({
+    ...currentActor(req),
+    actionType: 'PERMISSION_DENIED',
+    description: `محاولة تنفيذ إجراء بدون صلاحية${code ? ` (${code})` : ''} — ${req.method} ${req.originalUrl}`,
+    entityType: 'PERMISSION',
+    entityId: code,
+    targetUserId: req.user?.id ?? null,
+    reason: `required_permission=${code ?? 'none'}`,
+  });
+
+  return res.status(403).json({
+    error: 'لا تملك صلاحية تنفيذ هذا الإجراء، يرجى مراجعة صاحب المحل',
+    code: 'PERMISSION_DENIED',
+    ...(code ? { required_permission: code } : {}),
+  });
+}
+
+/** يتطلب صلاحية واحدة محددة. */
+function requirePermission(code: PermissionCode) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (actorHas(req, code)) return next();
+    return denyWith(res, req, code);
+  };
+}
+
+/** يتطلب واحدة من عدة صلاحيات (يكفي واحدة). */
+function requireAnyPermission(codes: PermissionCode[]) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (codes.some((code) => actorHas(req, code))) return next();
+    return denyWith(res, req, codes.join('|'));
+  };
+}
+
+/** يتطلب أن يكون المستخدم صاحب المحل (للعمليات الحصرية). */
+function requireOwner() {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (req.membership?.role === 'owner') return next();
+    return denyWith(res, req, 'owner_only');
+  };
 }
 
 function logActivity(
@@ -545,7 +611,7 @@ app.post('/api/auth/verify-project-password', authMiddleware, (req: AuthRequest,
   }
 });
 
-app.post('/api/auth/set-project-password', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/auth/set-project-password', authMiddleware, requireOwner(), (req: AuthRequest, res: Response) => {
   try {
     const { currentPassword, newProjectPassword } = req.body;
     if (!newProjectPassword || newProjectPassword.length < 4) {
@@ -1310,7 +1376,7 @@ function calculateCustomerBalances(projectId: string, customerId?: string) {
   });
 }
 
-app.get('/api/customers', authMiddleware, (req: AuthRequest, res: Response) => {
+app.get('/api/customers', authMiddleware, requirePermission('view_customers'), (req: AuthRequest, res: Response) => {
   try {
     const search = req.query.search as string;
     let list = calculateCustomerBalances(req.project.id);
@@ -1332,7 +1398,7 @@ app.get('/api/customers', authMiddleware, (req: AuthRequest, res: Response) => {
   }
 });
 
-app.post('/api/customers', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/customers', authMiddleware, requirePermission('add_customer'), (req: AuthRequest, res: Response) => {
   try {
     const { name, phone, address, type, notes } = req.body;
     if (!name || !name.trim()) {
@@ -1394,7 +1460,7 @@ app.post('/api/customers', authMiddleware, (req: AuthRequest, res: Response) => 
   }
 });
 
-app.get('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+app.get('/api/customers/:id', authMiddleware, requirePermission('view_customers'), (req: AuthRequest, res: Response) => {
   try {
     const customer = calculateCustomerBalances(req.project.id, req.params.id)[0];
     if (!customer) {
@@ -1413,7 +1479,7 @@ app.get('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) 
   }
 });
 
-app.put('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+app.put('/api/customers/:id', authMiddleware, requirePermission('edit_customer'), (req: AuthRequest, res: Response) => {
   try {
     const { name, phone, address, type, notes, projectPassword } = req.body;
 
@@ -1485,7 +1551,7 @@ app.put('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) 
   }
 });
 
-app.delete('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+app.delete('/api/customers/:id', authMiddleware, requirePermission('delete_customer'), (req: AuthRequest, res: Response) => {
   try {
     const { projectPassword } = req.body;
 
@@ -1514,7 +1580,7 @@ app.delete('/api/customers/:id', authMiddleware, (req: AuthRequest, res: Respons
 
 // ================= TRANSACTIONS ENDPOINTS =================
 
-app.get('/api/transactions', authMiddleware, (req: AuthRequest, res: Response) => {
+app.get('/api/transactions', authMiddleware, requireAnyPermission(['view_all_transactions', 'view_customer_transactions']), (req: AuthRequest, res: Response) => {
   try {
     const { customerId, fromDate, toDate, status } = req.query;
 
@@ -1543,6 +1609,14 @@ app.get('/api/transactions', authMiddleware, (req: AuthRequest, res: Response) =
       params.push(status);
     }
 
+    // ── تصفية بحسب الصلاحية ──
+    // من يملك "مشاهدة جميع العمليات" يرى كل شيء، ومن يملك فقط "سجل عمليات العميل"
+    // يجب أن يحدد العميل؛ بدون تحديد عميل لا تُعاد أي عمليات (بدل كسر شاشات التطبيق).
+    const canViewAll = actorHas(req, 'view_all_transactions');
+    if (!canViewAll && !customerId) {
+      return res.json([]);
+    }
+
     query += ' ORDER BY t.date DESC, t.time DESC, t.created_at DESC';
 
     const transactions = db.prepare(query).all(...params) as any[];
@@ -1553,7 +1627,7 @@ app.get('/api/transactions', authMiddleware, (req: AuthRequest, res: Response) =
   }
 });
 
-app.post('/api/transactions', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/transactions', authMiddleware, requirePermission('create_transaction'), (req: AuthRequest, res: Response) => {
   try {
     const { customerId, type, amount, date, time, description } = req.body;
 
@@ -1638,7 +1712,7 @@ app.post('/api/transactions', authMiddleware, (req: AuthRequest, res: Response) 
   }
 });
 
-app.post('/api/transactions/:id/cancel', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/transactions/:id/cancel', authMiddleware, requirePermission('cancel_transaction'), (req: AuthRequest, res: Response) => {
   try {
     const { reason } = req.body;
 
@@ -1704,7 +1778,7 @@ app.post('/api/transactions/:id/cancel', authMiddleware, (req: AuthRequest, res:
 
 // ================= REPORTS & STATISTICS =================
 
-app.get('/api/reports/summary', authMiddleware, (req: AuthRequest, res: Response) => {
+app.get('/api/reports/summary', authMiddleware, requireAnyPermission(['view_reports', 'view_balances']), (req: AuthRequest, res: Response) => {
   try {
     const { fromDate, toDate } = req.query;
 
@@ -1751,14 +1825,30 @@ app.get('/api/reports/summary', authMiddleware, (req: AuthRequest, res: Response
     const totalWithdrawals = Math.round(Number(txTotals.total_withdrawals) * 100) / 100;
     const totalTransactions = Number(txTotals.total_tx_count);
 
+    const balancesPayload = {
+      positiveBalanceSum,
+      negativeBalanceSum,
+      netBalance: Math.round((positiveBalanceSum - negativeBalanceSum) * 100) / 100,
+    };
+
+    // ── تصفية بحسب الصلاحية ──
+    // من يملك التقارير يرى كل المؤشرات. من يملك الأرصدة فقط يرى الأرصدة دون تفاصيل التقارير.
+    if (!actorHas(req, 'view_reports')) {
+      return res.json({
+        totalCustomers: 0,
+        totalTransactions: 0,
+        ...balancesPayload,
+        totalPayments: 0,
+        totalWithdrawals: 0,
+      });
+    }
+
     return res.json({
       totalCustomers,
       totalTransactions,
-      positiveBalanceSum,
-      negativeBalanceSum,
+      ...balancesPayload,
       totalPayments,
       totalWithdrawals,
-      netBalance: Math.round((positiveBalanceSum - negativeBalanceSum) * 100) / 100,
     });
   } catch (error) {
     console.error('Reports summary error:', error);
@@ -1800,7 +1890,7 @@ app.post('/api/notifications/read-all', authMiddleware, (req: AuthRequest, res: 
   }
 });
 
-app.get('/api/activity-logs', authMiddleware, (req: AuthRequest, res: Response) => {
+app.get('/api/activity-logs', authMiddleware, requirePermission('manage_users'), (req: AuthRequest, res: Response) => {
   try {
     const logs = db.prepare(`
       SELECT * FROM activity_logs
@@ -1816,7 +1906,7 @@ app.get('/api/activity-logs', authMiddleware, (req: AuthRequest, res: Response) 
 
 // ================= BACKUPS & DATA MANAGEMENT =================
 
-app.get('/api/backups', authMiddleware, (req: AuthRequest, res: Response) => {
+app.get('/api/backups', authMiddleware, requirePermission('manage_backups'), (req: AuthRequest, res: Response) => {
   try {
     const backups = db.prepare(`
       SELECT id, filename, file_size, created_at
@@ -1830,7 +1920,7 @@ app.get('/api/backups', authMiddleware, (req: AuthRequest, res: Response) => {
   }
 });
 
-app.post('/api/backups/create', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/backups/create', authMiddleware, requirePermission('manage_backups'), (req: AuthRequest, res: Response) => {
   try {
     const customers = db.prepare('SELECT * FROM customers WHERE project_id = ?').all(req.project.id);
     const transactions = db.prepare('SELECT * FROM transactions WHERE project_id = ?').all(req.project.id);
@@ -1879,7 +1969,7 @@ app.post('/api/backups/create', authMiddleware, (req: AuthRequest, res: Response
   }
 });
 
-app.post('/api/backups/restore/:id', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/backups/restore/:id', authMiddleware, requirePermission('restore_data'), (req: AuthRequest, res: Response) => {
   try {
     const { projectPassword } = req.body;
     const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
@@ -1952,7 +2042,7 @@ app.post('/api/backups/restore/:id', authMiddleware, (req: AuthRequest, res: Res
   }
 });
 
-app.post('/api/data/export', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/data/export', authMiddleware, requirePermission('manage_backups'), (req: AuthRequest, res: Response) => {
   try {
     const { includeCustomers = true, includeTransactions = true, includeReports = true } = req.body;
 
@@ -1986,7 +2076,7 @@ app.post('/api/data/export', authMiddleware, (req: AuthRequest, res: Response) =
   }
 });
 
-app.post('/api/data/import', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/data/import', authMiddleware, requirePermission('restore_data'), (req: AuthRequest, res: Response) => {
   try {
     const { backupData } = req.body;
     if (!backupData) {
@@ -2059,7 +2149,7 @@ app.post('/api/data/import', authMiddleware, (req: AuthRequest, res: Response) =
   }
 });
 
-app.post('/api/data/reset', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/data/reset', authMiddleware, requirePermission('reset_data'), (req: AuthRequest, res: Response) => {
   try {
     const { projectPassword } = req.body;
     const project = db.prepare('SELECT project_password_hash FROM projects WHERE id = ?').get(req.project.id) as any;
@@ -2089,7 +2179,7 @@ app.post('/api/data/reset', authMiddleware, (req: AuthRequest, res: Response) =>
 
 // ================= EMPLOYEES & PERMISSIONS =================
 
-app.get('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => {
+app.get('/api/employees', authMiddleware, requirePermission('manage_users'), (req: AuthRequest, res: Response) => {
   try {
     const employees = db.prepare(`
       SELECT pm.id as membership_id, pm.role, pm.status, pm.permissions, pm.created_at,
@@ -2111,15 +2201,45 @@ app.get('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => {
   }
 });
 
-app.post('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => {
+app.post('/api/employees', authMiddleware, requirePermission('create_employees'), (req: AuthRequest, res: Response) => {
   try {
     const { name, phone, email, password, permissions = [] } = req.body;
     if (!name || !phone || !password) {
       return res.status(400).json({ error: 'اسم الموظف، الهاتف، وكلمة المرور مطلوبة' });
     }
 
-    // Check if phone already registered
-    let user = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone.trim()) as any;
+    // ── منع تصعيد الصلاحيات ──
+    // الدور المُنشأ هنا "موظف" فقط ولا يمكن أن يتجاوز سقف صلاحيات الموظف،
+    // مهما كانت الصلاحيات المُرسلة في الطلب.
+    const grant = validatePermissionGrant('employee', permissions);
+    if (grant.granted.length === 0) {
+      logDenied({
+        ...currentActor(req),
+        actionType: 'PERMISSION_ESCALATION_BLOCKED',
+        description: 'محاولة إنشاء حساب بدون أي صلاحية معتمدة أو بصلاحيات غير مسموحة',
+        entityType: 'USER',
+        reason: `rejected=${grant.rejected.join(',') || 'none'}`,
+      });
+      return res.status(400).json({
+        error: 'الصلاحيات المطلوبة غير مسموحة لهذا النوع من الحسابات',
+        code: 'INVALID_PERMISSIONS',
+        rejected_permissions: grant.rejected,
+      });
+    }
+    if (grant.rejected.length > 0) {
+      logDenied({
+        ...currentActor(req),
+        actionType: 'PERMISSION_ESCALATION_BLOCKED',
+        description: 'تم رفض جزء من الصلاحيات المطلوبة لأنها تتجاوز المسموح للموظف',
+        entityType: 'USER',
+        reason: `rejected=${grant.rejected.join(',')}`,
+      });
+    }
+    const safePermissions = grant.granted;
+
+    // Check if phone already registered (بتطبيع نفس أرقام الهواتف المستخدمة في التطبيق)
+    const cleanEmployeePhone = normalizePhoneNumber(phone);
+    let user = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanEmployeePhone) as any;
     let userId: string;
 
     if (user) {
@@ -2129,6 +2249,11 @@ app.post('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => 
       if (existingMembership) {
         return res.status(400).json({ error: 'الموظف مسجل بالفعل في هذا المشروع' });
       }
+      // منع ربط حساب مستخدم بمحل آخر (عزل بيانات المحلات + حساب واحد لكل شخص)
+      const anyMembership = db.prepare('SELECT id FROM project_memberships WHERE user_id = ? LIMIT 1').get(userId);
+      if (anyMembership) {
+        return res.status(400).json({ error: 'رقم الهاتف مرتبط بحساب في محل آخر، لا يمكن استخدامه هنا' });
+      }
     } else {
       userId = generateId();
       const passwordHash = hashSecret(password);
@@ -2136,15 +2261,24 @@ app.post('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => 
       db.prepare(`
         INSERT INTO users (id, name, phone, email, password_hash, role, created_at)
         VALUES (?, ?, ?, ?, ?, 'employee', ?)
-      `).run(userId, name.trim(), phone.trim(), email ? email.trim() : null, passwordHash, now);
+      `).run(userId, name.trim(), cleanEmployeePhone, email ? email.trim() : null, passwordHash, now);
     }
 
     const membershipId = generateId();
     const now = new Date().toISOString();
     db.prepare(`
-      INSERT INTO project_memberships (id, project_id, user_id, role, status, permissions, created_at)
-      VALUES (?, ?, ?, 'employee', 'active', ?, ?)
-    `).run(membershipId, req.project.id, userId, JSON.stringify(permissions), now);
+      INSERT INTO project_memberships (id, project_id, user_id, role, status, permissions, created_at, proposed_permissions, approved_by, approved_at)
+      VALUES (?, ?, ?, 'employee', 'active', ?, ?, ?, ?, ?)
+    `).run(
+      membershipId,
+      req.project.id,
+      userId,
+      JSON.stringify(safePermissions),
+      now,
+      JSON.stringify(safePermissions),
+      req.user.id,
+      now
+    );
 
     logActivity(req.project.id, req.user.id, req.user.name, 'ADD_EMPLOYEE', `تم إضافة موظف جديد: ${name.trim()}`, 'EMPLOYEE', userId);
     createNotification(req.project.id, req.user.id, 'EMPLOYEE_ADDED', 'موظف جديد', `تم إضافة الموظف "${name.trim()}" إلى فريق عمل المشروع.`);
@@ -2156,7 +2290,7 @@ app.post('/api/employees', authMiddleware, (req: AuthRequest, res: Response) => 
   }
 });
 
-app.delete('/api/employees/:membershipId', authMiddleware, (req: AuthRequest, res: Response) => {
+app.delete('/api/employees/:membershipId', authMiddleware, requireOwner(), (req: AuthRequest, res: Response) => {
   try {
     const membership = db.prepare('SELECT * FROM project_memberships WHERE id = ? AND project_id = ?').get(req.params.membershipId, req.project.id) as any;
     if (!membership) {
