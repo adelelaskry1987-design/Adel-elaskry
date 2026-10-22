@@ -12,6 +12,17 @@ import {
 } from './server/db.js';
 import { logAudit, logDenied } from './server/audit.js';
 import {
+  createAccount,
+  listAccounts,
+  getAccountActivity,
+  disableAccountDirect,
+  enableAccountDirect,
+  softDeleteAccount,
+  createAccountRequest,
+  listAccountRequests,
+  decideAccountRequest,
+} from './server/accounts.js';
+import {
   type Role,
   type AccountStatus,
   type PermissionCode,
@@ -2177,6 +2188,37 @@ app.post('/api/data/reset', authMiddleware, requirePermission('reset_data'), (re
   }
 });
 
+// ================= ACCOUNTS & APPROVAL WORKFLOW =================
+// إدارة الحسابات: كل التحقق (الدور، السقف، من يوافق، من ينفّذ) يتم داخل server/accounts.ts
+
+app.get('/api/accounts', authMiddleware, requirePermission('manage_users'), listAccounts);
+
+app.post('/api/accounts', authMiddleware, requirePermission('create_employees'), createAccount);
+
+app.get('/api/accounts/requests', authMiddleware, requirePermission('manage_users'), listAccountRequests);
+
+app.post(
+  '/api/accounts/requests/:requestId/decide',
+  authMiddleware,
+  requirePermission('approve_requests'),
+  decideAccountRequest
+);
+
+app.post('/api/accounts/:membershipId/disable', authMiddleware, requireOwner(), disableAccountDirect);
+
+app.post('/api/accounts/:membershipId/enable', authMiddleware, requireOwner(), enableAccountDirect);
+
+app.post('/api/accounts/:membershipId/delete', authMiddleware, requireOwner(), softDeleteAccount);
+
+app.post(
+  '/api/accounts/:membershipId/request',
+  authMiddleware,
+  requireAnyPermission(['request_disable_account', 'request_enable_account', 'request_delete_account']),
+  createAccountRequest
+);
+
+app.get('/api/accounts/:membershipId/activity', authMiddleware, requirePermission('manage_users'), getAccountActivity);
+
 // ================= EMPLOYEES & PERMISSIONS =================
 
 app.get('/api/employees', authMiddleware, requirePermission('manage_users'), (req: AuthRequest, res: Response) => {
@@ -2202,92 +2244,12 @@ app.get('/api/employees', authMiddleware, requirePermission('manage_users'), (re
 });
 
 app.post('/api/employees', authMiddleware, requirePermission('create_employees'), (req: AuthRequest, res: Response) => {
-  try {
-    const { name, phone, email, password, permissions = [] } = req.body;
-    if (!name || !phone || !password) {
-      return res.status(400).json({ error: 'اسم الموظف، الهاتف، وكلمة المرور مطلوبة' });
-    }
-
-    // ── منع تصعيد الصلاحيات ──
-    // الدور المُنشأ هنا "موظف" فقط ولا يمكن أن يتجاوز سقف صلاحيات الموظف،
-    // مهما كانت الصلاحيات المُرسلة في الطلب.
-    const grant = validatePermissionGrant('employee', permissions);
-    if (grant.granted.length === 0) {
-      logDenied({
-        ...currentActor(req),
-        actionType: 'PERMISSION_ESCALATION_BLOCKED',
-        description: 'محاولة إنشاء حساب بدون أي صلاحية معتمدة أو بصلاحيات غير مسموحة',
-        entityType: 'USER',
-        reason: `rejected=${grant.rejected.join(',') || 'none'}`,
-      });
-      return res.status(400).json({
-        error: 'الصلاحيات المطلوبة غير مسموحة لهذا النوع من الحسابات',
-        code: 'INVALID_PERMISSIONS',
-        rejected_permissions: grant.rejected,
-      });
-    }
-    if (grant.rejected.length > 0) {
-      logDenied({
-        ...currentActor(req),
-        actionType: 'PERMISSION_ESCALATION_BLOCKED',
-        description: 'تم رفض جزء من الصلاحيات المطلوبة لأنها تتجاوز المسموح للموظف',
-        entityType: 'USER',
-        reason: `rejected=${grant.rejected.join(',')}`,
-      });
-    }
-    const safePermissions = grant.granted;
-
-    // Check if phone already registered (بتطبيع نفس أرقام الهواتف المستخدمة في التطبيق)
-    const cleanEmployeePhone = normalizePhoneNumber(phone);
-    let user = db.prepare('SELECT id FROM users WHERE phone = ?').get(cleanEmployeePhone) as any;
-    let userId: string;
-
-    if (user) {
-      userId = user.id;
-      // Check if already in this project
-      const existingMembership = db.prepare('SELECT id FROM project_memberships WHERE project_id = ? AND user_id = ?').get(req.project.id, userId);
-      if (existingMembership) {
-        return res.status(400).json({ error: 'الموظف مسجل بالفعل في هذا المشروع' });
-      }
-      // منع ربط حساب مستخدم بمحل آخر (عزل بيانات المحلات + حساب واحد لكل شخص)
-      const anyMembership = db.prepare('SELECT id FROM project_memberships WHERE user_id = ? LIMIT 1').get(userId);
-      if (anyMembership) {
-        return res.status(400).json({ error: 'رقم الهاتف مرتبط بحساب في محل آخر، لا يمكن استخدامه هنا' });
-      }
-    } else {
-      userId = generateId();
-      const passwordHash = hashSecret(password);
-      const now = new Date().toISOString();
-      db.prepare(`
-        INSERT INTO users (id, name, phone, email, password_hash, role, created_at)
-        VALUES (?, ?, ?, ?, ?, 'employee', ?)
-      `).run(userId, name.trim(), cleanEmployeePhone, email ? email.trim() : null, passwordHash, now);
-    }
-
-    const membershipId = generateId();
-    const now = new Date().toISOString();
-    db.prepare(`
-      INSERT INTO project_memberships (id, project_id, user_id, role, status, permissions, created_at, proposed_permissions, approved_by, approved_at)
-      VALUES (?, ?, ?, 'employee', 'active', ?, ?, ?, ?, ?)
-    `).run(
-      membershipId,
-      req.project.id,
-      userId,
-      JSON.stringify(safePermissions),
-      now,
-      JSON.stringify(safePermissions),
-      req.user.id,
-      now
-    );
-
-    logActivity(req.project.id, req.user.id, req.user.name, 'ADD_EMPLOYEE', `تم إضافة موظف جديد: ${name.trim()}`, 'EMPLOYEE', userId);
-    createNotification(req.project.id, req.user.id, 'EMPLOYEE_ADDED', 'موظف جديد', `تم إضافة الموظف "${name.trim()}" إلى فريق عمل المشروع.`);
-
-    return res.status(201).json({ message: 'تم إضافة الموظف وتحديد صلاحياته بنجاح' });
-  } catch (error) {
-    console.error('Add employee error:', error);
-    return res.status(500).json({ error: 'حدث خطأ أثناء إضافة الموظف' });
-  }
+  // توافق خلفي: هذا المسار القديم يمر الآن عبر دورة الحياة الجديدة نفسها،
+  // وبالتالي يحكمه نفس القواعد:
+  //   - صاحب المحل: إنشاء موظف نشط مباشرة.
+  //   - المدير: الحساب يبقى "في انتظار الاعتماد" حتى يوافق صاحب المحل.
+  //   - أي صلاحية تتجاوز سقف دور الموظف تُرفض.
+  return createAccount(req as any, res);
 });
 
 app.delete('/api/employees/:membershipId', authMiddleware, requireOwner(), (req: AuthRequest, res: Response) => {
