@@ -13,11 +13,12 @@
     "test:migration": "tsx tests/verify-migration.ts",
     "test:auth": "tsx tests/verify-auth.ts",
     "test:permissions": "tsx tests/verify-permissions.ts",
-    "test:all": "tsx tests/verify-migration.ts && tsx tests/verify-auth.ts && tsx tests/verify-permissions.ts && tsx tests/verify-accounts.ts && tsx tests/verify-audit.ts && tsx tests/verify-ui-accounts.ts && tsx tests/verify-ui-permissions.ts && tsx tests/verify-ui-audit.ts",
+    "test:all": "tsx tests/verify-migration.ts && tsx tests/verify-auth.ts && tsx tests/verify-permissions.ts && tsx tests/verify-accounts.ts && tsx tests/verify-audit.ts && tsx tests/verify-ui-accounts.ts && tsx tests/verify-ui-permissions.ts && tsx tests/verify-ui-audit.ts && tsx tests/verify-final-19.ts",
     "test:accounts": "tsx tests/verify-accounts.ts",
     "test:ui": "tsx tests/verify-ui-accounts.ts",
     "test:ui:perms": "tsx tests/verify-ui-permissions.ts",
     "test:audit": "tsx tests/verify-audit.ts",
+    "test:final": "tsx tests/verify-final-19.ts",
     "test:ui:audit": "tsx tests/verify-ui-audit.ts"
   },
   "dependencies": {
