@@ -23,6 +23,24 @@ export function removeStoredToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+export const ACCOUNT_STATUS_EVENT = 'ah2:account-status-changed';
+
+/** يعيد حالة الحساب عند رفض الخادم الطلب لأن الحساب غير نشط. */
+export type InactiveAccountReason = 'pending' | 'disabled' | 'rejected' | 'deleted' | 'none';
+
+export interface InactiveAccountDetail {
+  reason: InactiveAccountReason;
+  message: string;
+}
+
+function notifyInactiveAccount(reason: InactiveAccountReason, message: string) {
+  try {
+    window.dispatchEvent(new CustomEvent<InactiveAccountDetail>(ACCOUNT_STATUS_EVENT, { detail: { reason, message } }));
+  } catch {
+    /* بيئة بلا window */
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const headers: Record<string, string> = {
@@ -42,7 +60,28 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || 'حدث خطأ غير متوقع');
+    // ── معالجة مركزية: حساب معطل/معلق/مرفوض/محذوف أو جلسة منتهية ──
+    // الخادم هو المرجع: عند رفضه نتوقف فورًا في الواجهة أيضًا (وليس إخفاء أزرار فقط).
+    if (response.status === 403 && data?.code === 'ACCOUNT_NOT_ACTIVE') {
+      removeStoredToken();
+      notifyInactiveAccount((data?.account_status as InactiveAccountReason) ?? 'disabled', data.error || 'حسابك غير نشط حاليًا');
+    } else if (response.status === 403 && data?.code === 'NO_MEMBERSHIP') {
+      removeStoredToken();
+      notifyInactiveAccount('none', data.error || 'لا يوجد عضوية صالحة لهذا الحساب');
+    } else if (response.status === 401 && token) {
+      // جلسة منتهية أو مُبطلة
+      removeStoredToken();
+    }
+
+    const error = new Error(data.error || 'حدث خطأ غير متوقع') as Error & {
+      status?: number;
+      code?: string;
+      accountStatus?: string;
+    };
+    error.status = response.status;
+    error.code = data?.code;
+    error.accountStatus = data?.account_status;
+    throw error;
   }
 
   return data as T;

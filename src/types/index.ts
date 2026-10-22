@@ -1,11 +1,24 @@
 export type UserRole = 'owner' | 'manager' | 'employee';
 
+/**
+ * حالة حساب المستخدم داخل المحل:
+ * - pending  : في انتظار اعتماد صاحب المحل
+ * - active   : نشط
+ * - disabled : معطل (محفوظ بكل سجلاته)
+ * - rejected : مرفوض
+ * - deleted  : محذوف منطقيًا
+ */
+export type AccountStatus = 'pending' | 'active' | 'disabled' | 'rejected' | 'deleted';
+
 export interface User {
   id: string;
   name: string;
   phone: string;
   email: string | null;
   role: UserRole;
+  /** حالة الحساب داخل المحل ( تأتي من العضوية وليس من صف المستخدم) */
+  account_status?: AccountStatus;
+  last_login_at?: string | null;
   created_at: string;
 }
 

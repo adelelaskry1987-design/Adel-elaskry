@@ -62,10 +62,10 @@ import {
   Screen35Support,
 } from './components/screens/ScreensPart5';
 
-import { WifiOff } from 'lucide-react';
+import { WifiOff, ShieldAlert, LogIn } from 'lucide-react';
 
 function MainApp() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, inactiveAccount, clearInactiveAccount } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('reset_token') && params.get('uid')) {
@@ -157,6 +157,51 @@ function MainApp() {
       <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-center text-[var(--text-primary)]">
         <div className="w-12 h-12 border-4 border-[var(--color-gold)] border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-xs font-semibold text-[var(--text-secondary)]">جاري تحميل نظام AH2...</p>
+      </div>
+    );
+  }
+
+  // شاشة الحساب غير النشط (تعطيل/انتظار اعتماد/رفض/حذف) — تأتي من رفض الخادم
+  if (!user && inactiveAccount) {
+    const titles: Record<string, string> = {
+      pending: 'حسابك في انتظار الاعتماد',
+      disabled: 'حسابك معطل',
+      rejected: 'تم رفض طلب إنشاء الحساب',
+      deleted: 'هذا الحساب محذوف',
+      none: 'لا يوجد عضوية صالحة',
+    };
+
+    const hints: Record<string, string> = {
+      pending: 'حسابك لم يُعتمد بعد من صاحب المحل. يمكنك الدخول بعد اعتماده.',
+      disabled: 'تم تعطيل حسابك. بياناتك وعملياتك السابقة محفوظة كما هي، ولا يمكنك الدخول إلا بعد إعادة التفعيل من صاحب المحل.',
+      rejected: 'رفض صاحب المحل طلب إنشاء هذا الحساب، لذلك لا يمكن استخدامه للدخول.',
+      deleted: 'تم حذف هذا الحساب ولا يمكن استخدامه، سجلاته السابقة محفوظة في النظام.',
+      none: 'الحساب غير مرتبط بعضوية صالحة في المحل، يرجى مراجعة صاحب المحل.',
+    };
+
+    return (
+      <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-primary)] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8 text-red-600" />
+        </div>
+        <h1 className="text-base font-black mb-2">{titles[inactiveAccount.reason] ?? 'الحساب غير نشط'}</h1>
+        <p className="text-xs font-semibold text-[var(--text-secondary)] leading-relaxed max-w-xs mb-1">
+          {inactiveAccount.message}
+        </p>
+        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed max-w-xs mb-6">
+          {hints[inactiveAccount.reason] ?? 'يرجى مراجعة صاحب المحل.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            clearInactiveAccount();
+            setCurrentScreen('screen-4-login');
+          }}
+          className="py-2.5 px-5 rounded-xl theme-btn-primary font-bold text-xs flex items-center gap-2"
+        >
+          <LogIn className="w-4 h-4" />
+          <span>العودة لتسجيل الدخول</span>
+        </button>
       </div>
     );
   }

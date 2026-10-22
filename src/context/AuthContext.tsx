@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Project } from '../types';
-import { api, getStoredToken, setStoredToken, removeStoredToken } from '../services/api';
+import {
+  api,
+  getStoredToken,
+  setStoredToken,
+  removeStoredToken,
+  ACCOUNT_STATUS_EVENT,
+  type InactiveAccountDetail,
+} from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -13,6 +20,12 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   hasPermission: (perm: string) => boolean;
+  /** حالة الحساب داخل المحل: active | pending | disabled | rejected | deleted */
+  accountStatus: string | null;
+  /** سبب إيقاف الاستخدام (يُضبط عندما يرفض الخادم الطلب بسبب حالة الحساب) */
+  inactiveAccount: InactiveAccountDetail | null;
+  /** مسح رسالة الحساب غير النشط (بعد عرضها للمستخدم) */
+  clearInactiveAccount: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,7 +35,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [project, setProject] = useState<Project | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [role, setRole] = useState<string | null>(null);
+  const [accountStatus, setAccountStatus] = useState<string | null>(null);
+  const [inactiveAccount, setInactiveAccount] = useState<InactiveAccountDetail | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const clearInactiveAccount = () => setInactiveAccount(null);
+
+  // استقبال الرفض المركزي من طبقة الـ API (حساب معطل/معلق/مرفوض/محذوف أو جلسة مُبطلة)
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<InactiveAccountDetail>).detail;
+      setUser(null);
+      setProject(null);
+      setPermissions([]);
+      setRole(null);
+      setAccountStatus(detail?.reason ?? 'disabled');
+      setInactiveAccount(detail ?? { reason: 'disabled', message: 'حسابك غير نشط حاليًا' });
+    };
+    window.addEventListener(ACCOUNT_STATUS_EVENT, handler);
+    return () => window.removeEventListener(ACCOUNT_STATUS_EVENT, handler);
+  }, []);
 
   const refresh = async () => {
     const token = getStoredToken();
@@ -41,6 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProject(data.project);
       setPermissions(data.permissions || []);
       setRole(data.role || 'owner');
+      setAccountStatus((data as any).account_status ?? data.user?.account_status ?? 'active');
+      setInactiveAccount(null);
     } catch (err) {
       console.warn('Session expired or invalid, logging out', err);
       removeStoredToken();
@@ -64,6 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProject(res.project);
     setPermissions(res.permissions || []);
     setRole(res.user.role);
+    setAccountStatus((res.user as any).account_status ?? 'active');
+    setInactiveAccount(null);
   };
 
   const register = async (payload: any) => {
@@ -73,6 +109,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProject(res.project);
     setPermissions(res.permissions || []);
     setRole(res.user.role);
+    setAccountStatus((res.user as any)?.account_status ?? 'active');
+    setInactiveAccount(null);
   };
 
   const logout = async () => {
@@ -86,10 +124,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProject(null);
       setPermissions([]);
       setRole(null);
+      setAccountStatus(null);
     }
   };
 
+  /**
+   * هل يملك المستخدم الحالي الصلاحية؟
+   * ملاحظة أمنية: هذه الطبقة لتجربة الاستخدام فقط (إخفاء/تعطيل)؛
+   * التحقق الفعلي والملزم يحدث على الخادم في كل طلب.
+   */
   const hasPermission = (perm: string) => {
+    if (!user) return false;
     if (role === 'owner') return true;
     return permissions.includes(perm);
   };
@@ -107,6 +152,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         refresh,
         hasPermission,
+        accountStatus,
+        inactiveAccount,
+        clearInactiveAccount,
       }}
     >
       {children}
