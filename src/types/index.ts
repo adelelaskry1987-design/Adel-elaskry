@@ -84,6 +84,11 @@ export interface ActivityLog {
   entity_type: string;
   entity_id: string | null;
   created_at: string;
+  // حقول سجل التدقيق الموسّع (المرحلة 7)
+  actor_role?: string | null;
+  target_user_id?: string | null;
+  result?: string | null;
+  reason?: string | null;
 }
 
 export interface BackupItem {

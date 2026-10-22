@@ -23,6 +23,7 @@ import {
 import { PageTitle } from '../PageTitle';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import type { ActivityLog } from '../../types';
 import {
   AccountRow,
   AccountRequestRow,
@@ -214,6 +215,53 @@ const PermissionChips: React.FC<{ codes: PermissionCode[]; max?: number }> = ({ 
 };
 
 // ─────────────────────────────────────────────────────────────
+// أسماء الإجراءات في سجل التدقيق (عربية) — تُستخدم في العرض
+// ─────────────────────────────────────────────────────────────
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  LOGIN: 'تسجيل دخول',
+  LOGOUT: 'تسجيل خروج',
+  LOGIN_DENIED: 'دخول مرفوض',
+  CREATE_ACCOUNT: 'إنشاء حساب',
+  APPROVE_ACCOUNT: 'اعتماد حساب',
+  REJECT_ACCOUNT_REQUEST: 'رفض طلب',
+  REQUEST_ACCOUNT_ACTION: 'طلب إجراء على حساب',
+  DISABLE_ACCOUNT: 'تعطيل حساب',
+  ENABLE_ACCOUNT: 'إعادة تفعيل حساب',
+  DELETE_ACCOUNT: 'حذف حساب (منطقي)',
+  PERMISSION_CHANGE: 'تغيير صلاحيات',
+  PERMISSION_ESCALATION_BLOCKED: 'محاولة تجاوز صلاحيات',
+  PERMISSION_DENIED: 'صلاحية غير كافية',
+  ACCESS_DENIED: 'وصول مرفوض',
+  ACCOUNT_ACTION_DENIED: 'إجراء مرفوض على حساب',
+  CREATE_TRANSACTION: 'تسجيل عملية مالية',
+  CANCEL_TRANSACTION: 'إلغاء عملية مالية',
+  CREATE_CUSTOMER: 'إضافة عميل',
+  UPDATE_CUSTOMER: 'تعديل عميل',
+  DELETE_CUSTOMER: 'حذف عميل',
+  CREATE_BACKUP: 'نسخة احتياطية',
+  RESTORE_BACKUP: 'استعادة نسخة',
+  EXPORT_DATA: 'تصدير بيانات',
+  IMPORT_DATA: 'استيراد بيانات',
+  RESET_DATA: 'تصفير بيانات',
+  PASSWORD_CHANGE: 'تغيير كلمة المرور',
+  REGISTER: 'إنشاء محل',
+};
+
+const AUDIT_ROLE_LABELS: Record<string, string> = {
+  owner: 'صاحب المحل',
+  manager: 'مدير',
+  employee: 'موظف',
+  system: 'النظام',
+};
+
+const AUDIT_RESULT_STYLES: Record<string, { label: string; cls: string }> = {
+  success: { label: 'ناجح', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  denied: { label: 'مرفوض', cls: 'bg-red-50 text-red-700 border-red-200' },
+  failed: { label: 'فشل', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+};
+
+// ─────────────────────────────────────────────────────────────
 // شاشة 36 — إدارة المستخدمين
 // ─────────────────────────────────────────────────────────────
 
@@ -233,6 +281,11 @@ export const Screen36Users: React.FC<{
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [confirm, setConfirm] = useState<{ kind: 'disable' | 'delete'; row: AccountRow; typed: string; reason: string } | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [view, setView] = useState<'users' | 'audit'>('users');
+  const [auditRows, setAuditRows] = useState<ActivityLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditResultFilter, setAuditResultFilter] = useState<'all' | 'success' | 'denied' | 'failed'>('all');
 
   const load = useCallback(async () => {
     try {
@@ -251,6 +304,24 @@ export const Screen36Users: React.FC<{
   useEffect(() => {
     load();
   }, [load]);
+
+  // تحميل سجل التدقيق عند فتح تبويبه (لمن يملك إدارة المستخدمين)
+  const loadAudit = useCallback(async () => {
+    try {
+      setAuditLoading(true);
+      setAuditError(null);
+      setAuditRows(await api.getActivityLogs());
+    } catch (err: any) {
+      setAuditRows([]);
+      setAuditError(err?.message || 'تعذر تحميل سجل التدقيق');
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'audit') loadAudit();
+  }, [view, loadAudit]);
 
   const loadActivity = async (row: AccountRow) => {
     try {
@@ -358,6 +429,121 @@ export const Screen36Users: React.FC<{
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
       {error && <Alert tone="error">{error}</Alert>}
 
+      {/* تبويبان: المستخدمون / سجل التدقيق */}
+      <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
+        <button
+          type="button"
+          onClick={() => setView('users')}
+          className={`py-2 rounded-lg text-[11px] font-black transition-all ${
+            view === 'users' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+          }`}
+        >
+          المستخدمون ({rows.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('audit')}
+          className={`py-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1.5 ${
+            view === 'audit' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+          }`}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          سجل التدقيق
+        </button>
+      </div>
+
+      {view === 'audit' && (
+        <div className="space-y-2">
+          <div className="bg-white rounded-xl border border-slate-200 p-2.5 flex items-center gap-1.5 text-[10px] font-bold">
+            <span className="text-slate-500">النتيجة:</span>
+            {([
+              { key: 'all', label: 'الكل' },
+              { key: 'success', label: 'ناجح' },
+              { key: 'denied', label: 'مرفوض' },
+              { key: 'failed', label: 'فشل' },
+            ] as const).map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setAuditResultFilter(f.key as any)}
+                className={`px-2 py-1 rounded-lg border transition-all ${
+                  auditResultFilter === f.key
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => loadAudit()}
+              className="mr-auto px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200"
+            >
+              تحديث
+            </button>
+          </div>
+
+          {auditError && <Alert tone="error">{auditError}</Alert>}
+
+          {auditLoading ? (
+            <div className="text-center py-8 text-xs font-bold text-slate-500">
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              جاري تحميل السجل...
+            </div>
+          ) : (
+            (() => {
+              const list = auditRows.filter(
+                (r) => auditResultFilter === 'all' || (r.result ?? 'success') === auditResultFilter
+              );
+              if (list.length === 0) {
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-[11px] font-bold text-slate-400">
+                    لا توجد أحداث مسجّلة بهذا الفلتر
+                  </div>
+                );
+              }
+              return list.slice(0, 50).map((r) => {
+                const result = AUDIT_RESULT_STYLES[r.result ?? 'success'] ?? AUDIT_RESULT_STYLES.success;
+                return (
+                  <div key={r.id} className="bg-white rounded-xl border border-slate-200 p-2.5 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-black text-slate-800">
+                        {AUDIT_ACTION_LABELS[r.action_type] ?? r.action_type}
+                      </span>
+                      <span className={`px-1.5 py-0.5 rounded-md border text-[9.5px] font-black ${result.cls}`}>
+                        {result.label}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-600 leading-relaxed">{r.description}</p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9.5px] font-bold text-slate-500">
+                      <span>المنفّذ: {r.user_name}</span>
+                      <span>·</span>
+                      <span>الدور: {AUDIT_ROLE_LABELS[r.actor_role ?? ''] ?? (r.actor_role ?? '—')}</span>
+                      {r.target_user_id && (
+                        <>
+                          <span>·</span>
+                          <span>المتأثر: مستخدم</span>
+                        </>
+                      )}
+                    </div>
+                    {r.reason && (
+                      <p className="text-[9.5px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-1">
+                        السبب/التفاصيل: {r.reason}
+                      </p>
+                    )}
+                    <p className="text-[9px] text-slate-400 font-mono" dir="ltr">
+                      {new Date(r.created_at).toLocaleString('ar-EG')}
+                    </p>
+                  </div>
+                );
+              });
+            })()
+          )}
+        </div>
+      )}
+
+      {view === 'users' && (<>
       {/* أزرار الإجراءات */}
       <div className="grid grid-cols-2 gap-2">
         {hasPermission('create_employees') && (
@@ -470,6 +656,7 @@ export const Screen36Users: React.FC<{
         </div>
       )}
 
+      </>)}
       {/* تفاصيل مستخدم */}
       {selected && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
