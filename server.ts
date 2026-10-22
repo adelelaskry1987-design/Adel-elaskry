@@ -12,6 +12,14 @@ import {
 } from './server/db.js';
 import { logAudit, logDenied } from './server/audit.js';
 import {
+  type Role,
+  type AccountStatus,
+  ACCOUNT_STATUS_LABELS,
+  canLoginWithStatus,
+  isRole,
+  normalizePermissions,
+} from './server/permissions.js';
+import {
   getRecoveryProviderStatus,
   checkAndIncrementRateLimit,
   generateSecureLinkToken,
@@ -75,9 +83,56 @@ function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
     .prepare('SELECT * FROM project_memberships WHERE project_id = ? AND user_id = ?')
     .get(project.id, user.id) as any;
 
+  // ── حماية الجلسة: لا وصول للوظائف المحمية إلا بعضوية نشطة ──
+  // هذا هو الفحص الذي يُبطل فعليًا جلسة أي موظف يتم تعطيله، حتى لو كان التوكن
+  // ما زال موجودًا في قاعدة البيانات أو في متصفح المستخدم.
+  if (!membership) {
+    logDenied({
+      projectId: project.id,
+      actorId: user.id,
+      actorName: user.name,
+      actionType: 'ACCESS_DENIED',
+      description: 'محاولة وصول بعضوية غير موجودة',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      reason: 'no_membership',
+    });
+    return res.status(403).json({
+      error: 'لا يوجد عضوية صالحة لهذا الحساب، يرجى مراجعة صاحب المحل',
+      code: 'NO_MEMBERSHIP',
+    });
+  }
+
+  if (!canLoginWithStatus(membership.status)) {
+    logDenied({
+      projectId: project.id,
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: isRole(membership.role) ? membership.role : null,
+      actionType: 'ACCESS_DENIED',
+      description: `محاولة وصول بحساب غير نشط — الحالة: ${ACCOUNT_STATUS_LABELS[membership.status as AccountStatus] ?? membership.status}`,
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+      reason: `account_status=${membership.status}`,
+    });
+    return res.status(403).json({
+      error: 'حسابك غير نشط حاليًا، لا يمكنك استخدام التطبيق. يرجى مراجعة صاحب المحل',
+      account_status: membership.status,
+      code: 'ACCOUNT_NOT_ACTIVE',
+    });
+  }
+
+  const membershipRole: Role = isRole(membership.role) ? membership.role : 'employee';
+
   req.user = user;
   req.project = project;
-  req.membership = membership ? { ...membership, permissions: JSON.parse(membership.permissions || '[]') } : null;
+  req.membership = {
+    ...membership,
+    role: membershipRole,
+    permissions: normalizePermissions(membershipRole, membership.permissions),
+  };
 
   next();
 }
@@ -185,26 +240,23 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
       VALUES (?, ?, ?, ?, ?)
     `).run(projectId, projectName.trim(), userId, projectPasswordHash, now);
 
-    // Insert owner membership with all permissions
-    const allPermissions = [
-      'view_customers',
-      'add_customers',
-      'edit_customers',
-      'delete_customers',
-      'view_transactions',
-      'create_transactions',
-      'cancel_transactions',
-      'view_reports',
-      'manage_employees',
-      'manage_backups',
-      'restore_data',
-      'reset_data'
-    ];
+    // Insert owner membership with all permissions (من المصفوفة المركزية)
+    const allPermissions = normalizePermissions('owner', null);
 
     db.prepare(`
-      INSERT INTO project_memberships (id, project_id, user_id, role, status, permissions, created_at)
-      VALUES (?, ?, ?, 'owner', 'active', ?, ?)
-    `).run(generateId(), projectId, userId, JSON.stringify(allPermissions), now);
+      INSERT INTO project_memberships
+        (id, project_id, user_id, role, status, permissions, created_at, proposed_permissions, approved_by, approved_at)
+      VALUES (?, ?, ?, 'owner', 'active', ?, ?, ?, ?, ?)
+    `).run(
+      generateId(),
+      projectId,
+      userId,
+      JSON.stringify(allPermissions),
+      now,
+      JSON.stringify(allPermissions),
+      userId,
+      now
+    );
 
     // Create session token
     const token = generateId() + generateId();
@@ -217,7 +269,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     logActivity(projectId, userId, name, 'REGISTER', `تم إنشاء حساب جديد ومشروع: ${projectName}`, 'PROJECT', projectId);
     createNotification(projectId, userId, 'WELCOME', 'مرحبًا بك في تطبيق AH2', `تم إنشاء مشروع ${projectName} بنجاح، يمكنك الآن البدء بإضافة العملاء وتسجيل العمليات.`);
 
-    const user = { id: userId, name, phone, email: email || null, role: 'owner', created_at: now };
+    const user = { id: userId, name, phone, email: email || null, role: 'owner' as Role, account_status: 'active' as AccountStatus, created_at: now };
     const project = { id: projectId, name: projectName, owner_id: userId, created_at: now };
 
     return res.status(201).json({
@@ -257,22 +309,59 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       return res.status(401).json({ error: 'بيانات الدخول غير صحيحة، يرجى التأكد والمحاولة ثانية' });
     }
 
-    // Find user's project
+    // Find user's project (بدون أي تصفية على الحالة — الحالة تُفحص بعد ذلك بقرار واضح)
     let project = db.prepare('SELECT * FROM projects WHERE owner_id = ?').get(user.id) as any;
+    let membership = db.prepare('SELECT * FROM project_memberships WHERE user_id = ?').get(user.id) as any;
 
-    if (!project) {
-      const membership = db.prepare('SELECT project_id FROM project_memberships WHERE user_id = ? AND status = "active"').get(user.id) as any;
-      if (membership) {
-        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(membership.project_id) as any;
-      }
+    if (!project && membership) {
+      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(membership.project_id) as any;
     }
 
     if (!project) {
       return res.status(404).json({ error: 'لا يوجد مشروع مرتبط بهذا الحساب' });
     }
 
-    const membership = db.prepare('SELECT * FROM project_memberships WHERE project_id = ? AND user_id = ?').get(project.id, user.id) as any;
-    const permissions = membership ? JSON.parse(membership.permissions || '[]') : [];
+    if (!membership) {
+      membership = db.prepare('SELECT * FROM project_memberships WHERE project_id = ? AND user_id = ?').get(project.id, user.id) as any;
+    }
+
+    if (!membership) {
+      return res.status(403).json({ error: 'لا يوجد عضوية صالحة لهذا الحساب في المشروع، يرجى مراجعة صاحب المحل' });
+    }
+
+    // ── فحص حالة الحساب: لا دخول إلا للحسابات النشطة ──
+    const accountStatus: string = membership.status;
+    const role: Role = isRole(membership.role) ? membership.role : 'employee';
+
+    if (!canLoginWithStatus(accountStatus)) {
+      const statusMessage: Record<string, string> = {
+        pending: 'حسابك في انتظار اعتماد صاحب المحل، لا يمكنك الدخول قبل الاعتماد',
+        disabled: 'حسابك معطل حاليًا، يرجى مراجعة صاحب المحل لإعادة التفعيل',
+        rejected: 'تم رفض طلب إنشاء حسابك من صاحب المحل، لا يمكنك الدخول',
+        deleted: 'هذا الحساب محذوف ولا يمكن استخدامه، يرجى مراجعة صاحب المحل',
+      };
+
+      logDenied({
+        projectId: project.id,
+        actorId: user.id,
+        actorName: user.name,
+        actorRole: role,
+        actionType: 'LOGIN_DENIED',
+        description: `محاولة دخول مرفوضة — حالة الحساب: ${ACCOUNT_STATUS_LABELS[accountStatus as AccountStatus] ?? accountStatus}`,
+        entityType: 'USER',
+        entityId: user.id,
+        targetUserId: user.id,
+        reason: `account_status=${accountStatus}`,
+      });
+
+      return res.status(403).json({
+        error: statusMessage[accountStatus] ?? 'هذا الحساب غير نشط حاليًا، يرجى مراجعة صاحب المحل',
+        account_status: accountStatus,
+        code: 'ACCOUNT_NOT_ACTIVE',
+      });
+    }
+
+    const permissions = normalizePermissions(role, membership.permissions);
 
     const token = generateId() + generateId();
     const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
@@ -281,7 +370,21 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       VALUES (?, ?, ?, ?)
     `).run(token, user.id, project.id, expiresAt);
 
-    logActivity(project.id, user.id, user.name, 'LOGIN', 'تم تسجيل الدخول بنجاح', 'USER', user.id);
+    // آخر تسجيل دخول
+    const loginAt = new Date().toISOString();
+    db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(loginAt, user.id);
+
+    logAudit({
+      projectId: project.id,
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: role,
+      actionType: 'LOGIN',
+      description: 'تم تسجيل الدخول بنجاح',
+      entityType: 'USER',
+      entityId: user.id,
+      targetUserId: user.id,
+    });
 
     return res.json({
       message: 'تم تسجيل الدخول بنجاح',
@@ -291,7 +394,9 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
         name: user.name,
         phone: user.phone,
         email: user.email,
-        role: user.role,
+        role,
+        account_status: accountStatus,
+        last_login_at: loginAt,
         created_at: user.created_at,
       },
       project: {
@@ -309,8 +414,17 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 });
 
 app.get('/api/auth/me', authMiddleware, (req: AuthRequest, res: Response) => {
+  // الدور والحالة من العضوية (وليس من صف المستخدم) — لأن صلاحية الوصول تُحدَّد داخل المحل
+  const role: Role = req.membership?.role ?? 'employee';
+  const accountStatus: AccountStatus = req.membership?.status ?? 'active';
+
   return res.json({
-    user: req.user,
+    user: {
+      ...req.user,
+      role,
+      account_status: accountStatus,
+      last_login_at: req.user?.last_login_at ?? null,
+    },
     project: {
       id: req.project.id,
       name: req.project.name,
@@ -318,7 +432,8 @@ app.get('/api/auth/me', authMiddleware, (req: AuthRequest, res: Response) => {
       created_at: req.project.created_at,
     },
     permissions: req.membership ? req.membership.permissions : [],
-    role: req.membership ? req.membership.role : req.user.role,
+    role,
+    account_status: accountStatus,
   });
 });
 
