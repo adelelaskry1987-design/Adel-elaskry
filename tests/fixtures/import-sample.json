@@ -1,0 +1,345 @@
+{
+ "exported_at": "2026-10-23T20:10:48.207Z",
+ "source": "data/ah2.db + WAL (checkpointed)",
+ "tables": {
+  "activity_logs": [
+   {
+    "id": "2404a740-bae6-4460-82e0-1457f8690bd4",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "user_name": "Adel",
+    "action_type": "REGISTER",
+    "description": "تم إنشاء حساب جديد ومشروع: Abha",
+    "entity_type": "PROJECT",
+    "entity_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "created_at": "2026-10-14T00:48:32.884Z"
+   },
+   {
+    "id": "4b1f11e1-627e-401b-82ac-193bc54a50bd",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "user_name": "Adel",
+    "action_type": "CREATE_CUSTOMER",
+    "description": "تم إضافة عميل جديد: Ahmed",
+    "entity_type": "CUSTOMER",
+    "entity_id": "7d44bb7d-9b0c-485b-8d62-a414ef8fff2b",
+    "created_at": "2026-10-14T00:49:32.085Z"
+   },
+   {
+    "id": "763740a2-eabe-4b2b-b1d8-5447930cfb9d",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "user_name": "Adel",
+    "action_type": "CREATE_CUSTOMER",
+    "description": "تم إضافة عميل جديد: Amr",
+    "entity_type": "CUSTOMER",
+    "entity_id": "e17f2b93-d93f-4afd-a84a-4988297d5591",
+    "created_at": "2026-10-14T01:01:13.775Z"
+   },
+   {
+    "id": "b4bb4c87-abd9-4bd2-ad2f-fbc9350c5158",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "user_name": "Adel",
+    "action_type": "CREATE_CUSTOMER",
+    "description": "تم إضافة عميل جديد: Gfdfhh",
+    "entity_type": "CUSTOMER",
+    "entity_id": "9ee7617e-ed91-4219-a2d7-90cce57d5b61",
+    "created_at": "2026-10-14T01:01:26.055Z"
+   },
+   {
+    "id": "59669d4b-8a33-4a2c-bb69-0ca2e709074d",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "user_name": "Adel",
+    "action_type": "CREATE_TRANSACTION",
+    "description": "تم تسجيل عملية سحب بمبلغ 558.6 ج.م للعميل: Gfdfhh",
+    "entity_type": "TRANSACTION",
+    "entity_id": "d6f88c4e-bca0-452a-894e-c09906d361b4",
+    "created_at": "2026-10-14T01:01:38.552Z"
+   },
+   {
+    "id": "fc5eb332-3108-41c5-9a44-4bbd1ab00bcc",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "user_name": "Adel",
+    "action_type": "CREATE_TRANSACTION",
+    "description": "تم تسجيل عملية دفع بمبلغ 580 ج.م للعميل: Gfdfhh",
+    "entity_type": "TRANSACTION",
+    "entity_id": "1f94a6c4-48cb-4ed6-97c8-90bd66fcfb7f",
+    "created_at": "2026-10-14T01:01:50.928Z"
+   },
+   {
+    "id": "2cc95be5-dd9f-4708-94e1-6bd59b49ab14",
+    "project_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "user_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "user_name": "احمد ",
+    "action_type": "REGISTER",
+    "description": "تم إنشاء حساب جديد ومشروع: شركة الأمل للتجارة ",
+    "entity_type": "PROJECT",
+    "entity_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "created_at": "2026-10-14T01:52:11.057Z"
+   },
+   {
+    "id": "618a7d64-f531-4811-b90c-9916edf806bd",
+    "project_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "user_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "user_name": "احمد",
+    "action_type": "CREATE_CUSTOMER",
+    "description": "تم إضافة عميل جديد: احمد محمد",
+    "entity_type": "CUSTOMER",
+    "entity_id": "88c272b2-4e66-4426-bba2-9168fd5de296",
+    "created_at": "2026-10-14T01:53:12.031Z"
+   },
+   {
+    "id": "61bb4c32-9565-4a9f-a94b-d67337ed45b8",
+    "project_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "user_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "user_name": "احمد",
+    "action_type": "CREATE_CUSTOMER",
+    "description": "تم إضافة عميل جديد: علي",
+    "entity_type": "CUSTOMER",
+    "entity_id": "5db61b8a-f462-4e47-b875-a93dfff45179",
+    "created_at": "2026-10-14T01:53:34.122Z"
+   },
+   {
+    "id": "d0d91c3f-c7ab-49a0-aaa4-73ab043b6a2e",
+    "project_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "user_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "user_name": "احمد",
+    "action_type": "CREATE_TRANSACTION",
+    "description": "تم تسجيل عملية دفع بمبلغ 550 ج.م للعميل: علي",
+    "entity_type": "TRANSACTION",
+    "entity_id": "418c3752-31fa-41da-a9cf-6c5e1bfd2961",
+    "created_at": "2026-10-14T01:53:47.541Z"
+   },
+   {
+    "id": "8deb8916-5dcc-4e6a-89bd-37ac012c745d",
+    "project_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "user_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "user_name": "احمد",
+    "action_type": "CREATE_TRANSACTION",
+    "description": "تم تسجيل عملية سحب بمبلغ 250 ج.م للعميل: علي",
+    "entity_type": "TRANSACTION",
+    "entity_id": "ec4756cc-9e05-465a-9fdc-67e18c16cb1b",
+    "created_at": "2026-10-14T01:53:58.166Z"
+   },
+   {
+    "id": "3beb1bc7-ea19-4dae-8e7c-6207122b472d",
+    "project_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "user_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "user_name": "احمد",
+    "action_type": "RESET_DATA",
+    "description": "تم حذف جميع بيانات المشروع وإعادة التعيين للوضع الافتراضي",
+    "entity_type": "DATA",
+    "entity_id": null,
+    "created_at": "2026-10-14T02:13:29.963Z"
+   }
+  ],
+  "auth_tokens": [],
+  "backups": [],
+  "customers": [
+   {
+    "id": "7d44bb7d-9b0c-485b-8d62-a414ef8fff2b",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "name": "عميل اختبار أ",
+    "phone": "01000000000",
+    "address": "عنوان 0",
+    "type": "individual",
+    "notes": "",
+    "created_at": "2026-10-14T00:49:32.085Z",
+    "updated_at": "2026-10-14T00:49:32.085Z"
+   },
+   {
+    "id": "e17f2b93-d93f-4afd-a84a-4988297d5591",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "name": "عميل اختبار ب",
+    "phone": "01000000001",
+    "address": "عنوان 1",
+    "type": "individual",
+    "notes": "",
+    "created_at": "2026-10-14T01:01:13.774Z",
+    "updated_at": "2026-10-14T01:01:13.774Z"
+   },
+   {
+    "id": "9ee7617e-ed91-4219-a2d7-90cce57d5b61",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "name": "عميل اختبار ج",
+    "phone": "01000000002",
+    "address": "عنوان 2",
+    "type": "individual",
+    "notes": "",
+    "created_at": "2026-10-14T01:01:26.055Z",
+    "updated_at": "2026-10-14T01:01:26.055Z"
+   }
+  ],
+  "notifications": [
+   {
+    "id": "93f11582-c4f0-49ad-b342-e81de264f005",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "type": "WELCOME",
+    "title": "مرحبًا بك في تطبيق AH2",
+    "message": "تم إنشاء مشروع Abha بنجاح، يمكنك الآن البدء بإضافة العملاء وتسجيل العمليات.",
+    "is_read": 0,
+    "created_at": "2026-10-14T00:48:32.884Z"
+   },
+   {
+    "id": "f435c169-df23-4a34-acb1-b594456f28e1",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "type": "CUSTOMER_ADDED",
+    "title": "عميل جديد",
+    "message": "تم إضافة العميل \"Ahmed\" بنجاح إلى قائمة العملاء.",
+    "is_read": 0,
+    "created_at": "2026-10-14T00:49:32.085Z"
+   },
+   {
+    "id": "8d2cfb7c-c761-4ada-b62f-517cc9b33c5f",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "type": "CUSTOMER_ADDED",
+    "title": "عميل جديد",
+    "message": "تم إضافة العميل \"Amr\" بنجاح إلى قائمة العملاء.",
+    "is_read": 0,
+    "created_at": "2026-10-14T01:01:13.775Z"
+   },
+   {
+    "id": "e4a509b0-eb0c-4326-bb99-2a7b8e663ded",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "type": "CUSTOMER_ADDED",
+    "title": "عميل جديد",
+    "message": "تم إضافة العميل \"Gfdfhh\" بنجاح إلى قائمة العملاء.",
+    "is_read": 0,
+    "created_at": "2026-10-14T01:01:26.055Z"
+   },
+   {
+    "id": "90da22ea-048b-4055-8763-c33d6b3d0ee6",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "type": "TRANSACTION_CREATED",
+    "title": "عملية سحب جديدة",
+    "message": "تم تسجيل عملية سحب بمبلغ 558.6 ج.م للعميل Gfdfhh.",
+    "is_read": 0,
+    "created_at": "2026-10-14T01:01:38.552Z"
+   },
+   {
+    "id": "33d40e01-052c-4c6d-a46d-82dd35b4d619",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "type": "TRANSACTION_CREATED",
+    "title": "عملية دفع جديدة",
+    "message": "تم تسجيل عملية دفع بمبلغ 580 ج.م للعميل Gfdfhh.",
+    "is_read": 0,
+    "created_at": "2026-10-14T01:01:50.928Z"
+   }
+  ],
+  "project_memberships": [
+   {
+    "id": "4ae35320-f071-424d-85ec-aaac945ee344",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "user_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "role": "owner",
+    "status": "active",
+    "permissions": "[\"view_customers\",\"add_customers\",\"edit_customers\",\"delete_customers\",\"view_transactions\",\"create_transactions\",\"cancel_transactions\",\"view_reports\",\"manage_employees\",\"manage_backups\",\"restore_data\",\"reset_data\"]",
+    "created_at": "2026-10-14T00:48:32.884Z"
+   },
+   {
+    "id": "3440448e-4851-4494-8ddf-05d586b3e8b8",
+    "project_id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "user_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "role": "owner",
+    "status": "active",
+    "permissions": "[\"view_customers\",\"add_customers\",\"edit_customers\",\"delete_customers\",\"view_transactions\",\"create_transactions\",\"cancel_transactions\",\"view_reports\",\"manage_employees\",\"manage_backups\",\"restore_data\",\"reset_data\"]",
+    "created_at": "2026-10-14T01:52:11.057Z"
+   }
+  ],
+  "projects": [
+   {
+    "id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "name": "Abha",
+    "owner_id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "project_password_hash": "20b27e16073e58d12cf4a6c7d23d114c:4eb78853818953adb2743472f7d17dffa1c94620af77bff849ada5d20b52fd816e83fcbdf88990a8cd17e003e7a8d4ff0ee68401061ffb3bc96c455fe0e637cd",
+    "created_at": "2026-10-14T00:48:32.884Z"
+   },
+   {
+    "id": "3e32a30c-d82e-4da0-a434-716574c344b1",
+    "name": "شركة الأمل للتجارة",
+    "owner_id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "project_password_hash": "7d07d739bf310d1d58cf6e4143802e22:f3e6cad3f58951742d921c7e5938b718f18ab0477e3483c4f74064371877b6909bdc5c075c4eeb815ea2316447e8849bc74c690cbe9a8cca84323c91134d84f0",
+    "created_at": "2026-10-14T01:52:11.057Z"
+   }
+  ],
+  "transactions": [
+   {
+    "id": "d6f88c4e-bca0-452a-894e-c09906d361b4",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "customer_id": "9ee7617e-ed91-4219-a2d7-90cce57d5b61",
+    "type": "withdrawal",
+    "amount": 558.6,
+    "date": "2026-10-14",
+    "time": "04:01",
+    "description": "عملية اختبار",
+    "created_by": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "status": "active",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancellation_reason": null,
+    "created_at": "2026-10-14T01:01:38.552Z"
+   },
+   {
+    "id": "1f94a6c4-48cb-4ed6-97c8-90bd66fcfb7f",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "customer_id": "9ee7617e-ed91-4219-a2d7-90cce57d5b61",
+    "type": "payment",
+    "amount": 580,
+    "date": "2026-10-14",
+    "time": "04:01",
+    "description": "عملية اختبار",
+    "created_by": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "status": "active",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancellation_reason": null,
+    "created_at": "2026-10-14T01:01:50.928Z"
+   },
+   {
+    "id": "8bc3b00f-7090-4ec3-9f8d-4138662aaac0",
+    "project_id": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "customer_id": "e17f2b93-d93f-4afd-a84a-4988297d5591",
+    "type": "withdrawal",
+    "amount": 1200,
+    "date": "2026-10-14",
+    "time": "01:30",
+    "description": "عملية اختبار",
+    "created_by": "8a6b2a80-062b-4aab-b091-08eb62e7e1aa",
+    "status": "active",
+    "cancelled_by": null,
+    "cancelled_at": null,
+    "cancellation_reason": null,
+    "created_at": "2026-10-14T01:22:53.954Z"
+   }
+  ],
+  "users": [
+   {
+    "id": "8b3c1abc-62e2-4ba6-9f99-4a4151610725",
+    "name": "Adel",
+    "phone": "1234567890",
+    "email": null,
+    "password_hash": "cd695cfdef40b650448c35dfbe911698:af8fa70011421bfd1df923edce215a184983a6cad997d942adcdfff085cf0b9cc3f81746d43d62ee68432701e44b9ae5828c14e784c059fdd8c3aa37783e300d",
+    "role": "owner",
+    "created_at": "2026-10-14T00:48:32.884Z"
+   },
+   {
+    "id": "dc94201d-4a44-41bd-a36d-80e9105513c1",
+    "name": "احمد",
+    "phone": "01068505471",
+    "email": null,
+    "password_hash": "9938bfa7809d7c911e3c3d66d7d38c05:d4bc00d73b633966e5bbd5baf3481f9a2002bc5eb16967a49aaf2ea1b9dd7d7c28cced626066d066facdece5328b8b2354b087cdd0e9f0aac1169bc01a91a05f",
+    "role": "owner",
+    "created_at": "2026-10-14T01:52:11.057Z"
+   }
+  ]
+ }
+}

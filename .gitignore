@@ -18,5 +18,8 @@ data/
 # وبصمات كلمات المرور فيه مُعمّاة (لا تُستخدم أي كلمة مرور حقيقية في الاختبارات).
 !tests/fixtures/real-dataset-pre-usermgmt.db
 
+# النسخ الاحتياطية الحقيقية لا تُرفع (تحتوي بيانات العملاء)
+backups/
+
 # AI Studio local artifacts
 .aistudio/

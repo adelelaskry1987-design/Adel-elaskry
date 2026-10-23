@@ -31,7 +31,8 @@
     "test:ui:invoice": "tsx tests/verify-ui-invoice.ts",
     "test:rules": "firebase emulators:exec --only firestore --project demo-ah2 \"tsx tests/verify-firestore-rules.ts\"",
     "deploy:rules": "firebase deploy --only firestore:rules",
-    "deploy:hosting": "vite build && firebase deploy --only hosting"
+    "deploy:hosting": "vite build && firebase deploy --only hosting",
+    "test:import": "firebase emulators:exec --only firestore --project demo-ah2-import \"tsx tests/verify-import.ts\""
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

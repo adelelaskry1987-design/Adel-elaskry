@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AH2 — استيراد البيانات إلى السحابة</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 16px; background: #0b1d33; color: #e8eef7;
+        font-family: -apple-system, 'Segoe UI', Tahoma, Arial, sans-serif;
+      }
+      .wrap { max-width: 620px; margin: 0 auto; }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      .sub { color: #9db2cc; font-size: 12px; margin-bottom: 16px; line-height: 1.7; }
+      .card { background: #10263f; border: 1px solid #1e3c60; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+      button {
+        border: 0; border-radius: 10px; padding: 11px 14px; font-weight: 800;
+        font-size: 13px; cursor: pointer; width: 100%; margin-top: 8px;
+      }
+      #login { background: #fff; color: #111; }
+      #dry { background: #2b4a70; color: #cfe0f5; }
+      #run { background: #f0b429; color: #10263f; }
+      #run:disabled, #dry:disabled { opacity: .45; cursor: not-allowed; }
+      .row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px dashed #1e3c60; font-size: 12.5px; }
+      .row:last-child { border: 0; }
+      .ok { color: #55d68a; font-weight: 800; }
+      .bad { color: #ff6b6b; font-weight: 800; }
+      .muted { color: #8fa6c2; }
+      .big { font-size: 15px; font-weight: 900; }
+      .warn { background: #3a1d1d; border-color: #7a3232; color: #ffcdcd; }
+      .good { background: #12301f; border-color: #2c6b45; color: #b8f0cd; }
+      code { font-size: 11px; word-break: break-all; color: #f0b429; }
+      input[type='file'] { width: 100%; font-size: 12px; color: #cfe0f5; margin-top: 8px; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>استيراد البيانات إلى السحابة</h1>
+      <div class="sub">
+        صفحة إدارية لمرة واحدة: تنقل نسخة SQLite الاحتياطية إلى Firestore.<br />
+        لا تحذف ولا تستبدل شيئًا، وتتوقف فورًا عند أي اختلاف في المطابقة.
+      </div>
+
+      <div class="card" id="step-login">
+        <div class="big">1) الدخول بحساب مالك المحل</div>
+        <div class="sub" style="margin: 6px 0 0">لازم نفس الحساب المكتوب في <code>shops/main.ownerUid</code>.</div>
+        <button id="login">الدخول بحساب Google</button>
+        <div id="who" class="muted" style="margin-top: 10px; font-size: 12px"></div>
+      </div>
+
+      <div class="card hidden" id="step-file">
+        <div class="big">2) اختر ملف النسخة الاحتياطية</div>
+        <div class="sub" style="margin: 6px 0 0">
+          الملف: <code>ah2-export.json</code> (نفس الملف الموجود في مجلد <code>backups/</code>).
+        </div>
+        <input id="file" type="file" accept=".json,application/json" />
+        <div id="fileinfo" class="muted" style="margin-top: 8px; font-size: 12px"></div>
+        <button id="dry" disabled>تشغيل تجريبي (بدون كتابة)</button>
+        <button id="run" disabled>تنفيذ الاستيراد</button>
+      </div>
+
+      <div id="out"></div>
+    </div>
+    <script type="module" src="/src/import-page.ts"></script>
+  </body>
+</html>

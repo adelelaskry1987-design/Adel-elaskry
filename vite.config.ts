@@ -11,6 +11,14 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+          import: path.resolve(__dirname, 'import.html'),
+        },
+      },
+    },
     server: {
       // السماح بالوصول عبر نطاقات المعاينة/الاستضافة (بدون هذا تُرفض الطلبات بـ 403
       // عند فتح التطبيق من دومين غير localhost).
