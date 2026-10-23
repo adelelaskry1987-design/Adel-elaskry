@@ -28,7 +28,10 @@
     "test:final": "tsx tests/verify-final-19.ts",
     "test:ui:audit": "tsx tests/verify-ui-audit.ts",
     "test:real-data": "tsx tests/verify-real-data.ts",
-    "test:ui:invoice": "tsx tests/verify-ui-invoice.ts"
+    "test:ui:invoice": "tsx tests/verify-ui-invoice.ts",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-ah2 \"tsx tests/verify-firestore-rules.ts\"",
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "deploy:hosting": "vite build && firebase deploy --only hosting"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -36,6 +39,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "firebase": "^13.1.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.546.0",
@@ -45,14 +49,16 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "firebase-tools": "^15.34.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "typescript": "^7.0.2"
   }
 }

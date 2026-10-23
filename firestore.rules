@@ -1,0 +1,134 @@
+rules_version = '2';
+
+/**
+ * AH2 — قواعد أمان Firestore لمحل واحد
+ * =====================================
+ * المبدأ: لا يوجد أي وصول افتراضي. كل وصول يحتاج:
+ *   1) مستخدم مسجّل الدخول بحساب Google (Firebase Auth).
+ *   2) وثيقة عضوية `shops/main/members/{uid}` حالتها `active`.
+ *   3) الصلاحية المطلوبة (من مصفوفة الصلاحيات الـ21) — والمالك يملكها كلها دائمًا.
+ *
+ * قواعد لا يمكن تجاوزها من المتصفح إطلاقًا، حتى لو عرف أحدهم firebaseConfig:
+ *   - `ownerUid` غير قابل للتغيير ولا للحذف.
+ *   - لا يمكن إنشاء عضوية بدور `owner`، ولا ترقية عضوية إلى `owner`.
+ *   - العضوية الخاصة بالمالك لا يمكن تعديلها أو حذفها.
+ *   - سجل التدقيق للقراءة فقط: لا تعديل ولا حذف لأي أحد (حتى المالك).
+ *   - وثيقة المحل نفسها لا تُحذف.
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── دوال مساعدة ────────────────────────────────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function shopRef() {
+      return /databases/$(database)/documents/shops/main;
+    }
+
+    function shop() {
+      return get(shopRef()).data;
+    }
+
+    function memberRef() {
+      return /databases/$(database)/documents/shops/main/members/$(request.auth.uid);
+    }
+
+    function me() {
+      return get(memberRef()).data;
+    }
+
+    function activeMember() {
+      return signedIn() && exists(memberRef()) && me().status == 'active';
+    }
+
+    function isOwner() {
+      return activeMember() && shop().ownerUid == request.auth.uid;
+    }
+
+    /** صلاحية واحدة من المصفوفة — المالك يملكها كلها */
+    function hasPerm(perm) {
+      return activeMember() && (isOwner() || (('permissions' in me()) && perm in me().permissions));
+    }
+
+    function anyPerm(perms) {
+      return activeMember() && (isOwner() || (('permissions' in me()) && me().permissions.hasAny(perms)));
+    }
+
+    // ── وثيقة المحل ────────────────────────────────────────────────
+    match /shops/main {
+      allow read: if activeMember();
+      allow create: if false;   // تُنشأ يدويًا مرة واحدة من Firebase Console (تمنع أي انتحال)
+      // المالك يعدّل الاسم/الإعدادات فقط — لا يغيّر ownerUid
+      allow update: if isOwner() && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if false;
+    }
+
+    // ── العضويات ───────────────────────────────────────────────────
+    match /shops/main/members/{uid} {
+      allow read: if activeMember();
+      // لا إنشاء بدور owner
+      allow create: if isOwner()
+        && request.resource.data.role != 'owner'
+        && request.resource.data.uid == uid;
+      // لا ترقية إلى owner، ولا تعديل عضوية المالك نفسه
+      allow update: if isOwner()
+        && uid != shop().ownerUid
+        && request.resource.data.role != 'owner'
+        && request.resource.data.uid == uid;
+      // لا حذف لعضوية المالك
+      allow delete: if isOwner() && uid != shop().ownerUid;
+    }
+
+    // ── العملاء ────────────────────────────────────────────────────
+    match /shops/main/customers/{id} {
+      allow read: if hasPerm('view_customers');
+      allow create: if hasPerm('add_customer');
+      allow update: if hasPerm('edit_customer');
+      allow delete: if hasPerm('delete_customer');
+    }
+
+    // ── العمليات المالية ───────────────────────────────────────────
+    match /shops/main/transactions/{id} {
+      allow read: if anyPerm(['view_all_transactions', 'view_customer_transactions']);
+      allow create: if hasPerm('create_transaction');
+      // التعديل يحتاج edit_transaction، والإلغاء يحتاج cancel_transaction
+      allow update: if hasPerm('edit_transaction') || hasPerm('cancel_transaction');
+      allow delete: if hasPerm('reset_data');
+    }
+
+    // ── سجل التدقيق: غير قابل للتعديل أو الحذف لأي أحد ────────────
+    match /shops/main/auditLogs/{id} {
+      allow read: if anyPerm(['manage_users', 'view_reports']);
+      allow create: if activeMember();
+      allow update, delete: if false;
+    }
+
+    // ── الإشعارات ──────────────────────────────────────────────────
+    match /shops/main/notifications/{id} {
+      allow read: if activeMember();
+      allow create: if activeMember();
+      allow update: if activeMember();
+      allow delete: if isOwner();
+    }
+
+    // ── طلبات إدارة المستخدمين ────────────────────────────────────
+    match /shops/main/requests/{id} {
+      allow read: if activeMember();
+      allow create: if activeMember();
+      allow update: if hasPerm('approve_requests');
+      allow delete: if isOwner();
+    }
+
+    // ── النسخ السحابية ─────────────────────────────────────────────
+    match /shops/main/backups/{id} {
+      allow read, write: if hasPerm('manage_backups');
+    }
+
+    // ── أي مسار آخر: ممنوع تمامًا ─────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
