@@ -1,5 +1,4 @@
 import React from 'react';
-import { Ah2Logo } from './Ah2Logo';
 import { ShopOwnerLogo } from './ShopOwnerLogo';
 import { ChevronRight, Menu, Bell, Wifi, BatteryMedium, Signal } from 'lucide-react';
 import { ScreenId } from '../types';
@@ -48,11 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => onNavigate('screen-5-home')}
           title={isAbout ? 'نظام AH2' : 'متجر OM BASMA للستائر والمفروشات - الرئيسية'}
         >
-          {isAbout ? (
-            <Ah2Logo variant="header" />
-          ) : (
-            <ShopOwnerLogo variant="header" size="md" />
-          )}
+          <ShopOwnerLogo variant="header" size="md" />
         </div>
 
         {/* Left slot (يسار الشاشة): Notifications & Menu/Back button */}
