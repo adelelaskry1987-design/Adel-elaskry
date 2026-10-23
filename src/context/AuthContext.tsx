@@ -16,7 +16,11 @@ interface AuthContextType {
   permissions: string[];
   role: string | null;
   isLoading: boolean;
-  login: (identifier: string, pass: string) => Promise<void>;
+  login: (
+    identifier: string,
+    pass: string,
+    projectId?: string
+  ) => Promise<{ requiresProjectSelection: boolean; projects: { project_id: string; project_name: string; role: string }[] }>;
   register: (payload: any) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -103,15 +107,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refresh();
   }, []);
 
-  const login = async (identifier: string, pass: string) => {
-    const res = await api.login(identifier, pass);
-    setStoredToken(res.token);
-    setUser(res.user);
-    setProject(res.project);
+  const login = async (identifier: string, pass: string, projectId?: string) => {
+    const res = await api.login(identifier, pass, projectId);
+
+    // لديه أكثر من محل: لا تُصدر جلسة، وتُعرض شاشة اختيار المحل
+    if (res.requires_project_selection) {
+      return { requiresProjectSelection: true, projects: res.projects ?? [] };
+    }
+
+    setStoredToken(res.token as string);
+    setUser(res.user as User);
+    setProject(res.project as Project);
     setPermissions(res.permissions || []);
-    setRole(res.user.role);
+    setRole((res.user as User).role);
     setAccountStatus((res.user as any).account_status ?? 'active');
+    setMustChangePassword(!!res.must_change_password);
     setInactiveAccount(null);
+    return { requiresProjectSelection: false, projects: [] };
   };
 
   const register = async (payload: any) => {

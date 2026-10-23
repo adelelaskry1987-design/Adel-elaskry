@@ -121,7 +121,27 @@ export function createAccount(req: Request, res: Response) {
     if (!phone || !String(phone).trim()) {
       return res.status(400).json({ error: 'رقم الهاتف مطلوب' });
     }
-    if (!password || String(password).length < 6) {
+    // ── المستخدم: جديد أو موجود بالفعل (حساب واحد لكل شخص، ويمكن أن يكون عضوًا في أكثر من محل) ──
+    //    إن كان الحساب موجودًا فلا حاجة لكلمة مرور: المستخدم يدخل بحسابه ثم يختار المحل.
+    const existingUser = normalizePhoneNumber(phone)
+      ? (db.prepare('SELECT id, name FROM users WHERE phone = ?').get(normalizePhoneNumber(phone)) as any)
+      : null;
+
+    if (existingUser) {
+      const membershipHere = db
+        .prepare('SELECT id, status FROM project_memberships WHERE user_id = ? AND project_id = ?')
+        .get(existingUser.id, actor.projectId) as any;
+      if (membershipHere) {
+        return res.status(409).json({
+          error: 'هذا الشخص عضو بالفعل في هذا المحل',
+          code: 'ALREADY_MEMBER',
+          account_status: membershipHere.status,
+        });
+      }
+    }
+
+    // كلمة المرور مطلوبة فقط للحساب الجديد
+    if (!existingUser && (!password || String(password).length < 6)) {
       return res.status(400).json({ error: 'كلمة المرور مطلوبة ويجب ألا تقل عن 6 أحرف' });
     }
 
@@ -173,17 +193,6 @@ export function createAccount(req: Request, res: Response) {
         code: 'INVALID_PERMISSIONS',
         rejected_permissions: grant.rejected,
       });
-    }
-
-    // المستخدم: جديد أو موجود (لكن بلا عضوية في أي محل — حساب واحد لكل شخص)
-    const existingUser = db.prepare('SELECT id, name FROM users WHERE phone = ?').get(cleanPhone) as any;
-    if (existingUser) {
-      const existingMembership = db
-        .prepare('SELECT id FROM project_memberships WHERE user_id = ? LIMIT 1')
-        .get(existingUser.id) as any;
-      if (existingMembership) {
-        return res.status(400).json({ error: 'رقم الهاتف مرتبط بحساب آخر، لا يمكن استخدامه لإنشاء حساب جديد' });
-      }
     }
 
     const now = new Date().toISOString();
@@ -266,13 +275,26 @@ export function createAccount(req: Request, res: Response) {
         actorId: actor.userId,
         actorName: actor.userName,
         actorRole: actor.role,
-        actionType: 'CREATE_ACCOUNT',
-        description: `إنشاء حساب (${ROLE_LABELS[targetRole]}) للمستخدم ${String(name).trim()} — الحالة: ${ACCOUNT_STATUS_LABELS[status as 'active' | 'pending']}`,
+        actionType: existingUser ? 'LINK_EXISTING_ACCOUNT' : 'CREATE_ACCOUNT',
+        description: existingUser
+          ? `إضافة حساب موجود (${ROLE_LABELS[targetRole]}) — ${String(name).trim()} — إلى هذا المحل بعضوية ${ACCOUNT_STATUS_LABELS[status as 'active' | 'pending']}`
+          : `إنشاء حساب (${ROLE_LABELS[targetRole]}) للمستخدم ${String(name).trim()} — الحالة: ${ACCOUNT_STATUS_LABELS[status as 'active' | 'pending']}`,
         entityType: 'USER',
         entityId: userId,
         targetUserId: userId,
         reason: grant.rejected.length ? `rejected_permissions=${grant.rejected.join(',')}` : null,
       });
+
+      // إشعار الشخص نفسه أنه أُضيف إلى محل جديد (يمكنه مغادرته بنفسه لاحقًا)
+      if (existingUser && isOwnerCreating) {
+        notify(
+          actor.projectId,
+          userId,
+          'ACCOUNT_LINKED',
+          'تمت إضافتك إلى محل جديد',
+          `أضافك ${actor.userName} إلى محل جديد بدور ${ROLE_LABELS[targetRole]}. عند الدخول ستختار المحل الذي تريد العمل فيه، ويمكنك مغادرة أي محل لست صاحبه.`
+        );
+      }
 
       notify(
         actor.projectId,
@@ -296,6 +318,7 @@ export function createAccount(req: Request, res: Response) {
         permissions: effectivePermissions,
         proposed_permissions: proposedPermissions,
         rejected_permissions: grant.rejected,
+        existing_account: !!existingUser,
       });
     } catch (err) {
       db.exec('ROLLBACK;');

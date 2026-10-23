@@ -113,11 +113,47 @@ export const api = {
       { method: 'POST', body: JSON.stringify(payload) }
     ),
 
-  login: (identifier: string, password: string) =>
-    request<{ token: string; user: User; project: Project; permissions: string[] }>(
-      '/api/auth/login',
-      { method: 'POST', body: JSON.stringify({ identifier, password }) }
+  login: (identifier: string, password: string, projectId?: string) =>
+    request<{
+      token?: string;
+      user?: User;
+      project?: Project;
+      permissions?: string[];
+      must_change_password?: boolean;
+      requires_project_selection?: boolean;
+      projects?: { project_id: string; project_name: string; role: string }[];
+      message?: string;
+    }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier, password, ...(projectId ? { projectId } : {}) }),
+    }),
+
+  // ── تعدد المحلات ──
+  getMyProjects: () =>
+    request<{
+      current_project_id: string;
+      projects: {
+        membership_id: string;
+        project_id: string;
+        project_name: string;
+        role: string;
+        role_label: string;
+        status: string;
+        status_label: string;
+      }[];
+    }>('/api/auth/my-projects'),
+
+  switchProject: (projectId: string) =>
+    request<{ message: string; token: string; project: Project; role: string; permissions: string[] }>(
+      '/api/auth/switch-project',
+      { method: 'POST', body: JSON.stringify({ projectId }) }
     ),
+
+  leaveProject: (reason?: string) =>
+    request<{ message: string }>('/api/auth/leave-project', {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
 
   getMe: () =>
     request<{ user: User; project: Project; permissions: string[]; role: string }>('/api/auth/me'),

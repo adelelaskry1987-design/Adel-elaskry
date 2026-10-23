@@ -43,7 +43,7 @@ export function isRole(value: unknown): value is Role {
  *  - rejected : مرفوض من صاحب المحل عند طلب الإنشاء
  *  - deleted  : محذوف منطقيًا (كلمة المرور مُعمّاة والجلسات مُبطلة، والسجل محفوظ)
  */
-export type AccountStatus = 'pending' | 'active' | 'disabled' | 'rejected' | 'deleted';
+export type AccountStatus = 'pending' | 'active' | 'disabled' | 'rejected' | 'deleted' | 'left';
 
 export const ACCOUNT_STATUSES: AccountStatus[] = [
   'pending',
@@ -51,6 +51,7 @@ export const ACCOUNT_STATUSES: AccountStatus[] = [
   'disabled',
   'rejected',
   'deleted',
+  'left',
 ];
 
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
@@ -59,6 +60,7 @@ export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   disabled: 'معطل',
   rejected: 'مرفوض',
   deleted: 'محذوف',
+  left: 'غادر المحل',
 };
 
 /** الحالات الوحيدة المسموح لها بتسجيل الدخول واستخدام الوظائف المحمية. */

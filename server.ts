@@ -28,6 +28,7 @@ import {
   type AccountStatus,
   type PermissionCode,
   ACCOUNT_STATUS_LABELS,
+  ROLE_LABELS,
   canLoginWithStatus,
   hasPermission,
   isRole,
@@ -494,13 +495,49 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     // دخول صحيح بكلمة المرور ⇒ صفر العدّاد
     clearLoginFailures(throttleKey);
 
-    // Find user's project (بدون أي تصفية على الحالة — الحالة تُفحص بعد ذلك بقرار واضح)
-    let project = db.prepare('SELECT * FROM projects WHERE owner_id = ?').get(user.id) as any;
-    let membership = db.prepare('SELECT * FROM project_memberships WHERE user_id = ?').get(user.id) as any;
+    // ── كل عضويات المستخدم (يمكن أن يكون عضوًا في أكثر من محل) ──
+    const memberships = db
+      .prepare(
+        `SELECT pm.*, p.name AS project_name
+         FROM project_memberships pm
+         JOIN projects p ON p.id = pm.project_id
+         WHERE pm.user_id = ?
+         ORDER BY pm.created_at ASC`
+      )
+      .all(user.id) as any[];
 
-    if (!project && membership) {
-      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(membership.project_id) as any;
+    // المحل المطلوب (إن اختاره المستخدم من شاشة اختيار المحل)
+    const requestedProjectId = req.body?.projectId ? String(req.body.projectId) : null;
+
+    let membership: any = null;
+    if (requestedProjectId) {
+      membership = memberships.find((m) => m.project_id === requestedProjectId) ?? null;
+      if (!membership) {
+        return res.status(403).json({ error: 'لا تملك عضوية في هذا المحل', code: 'NO_MEMBERSHIP' });
+      }
+    } else {
+      // المحلات النشطة فقط للعرض/الاختيار
+      const activeMemberships = memberships.filter((m) => canLoginWithStatus(m.status));
+
+      if (activeMemberships.length > 1) {
+        // أكثر من محل نشط ⇒ يختار المستخدم محلًا قبل إصدار أي جلسة
+        return res.json({
+          requires_project_selection: true,
+          message: 'لديك أكثر من محل. اختر المحل الذي تريد الدخول إليه.',
+          projects: activeMemberships.map((m) => ({
+            project_id: m.project_id,
+            project_name: m.project_name,
+            role: m.role,
+          })),
+        });
+      }
+
+      membership = activeMemberships[0] ?? memberships[0] ?? null;
     }
+
+    let project = membership
+      ? (db.prepare('SELECT * FROM projects WHERE id = ?').get(membership.project_id) as any)
+      : (db.prepare('SELECT * FROM projects WHERE owner_id = ?').get(user.id) as any);
 
     if (!project) {
       return res.status(404).json({ error: 'لا يوجد مشروع مرتبط بهذا الحساب' });
@@ -596,6 +633,147 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Login error:', error);
     return res.status(500).json({ error: 'حدث خطأ في الخادم أثناء تسجيل الدخول' });
+  }
+});
+
+/**
+ * محلات المستخدم (كل العضويات) — تُستخدم لشاشة تبديل المحل.
+ * لا تُنشئ أي جلسة جديدة ولا تكشف بيانات أي محل.
+ */
+app.get('/api/auth/my-projects', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT pm.id AS membership_id, pm.project_id, pm.role, pm.status, p.name AS project_name
+         FROM project_memberships pm
+         JOIN projects p ON p.id = pm.project_id
+         WHERE pm.user_id = ?
+         ORDER BY pm.created_at ASC`
+      )
+      .all(req.user.id) as any[];
+
+    return res.json({
+      current_project_id: req.project.id,
+      projects: rows.map((row) => ({
+        ...row,
+        status_label: ACCOUNT_STATUS_LABELS[row.status as AccountStatus] ?? row.status,
+        role_label: ROLE_LABELS[(isRole(row.role) ? row.role : 'employee') as Role],
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ أثناء جلب محلات المستخدم' });
+  }
+});
+
+/**
+ * تبديل المحل: يصدر جلسة جديدة مربوطة بعضوية نشطة أخرى لنفس المستخدم.
+ * الجلسة القديمة تبقى صالحة لمحلها (تبديل سياق، لا خروج).
+ */
+app.post('/api/auth/switch-project', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    const targetProjectId = req.body?.projectId ? String(req.body.projectId) : '';
+    if (!targetProjectId) {
+      return res.status(400).json({ error: 'معرّف المحل مطلوب' });
+    }
+
+    const membership = db
+      .prepare('SELECT * FROM project_memberships WHERE user_id = ? AND project_id = ?')
+      .get(req.user.id, targetProjectId) as any;
+
+    if (!membership) {
+      return res.status(403).json({ error: 'لا تملك عضوية في هذا المحل', code: 'NO_MEMBERSHIP' });
+    }
+    if (!canLoginWithStatus(membership.status)) {
+      return res.status(403).json({
+        error: 'عضويتك في هذا المحل غير نشطة، يرجى مراجعة صاحبه',
+        account_status: membership.status,
+        code: 'ACCOUNT_NOT_ACTIVE',
+      });
+    }
+
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;
+    const role: Role = isRole(membership.role) ? membership.role : 'employee';
+    const permissions = normalizePermissions(role, membership.permissions);
+
+    const token = generateId() + generateId();
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    db.prepare(`
+      INSERT INTO auth_tokens (token, user_id, project_id, expires_at)
+      VALUES (?, ?, ?, ?)
+    `).run(token, req.user.id, project.id, expiresAt);
+
+    logAudit({
+      projectId: project.id,
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: role,
+      actionType: 'SWITCH_PROJECT',
+      description: `تم التبديل إلى محل ${project.name}`,
+      entityType: 'PROJECT',
+      entityId: project.id,
+      result: 'success',
+    });
+
+    return res.json({
+      message: `تم التبديل إلى ${project.name}`,
+      token,
+      project: {
+        id: project.id,
+        name: project.name,
+        owner_id: project.owner_id,
+        created_at: project.created_at,
+      },
+      role,
+      account_status: membership.status,
+      permissions,
+    });
+  } catch (error) {
+    console.error('Switch project error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء تبديل المحل' });
+  }
+});
+
+/**
+ * مغادرة محل: يترك المستخدم عضويته (لا يمكن ترك محل هو صاحبه).
+ * تُحفظ كل العمليات والسجلات التاريخية، وتُلغى جلساته في ذلك المحل فقط.
+ */
+app.post('/api/auth/leave-project', authMiddleware, (req: AuthRequest, res: Response) => {
+  try {
+    if (req.membership?.role === 'owner') {
+      return res.status(400).json({ error: 'لا يمكن لصاحب المحل مغادرة محله' });
+    }
+
+    const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+    const now = new Date().toISOString();
+
+    db.prepare(
+      `UPDATE project_memberships
+       SET status = 'left', status_changed_at = ?, status_changed_by = ?, status_reason = ?
+       WHERE id = ? AND project_id = ? AND user_id = ?`
+    ).run(now, req.user.id, reason ?? 'غادر المحل بنفسه', req.membership.id, req.project.id, req.user.id);
+
+    db.prepare('DELETE FROM auth_tokens WHERE user_id = ? AND project_id = ?').run(req.user.id, req.project.id);
+
+    logAudit({
+      projectId: req.project.id,
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.membership.role,
+      actionType: 'LEAVE_PROJECT',
+      description: `غادر ${req.user.name} محل ${req.project.name} بنفسه`,
+      entityType: 'USER',
+      entityId: req.user.id,
+      targetUserId: req.user.id,
+      result: 'success',
+      reason,
+    });
+
+    return res.json({
+      message: 'تم مغادرة المحل. تُحفظ كل عملياتك السابقة، ولا يمكنك الدخول إلى هذا المحل بعد الآن.',
+    });
+  } catch (error) {
+    console.error('Leave project error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء مغادرة المحل' });
   }
 });
 

@@ -4,10 +4,11 @@ import { ShopOwnerLogo } from '../ShopOwnerLogo';
 import { ShareModal } from '../ShareModal';
 import { PageTitle } from '../PageTitle';
 import { Customer, NotificationItem, ReportsSummary, ScreenId } from '../../types';
-import { api } from '../../services/api';
+import { api, setStoredToken } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import {
+  Store,
   Bell,
   CheckCircle2,
   Lock,
@@ -417,9 +418,59 @@ export const Screen31CustomerEdit: React.FC<{
 
 // ================= SCREEN 32: SETTINGS =================
 export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
-  const { hasPermission, role: settingsRole } = useAuth();
+  const { hasPermission, role: settingsRole, refresh } = useAuth();
   const { user, project, logout } = useAuth();
   const { themeMode, resolvedTheme, setThemeMode } = useTheme();
+
+  // ── تعدد المحلات: قائمة محلات المستخدم + التبديل + المغادرة ──
+  const [myProjects, setMyProjects] = useState<
+    { project_id: string; project_name: string; role: string; status: string; status_label: string }[]
+  >([]);
+  const [projectsBusy, setProjectsBusy] = useState(false);
+  const [projectsNotice, setProjectsNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.getMyProjects();
+        if (alive) setMyProjects(res.projects);
+      } catch {
+        /* لا نعطّل الشاشة إن تعذّر الجلب */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const doSwitch = async (projectId: string) => {
+    try {
+      setProjectsBusy(true);
+      const res = await api.switchProject(projectId);
+      setStoredToken(res.token);
+      await refresh();
+      setProjectsNotice({ tone: 'success', text: res.message });
+      onNavigate('screen-5-home');
+    } catch (err: any) {
+      setProjectsNotice({ tone: 'error', text: err?.message || 'تعذر تبديل المحل' });
+    } finally {
+      setProjectsBusy(false);
+    }
+  };
+
+  const doLeave = async (projectId: string) => {
+    try {
+      setProjectsBusy(true);
+      const res = await api.leaveProject('مغادرة من الإعدادات');
+      setProjectsNotice({ tone: 'success', text: res.message });
+      setMyProjects((prev) => prev.filter((p) => p.project_id !== projectId));
+    } catch (err: any) {
+      setProjectsNotice({ tone: 'error', text: err?.message || 'تعذر مغادرة المحل' });
+    } finally {
+      setProjectsBusy(false);
+    }
+  };
 
   const themeOptions: { id: 'light' | 'dark' | 'system'; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'light', label: 'نهاري', icon: Sun },
@@ -430,6 +481,88 @@ export const Screen32Settings: React.FC<{ onNavigate: (s: ScreenId) => void }> =
   return (
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       <PageTitle title="الإعدادات" />
+
+      {/* المحلات: التبديل بين المحلات والمغادرة */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div className="flex items-center gap-2">
+            <Store className="w-4 h-4 text-blue-700" />
+            <span className="font-black text-xs text-slate-800">محلاتي</span>
+          </div>
+          <span className="text-[10px] font-bold text-slate-500">{myProjects.length} محل</span>
+        </div>
+
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          المحل الحالي: <b className="text-slate-800">{project?.name}</b>
+          {myProjects.length > 1 && ' — يمكنك التبديل بين محلاتك دون تسجيل خروج.'}
+        </p>
+
+        {projectsNotice && (
+          <div
+            className={`p-2 rounded-lg text-[10.5px] font-bold border ${
+              projectsNotice.tone === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            {projectsNotice.text}
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          {myProjects.map((mp) => {
+            const isCurrent = mp.project_id === project?.id;
+            const isOwnerHere = mp.role === 'owner';
+            return (
+              <div
+                key={mp.project_id}
+                className={`flex items-center justify-between gap-2 rounded-xl border p-2 ${
+                  isCurrent ? 'border-blue-300 bg-blue-50/50' : 'border-slate-200'
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black text-slate-800 truncate">{mp.project_name}</div>
+                  <div className="text-[9.5px] font-bold text-slate-500">
+                    {mp.role === 'owner' ? 'صاحب المحل' : mp.role === 'manager' ? 'مدير' : 'موظف'} · {mp.status_label}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isCurrent ? (
+                    <span className="text-[9.5px] font-black text-blue-700 bg-blue-100 border border-blue-200 rounded-md px-1.5 py-0.5">
+                      الحالي
+                    </span>
+                  ) : (
+                    mp.status === 'active' && (
+                      <button
+                        type="button"
+                        disabled={projectsBusy}
+                        onClick={() => doSwitch(mp.project_id)}
+                        className="text-[9.5px] font-black text-white bg-blue-700 hover:bg-blue-800 rounded-md px-2 py-1 disabled:opacity-50"
+                      >
+                        تبديل
+                      </button>
+                    )
+                  )}
+                  {!isOwnerHere && !isCurrent && (
+                    <button
+                      type="button"
+                      disabled={projectsBusy}
+                      onClick={() => doLeave(mp.project_id)}
+                      className="text-[9.5px] font-black text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-1 disabled:opacity-50"
+                    >
+                      مغادرة
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="text-[9px] text-slate-400 leading-relaxed">
+          مغادرة محل تُلغي وصولك إليه فقط، وتُبقي كل عملياتك وسجلاتك التاريخية محفوظة عند صاحبه.
+        </p>
+      </div>
 
       {/* Appearance / Theme Selection Card ("المظهر") */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">

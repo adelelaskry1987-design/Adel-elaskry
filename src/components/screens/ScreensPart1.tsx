@@ -475,6 +475,31 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
+  // اختيار المحل عند امتلاك أكثر من عضوية نشطة
+  const [projectChoices, setProjectChoices] = useState<
+    { project_id: string; project_name: string; role: string }[]
+  >([]);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const [pickLoading, setPickLoading] = useState(false);
+
+  const handlePickProject = async (projectId: string) => {
+    setPickError(null);
+    setPickLoading(true);
+    try {
+      const res = await login(identifier, password, projectId);
+      if (res.requiresProjectSelection) {
+        setPickError('تعذر تحديد المحل، حاول مرة أخرى');
+        return;
+      }
+      setProjectChoices([]);
+      onNavigate('screen-5-home');
+    } catch (err: any) {
+      setPickError(err.message || 'تعذر الدخول إلى المحل المحدد');
+    } finally {
+      setPickLoading(false);
+    }
+  };
+
   // Register fields
   const [name, setName] = useState('');
   const [projectName, setProjectName] = useState('');
@@ -579,7 +604,12 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
 
     setLoading(true);
     try {
-      await login(identifier, password);
+      const res = await login(identifier, password);
+      if (res.requiresProjectSelection) {
+        setProjectChoices(res.projects);
+        setPickError(null);
+        return;
+      }
       onNavigate('screen-5-home');
     } catch (err: any) {
       setError(err.message || 'بيانات الدخول غير صحيحة');
@@ -911,8 +941,54 @@ export const Screen4Login: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ 
           </div>
         )}
 
+        {/* ==================== اختيار المحل (أكثر من عضوية) ==================== */}
+        {projectChoices.length > 0 && (
+          <div className="space-y-3">
+            <div className="text-center space-y-1">
+              <h3 className="text-sm font-black text-white">اختر المحل</h3>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                حسابك عضو في أكثر من محل. اختر المحل الذي تريد العمل فيه الآن — يمكنك التبديل بينها لاحقًا من الإعدادات.
+              </p>
+            </div>
+
+            {pickError && (
+              <div className="p-2.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-200 text-[11px] font-bold">
+                {pickError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {projectChoices.map((p) => (
+                <button
+                  key={p.project_id}
+                  type="button"
+                  disabled={pickLoading}
+                  onClick={() => handlePickProject(p.project_id)}
+                  className="w-full py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-xs flex items-center justify-between disabled:opacity-50"
+                >
+                  <span>{p.project_name}</span>
+                  <span className="text-[10px] text-slate-300">
+                    {p.role === 'owner' ? 'صاحب المحل' : p.role === 'manager' ? 'مدير' : 'موظف'}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setProjectChoices([]);
+                setPickError(null);
+              }}
+              className="w-full py-2 rounded-xl text-slate-300 text-[11px] font-bold hover:text-white"
+            >
+              رجوع
+            </button>
+          </div>
+        )}
+
         {/* ==================== MODE 1: LOGIN ==================== */}
-        {mode === 'login' && (
+        {mode === 'login' && projectChoices.length === 0 && (
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
