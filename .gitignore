@@ -13,5 +13,10 @@ data/
 *.db-shm
 *.db-wal
 
+# عيّنة ثابتة (fixture) لإثبات «قبل/بعد» على البيانات الحقيقية — مطلوبة لتشغيل بوابتي
+# verify-real-data و verify-ui-invoice. ليست بيانات تشغيل: ملف مجمّد للقراءة فقط
+# وبصمات كلمات المرور فيه مُعمّاة (لا تُستخدم أي كلمة مرور حقيقية في الاختبارات).
+!tests/fixtures/real-dataset-pre-usermgmt.db
+
 # AI Studio local artifacts
 .aistudio/

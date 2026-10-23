@@ -26,7 +26,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = path.join(REPO_ROOT, 'tests', 'fixtures', 'real-dataset-pre-usermgmt.db');
-const FIXTURE_SHA256 = 'e72a580bd6dd9795b3b1155584c1d97226db401bcc99d311ee9c4ff76a49fa61';
+const FIXTURE_SHA256 = '46b8b94f32fc0c84dbf39e0dcba7af3a75a6d7251f04ac50a7a8a9356a7da603';
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'ah2-realdataset-'));
 const DB_FILE = path.join(TMP, 'data', 'ah2.db');
 const BASE = 'http://127.0.0.1:3000';
