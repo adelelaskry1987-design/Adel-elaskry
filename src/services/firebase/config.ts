@@ -31,11 +31,23 @@ export const firebaseConfig = {
 
 /** هل إعدادات Firebase مكتملة؟ (بدونها يبقى التطبيق على الوضع المحلي) */
 export const isFirebaseConfigured = Boolean(
-  firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId
+  firebaseConfig.apiKey && firebaseConfig.projectId
 );
 
 /** هل نستخدم Firestore كمصدر بيانات؟ */
 export const useFirestoreData = isFirebaseConfigured && env.VITE_DATA_MODE === 'firestore';
+
+/**
+ * إعدادات مؤكدة للاستخدام: لو لم تُسجّل تطبيق ويب في الكونسول (خطوة اختيارية)
+ * نكمل الناقص تلقائيًا — authDomain مشتق من projectId، وappId اختياري تمامًا
+ * لخدمتي Authentication وFirestore.
+ */
+export function resolvedFirebaseConfig() {
+  return {
+    ...firebaseConfig,
+    authDomain: firebaseConfig.authDomain || `${firebaseConfig.projectId}.firebaseapp.com`,
+  };
+}
 
 let app: FirebaseApp | null = null;
 
@@ -43,7 +55,7 @@ export function firebaseApp(): FirebaseApp {
   if (!isFirebaseConfigured) {
     throw new Error('إعدادات Firebase غير مكتملة — راجع متغيّرات البيئة VITE_FIREBASE_*');
   }
-  if (!app) app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  if (!app) app = getApps().length ? getApp() : initializeApp(resolvedFirebaseConfig());
   return app;
 }
 
