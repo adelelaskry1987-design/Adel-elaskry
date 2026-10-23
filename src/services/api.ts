@@ -105,7 +105,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return data as T;
 }
 
-export const api = {
+const httpApi = {
   // Auth
   register: (payload: any) =>
     request<{ token: string; user: User; project: Project; permissions: string[] }>(
@@ -455,3 +455,128 @@ export const api = {
   deleteEmployee: (membershipId: string) =>
     request<{ message: string }>(`/api/employees/${membershipId}`, { method: 'DELETE' }),
 };
+
+
+// ═══════════════════════════════════════════════════════════════
+// وضع السحابة (Firestore): استبدال دوال البيانات فقط — نفس الواجهة
+// ═══════════════════════════════════════════════════════════════
+import { useFirestoreData } from './firebase/config';
+import { firebaseAuthInstance as firebaseAuth, loadSessionFor, signOutGoogle } from './firebase/auth';
+import * as cloudData from './firestore/data';
+
+const cloudOverrides: Partial<typeof httpApi> = useFirestoreData
+  ? {
+      getMe: async () => {
+        const fbUser = firebaseAuth().currentUser;
+        if (!fbUser) throw new Error('غير مصرح، يرجى تسجيل الدخول أولاً');
+        const { member, shop } = await loadSessionFor(fbUser);
+        return {
+          user: {
+            id: member.uid,
+            name: member.name,
+            phone: member.phone,
+            email: member.email,
+            role: member.role,
+            account_status: 'active',
+            last_login_at: member.lastLoginAt ?? null,
+            created_at: member.createdAt ?? new Date().toISOString(),
+          } as User,
+          project: {
+            id: 'main',
+            name: shop.name,
+            owner_id: shop.ownerUid,
+            created_at: member.createdAt ?? new Date().toISOString(),
+          } as Project,
+          permissions: member.permissions,
+          role: member.role,
+          account_status: 'active',
+          must_change_password: false,
+        } as any;
+      },
+
+      logout: async () => {
+        await signOutGoogle();
+        removeStoredToken();
+        return { message: 'تم تسجيل الخروج' };
+      },
+
+      // ── العملاء ──
+      getCustomers: (search?: string) => cloudData.getCustomersWithBalances(search) as Promise<Customer[]>,
+      getCustomer: (id: string) => cloudData.getCustomer(id),
+      createCustomer: (data: Partial<Customer>) =>
+        cloudData.createCustomer(
+          {
+            name: String(data.name ?? ''),
+            phone: data.phone,
+            address: data.address,
+            type: data.type,
+            notes: data.notes,
+          },
+          firebaseAuth().currentUser?.uid ?? 'unknown'
+        ),
+      updateCustomer: async (id: string, data: any) => {
+        await cloudData.updateCustomer(id, data, firebaseAuth().currentUser?.uid ?? 'unknown');
+        const { customer } = await cloudData.getCustomer(id);
+        return customer;
+      },
+      deleteCustomer: async (id: string, _projectPassword: string) => {
+        await cloudData.deleteCustomer(id, firebaseAuth().currentUser?.uid ?? 'unknown');
+        return { message: 'تم حذف العميل' };
+      },
+
+      // ── العمليات ──
+      getTransactions: async (filters: { customerId?: string; fromDate?: string; toDate?: string; status?: string } = {}) => {
+        let rows = await cloudData.listTransactions();
+        if (filters.customerId) rows = rows.filter((t) => String(t.customer_id) === filters.customerId);
+        if (filters.fromDate) rows = rows.filter((t) => t.date >= filters.fromDate!);
+        if (filters.toDate) rows = rows.filter((t) => t.date <= filters.toDate!);
+        if (filters.status) rows = rows.filter((t) => t.status === filters.status);
+        return rows.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`));
+      },
+      createTransaction: async (data: any) => {
+        const transaction = await cloudData.createTransaction(
+          {
+            customer_id: data.customer_id ?? data.customerId,
+            customer_name: data.customer_name ?? '',
+            type: data.type,
+            amount: Number(data.amount),
+            date: data.date,
+            time: data.time,
+            description: data.description,
+          },
+          firebaseAuth().currentUser?.uid ?? 'unknown'
+        );
+        const { customer } = await cloudData.getCustomer(String(transaction.customer_id));
+        return { transaction, customer };
+      },
+      updateTransaction: async (id: string, data: any) => {
+        await cloudData.updateTransaction(id, data, firebaseAuth().currentUser?.uid ?? 'unknown');
+        const all = await cloudData.listTransactions();
+        const transaction = all.find((t) => t.id === id)!;
+        const { customer } = await cloudData.getCustomer(String(transaction.customer_id));
+        return { transaction, customer, message: 'تم تعديل العملية', changes: [] as string[] };
+      },
+      cancelTransaction: async (id: string, reason: string) => {
+        await cloudData.cancelTransaction(id, reason, firebaseAuth().currentUser?.uid ?? 'unknown');
+        const all = await cloudData.listTransactions();
+        const transaction = all.find((t) => t.id === id)!;
+        const { customer } = await cloudData.getCustomer(String(transaction.customer_id));
+        return { transaction, customer, message: 'تم إلغاء العملية' };
+      },
+
+      // ── التقارير والإشعارات والسجل ──
+      getReportsSummary: (fromDate?: string, toDate?: string) => cloudData.getReportsSummary(fromDate, toDate),
+      getNotifications: () => cloudData.listNotifications(),
+      markNotificationRead: async (id: string) => {
+        await cloudData.markNotificationRead(id);
+        return { success: true };
+      },
+      markAllNotificationsRead: async () => {
+        await cloudData.markAllNotificationsRead();
+        return { success: true };
+      },
+      getActivityLogs: () => cloudData.listActivityLogs() as Promise<ActivityLog[]>,
+    }
+  : {};
+
+export const api = { ...httpApi, ...cloudOverrides } as typeof httpApi;

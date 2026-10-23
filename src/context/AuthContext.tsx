@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Project } from '../types';
-import { isFirebaseConfigured } from '../services/firebase/config';
+import { isFirebaseConfigured, useFirestoreData } from '../services/firebase/config';
 import {
   signInWithGoogle,
   loadSessionFor,
+  onGoogleAuthChange,
   GoogleAuthError,
   type ShopMember,
 } from '../services/firebase/auth';
@@ -61,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
   const [googleDenied, setGoogleDenied] = useState<{ email: string | null; uid: string | null; reason: string } | null>(null);
+  const applyGoogleSessionRef = React.useRef<((m: ShopMember, s: { name: string; ownerUid: string }) => void) | null>(null);
 
   const clearInactiveAccount = () => setInactiveAccount(null);
 
@@ -87,6 +89,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refresh = async () => {
+    // وضع السحابة: الجلسة تُستعاد من Firebase Auth عبر المستمع أدناه
+    if (useFirestoreData) {
+      setIsLoading(false);
+      return;
+    }
+
     const token = getStoredToken();
     if (!token) {
       setUser(null);
@@ -120,6 +128,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  // استعادة الجلسة السحابية تلقائيًا عند إعادة تحميل الصفحة
+  useEffect(() => {
+    if (!useFirestoreData) return;
+    const unsub = onGoogleAuthChange(async (fbUser) => {
+      if (!fbUser) {
+        setUser(null);
+        setProject(null);
+        setPermissions([]);
+        setRole(null);
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const { member, shop } = await loadSessionFor(fbUser);
+        applyGoogleSessionRef.current?.(member, shop);
+      } catch (err) {
+        if (err instanceof GoogleAuthError) {
+          setGoogleDenied({ email: fbUser.email ?? null, uid: fbUser.uid, reason: err.message });
+        }
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    });
+    return unsub;
   }, []);
 
   const login = async (identifier: string, pass: string, projectId?: string) => {
@@ -182,6 +217,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setMustChangePassword(false);
     setInactiveAccount(null);
   };
+
+  applyGoogleSessionRef.current = applyGoogleSession;
 
   const register = async (payload: any) => {
     const res = await api.register(payload);

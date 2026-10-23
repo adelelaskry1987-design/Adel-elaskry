@@ -19,7 +19,7 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { firebaseAuth, firestoreDb, SHOP_ID } from './config';
+import { firebaseAuth as fbAuth, firestoreDb, SHOP_ID } from './config';
 import type { AccountStatus, UserRole } from '../../types';
 
 export interface ShopMember {
@@ -59,7 +59,7 @@ const provider = () => {
 
 /** يفتح نافذة اختيار حساب Google (مع بديل redirect لو مُنع الـpopup) */
 export async function signInWithGoogle(): Promise<FirebaseUser> {
-  const auth = firebaseAuth();
+  const auth = fbAuth();
   await setPersistence(auth, browserLocalPersistence).catch(() => {});
   try {
     const cred = await signInWithPopup(auth, provider());
@@ -81,7 +81,7 @@ export async function signInWithGoogle(): Promise<FirebaseUser> {
 /** يلتقط نتيجة الدخول بعد إعادة التوجيه (إن استُخدم redirect) */
 export async function consumeRedirectResult(): Promise<FirebaseUser | null> {
   try {
-    const res = await getRedirectResult(firebaseAuth());
+    const res = await getRedirectResult(fbAuth());
     return res?.user ?? null;
   } catch {
     return null;
@@ -89,12 +89,12 @@ export async function consumeRedirectResult(): Promise<FirebaseUser | null> {
 }
 
 export async function signOutGoogle(): Promise<void> {
-  await signOut(firebaseAuth()).catch(() => {});
+  await signOut(fbAuth()).catch(() => {});
 }
 
 /** يستمع لتغيّر حالة الدخول */
 export function onGoogleAuthChange(cb: (user: FirebaseUser | null) => void): () => void {
-  return onAuthStateChanged(firebaseAuth(), cb);
+  return onAuthStateChanged(fbAuth(), cb);
 }
 
 /** يقرأ وثيقة المحل — إن لم تكن موجودة فالمشروع غير مهيّأ */
@@ -162,3 +162,7 @@ export const ALL_PERMISSIONS: string[] = [
   'manage_users', 'create_employees', 'request_disable_account', 'request_delete_account',
   'request_enable_account', 'approve_requests', 'manage_backups', 'restore_data', 'reset_data',
 ];
+
+
+/** واجهة جلسة Google الحالية (للاستخدام في طبقة البيانات) */
+export const firebaseAuthInstance = fbAuth;
