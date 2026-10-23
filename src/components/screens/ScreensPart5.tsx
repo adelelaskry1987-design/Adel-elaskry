@@ -199,7 +199,7 @@ export const Screen30About: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({
 
           <div className="flex justify-between items-center py-1 border-b border-slate-200">
             <span className="text-slate-500 font-semibold">تاريخ الإصدار الرسمي:</span>
-            <span className="font-bold text-slate-800">1 سبتمبر 2026</span>
+            <span className="font-bold text-slate-800">28 أكتوبر 2026</span>
           </div>
 
           <div className="flex justify-between items-center py-1 border-b border-slate-200">
