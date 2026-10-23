@@ -282,6 +282,9 @@ export const Screen36Users: React.FC<{
   const [confirm, setConfirm] = useState<{ kind: 'disable' | 'delete'; row: AccountRow; typed: string; reason: string } | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [view, setView] = useState<'users' | 'audit'>('users');
+  // إعادة تعيين كلمة المرور (صاحب المحل فقط)
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetResult, setResetResult] = useState<{ name: string; password: string } | null>(null);
   const [auditRows, setAuditRows] = useState<ActivityLog[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
@@ -363,6 +366,21 @@ export const Screen36Users: React.FC<{
 
   const canApprove = hasPermission('approve_requests');
   const isOwner = myRole === 'owner';
+
+  const doResetPassword = async (row: AccountRow) => {
+    try {
+      setResetBusy(true);
+      setNotice(null);
+      const res = await api.resetAccountPassword(row.membership_id);
+      setResetResult({ name: row.name, password: res.temporary_password });
+      setNotice({ tone: 'success', text: 'تم إعادة تعيين كلمة المرور وإبطال جلسات المستخدم' });
+      await load();
+    } catch (err: any) {
+      setNotice({ tone: 'error', text: err?.message || 'تعذر إعادة تعيين كلمة المرور' });
+    } finally {
+      setResetBusy(false);
+    }
+  };
 
   const doEnable = async (row: AccountRow) => {
     try {
@@ -746,6 +764,18 @@ export const Screen36Users: React.FC<{
 
                 {isOwner && selected.role !== 'owner' && selected.status !== 'deleted' && (
                   <>
+                    <button
+                      type="button"
+                      disabled={busy || resetBusy}
+                      onClick={() => doResetPassword(selected)}
+                      className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      <KeyRound className="w-4 h-4" /> إعادة تعيين كلمة المرور (إجبارية)
+                    </button>
+                    <p className="text-[9.5px] text-slate-500 font-bold leading-relaxed px-1">
+                      لن ترى كلمة المرور الحالية أبدًا. سيُنشئ النظام كلمة مرور مؤقتة تُعرض لك مرة واحدة، ويُطلب من
+                      المستخدم تغييرها عند أول دخول، وتُبطَل كل جلساته الحالية.
+                    </p>
                     {selected.status === 'active' && (
                       <button
                         type="button"
@@ -820,6 +850,31 @@ export const Screen36Users: React.FC<{
       )}
 
       {/* تأكيد مزدوج */}
+      {/* كلمة المرور المؤقتة — تُعرض مرة واحدة فقط */}
+      {resetResult && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl border border-slate-200 p-5 space-y-3 shadow-2xl">
+            <div className="flex items-center gap-2 text-amber-600 font-black text-sm">
+              <KeyRound className="w-5 h-5" /> كلمة مرور مؤقتة
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              كلمة المرور المؤقتة للمستخدم <b>{resetResult.name}</b>. تُعرض <b>مرة واحدة فقط</b> ولن يمكن استرجاعها —
+              سلّمها له الآن، وسيُطلب منه تغييرها عند أول دخول.
+            </p>
+            <div className="bg-slate-900 text-white rounded-xl p-3 text-center font-mono text-lg tracking-widest select-all" dir="ltr">
+              {resetResult.password}
+            </div>
+            <button
+              type="button"
+              onClick={() => setResetResult(null)}
+              className="w-full py-2.5 rounded-xl theme-btn-primary font-black text-xs"
+            >
+              نسختها — إغلاق
+            </button>
+          </div>
+        </div>
+      )}
+
       {confirm && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-2xl border border-slate-200 p-4 space-y-3">

@@ -367,6 +367,7 @@ export const Screen11CustomerDetails: React.FC<{
 
 // ================= SCREEN 12: CHANGE PASSWORD =================
 export const Screen12ChangePassword: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
+  const { mustChangePassword } = useAuth();
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -403,6 +404,13 @@ export const Screen12ChangePassword: React.FC<{ onNavigate: (s: ScreenId) => voi
   return (
     <div className="p-4 max-w-md mx-auto space-y-4 pb-24 select-none">
       <PageTitle title="تغيير كلمة المرور" />
+
+      {mustChangePassword && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold leading-relaxed">
+          أُعيد تعيين كلمة مرورك بواسطة صاحب المحل. أدخل كلمة المرور المؤقتة التي سلّمها لك، ثم عيّن كلمة مرور جديدة
+          خاصة بك — لن تستطيع استخدام التطبيق قبل ذلك.
+        </div>
+      )}
 
       {error && (
         <div className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-700 text-xs">

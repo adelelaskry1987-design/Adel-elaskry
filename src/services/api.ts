@@ -29,6 +29,16 @@ export function removeStoredToken(): void {
 }
 
 export const ACCOUNT_STATUS_EVENT = 'ah2:account-status-changed';
+/** يُطلق عندما يفرض الخادم تغيير كلمة المرور (428) بعد إعادة تعيين من صاحب المحل. */
+export const PASSWORD_CHANGE_REQUIRED_EVENT = 'ah2:password-change-required';
+
+function notifyPasswordChangeRequired(message: string) {
+  try {
+    window.dispatchEvent(new CustomEvent<{ message: string }>(PASSWORD_CHANGE_REQUIRED_EVENT, { detail: { message } }));
+  } catch {
+    /* بيئة بلا window */
+  }
+}
 
 /** يعيد حالة الحساب عند رفض الخادم الطلب لأن الحساب غير نشط. */
 export type InactiveAccountReason = 'pending' | 'disabled' | 'rejected' | 'deleted' | 'none';
@@ -73,6 +83,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     } else if (response.status === 403 && data?.code === 'NO_MEMBERSHIP') {
       removeStoredToken();
       notifyInactiveAccount('none', data.error || 'لا يوجد عضوية صالحة لهذا الحساب');
+    } else if (response.status === 428 && data?.code === 'PASSWORD_CHANGE_REQUIRED') {
+      // إعادة تعيين إجبارية من صاحب المحل: لا يمكن استخدام التطبيق قبل التغيير
+      notifyPasswordChangeRequired(data.error || 'يجب تغيير كلمة المرور أولًا');
     } else if (response.status === 401 && token) {
       // جلسة منتهية أو مُبطلة
       removeStoredToken();
@@ -388,6 +401,12 @@ export const api = {
     request<{ message: string; account_status: string; preserved_transactions: number }>(
       `/api/accounts/${membershipId}/delete`,
       { method: 'POST', body: JSON.stringify({ confirm: true }) }
+    ),
+
+  resetAccountPassword: (membershipId: string, reason?: string) =>
+    request<{ message: string; temporary_password: string; revoked_sessions: number; must_change_password: boolean }>(
+      `/api/accounts/${membershipId}/reset-password`,
+      { method: 'POST', body: JSON.stringify({ reason }) }
     ),
 
   getAccountActivity: (membershipId: string) =>

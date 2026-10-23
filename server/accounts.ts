@@ -16,6 +16,7 @@
  */
 
 import type { Request, Response } from 'express';
+import { randomBytes } from 'node:crypto';
 import { db, generateId, hashSecret, normalizePhoneNumber } from './db.js';
 import { logAudit, logDenied } from './audit.js';
 import {
@@ -322,7 +323,7 @@ export function listAccounts(req: Request, res: Response) {
       .prepare(
         `SELECT pm.id AS membership_id, pm.role, pm.status, pm.permissions, pm.proposed_permissions,
                 pm.created_at, pm.approved_at, pm.status_changed_at, pm.status_reason,
-                u.id AS user_id, u.name, u.phone, u.email, u.last_login_at
+                u.id AS user_id, u.name, u.phone, u.email, u.last_login_at, u.must_change_password
          FROM project_memberships pm
          JOIN users u ON u.id = pm.user_id
          WHERE pm.project_id = ?
@@ -637,6 +638,87 @@ const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
   enable_account: 'إعادة تفعيل حساب',
   delete_account: 'حذف حساب',
 };
+
+/**
+ * إعادة تعيين كلمة مرور مستخدم بواسطة صاحب المحل (إجبارية).
+ * =========================================================
+ * قواعد الأمان:
+ *  - صاحب المحل فقط (requireOwner على المسار + تحقق هنا).
+ *  - لا يمكن قراءة كلمة المرور القديمة ولا تُعاد ولا تُسجَّل في أي سجل.
+ *  - تُنشأ كلمة مرور مؤقتة عشوائية تُعرض مرة واحدة لصاحب المحل لتسليمها للمستخدم.
+ *  - تُبطَل كل جلسات المستخدم فورًا.
+ *  - يُعلَّم الحساب بـ must_change_password = 1، فيُمنع من أي إجراء
+ *    قبل تغيير كلمة المرور بنفسه.
+ *  - لا يمكن تطبيق ذلك على حساب صاحب المحل نفسه.
+ */
+export function resetAccountPassword(req: Request, res: Response) {
+  const actor = actorOf(req);
+  if (!actor) return res.status(401).json({ error: 'غير مصرح' });
+  if (actor.role !== 'owner') {
+    return deny(res, actor, 'محاولة إعادة تعيين كلمة مرور بدون أن يكون صاحب المحل', 'owner_only');
+  }
+
+  try {
+    const membership = getMembershipInProject(actor.projectId, String(req.params.membershipId));
+    if (!membership) return res.status(404).json({ error: 'العضوية غير موجودة في هذا المحل' });
+
+    const targetRole: Role = isRole(membership.role) ? membership.role : 'employee';
+    if (targetRole === 'owner' || membership.user_id === actor.userId) {
+      return deny(res, actor, 'محاولة إعادة تعيين كلمة مرور صاحب المحل', 'target_role=owner');
+    }
+    if (!canManageRole(actor.role, targetRole)) {
+      return deny(res, actor, 'محاولة إعادة تعيين كلمة مرور بدور أعلى', `target_role=${targetRole}`);
+    }
+    if (membership.status === 'deleted') {
+      return res.status(400).json({ error: 'هذا الحساب محذوف، لا يمكن إعادة تعيين كلمة مروره' });
+    }
+
+    // كلمة مرور مؤقتة عشوائية (12 محرفًا) — تُعرض مرة واحدة فقط ولا تُخزَّن كنص
+    const temporaryPassword = randomBytes(9).toString('base64url').replace(/[-_]/g, '').slice(0, 12);
+    const now = new Date().toISOString();
+
+    db.prepare('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?').run(
+      hashSecret(temporaryPassword),
+      membership.user_id
+    );
+
+    const revoked = revokeSessions(actor.projectId, membership.user_id);
+
+    const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+
+    logAudit({
+      projectId: actor.projectId,
+      actorId: actor.userId,
+      actorName: actor.userName,
+      actorRole: actor.role,
+      actionType: 'RESET_PASSWORD',
+      description: `إعادة تعيين كلمة مرور ${membership.user_name} (إجبارية عند أول دخول، وإبطال ${revoked} جلسة)`,
+      entityType: 'USER',
+      entityId: membership.user_id,
+      targetUserId: membership.user_id,
+      result: 'success',
+      reason,
+    });
+
+    notify(
+      actor.projectId,
+      membership.user_id,
+      'SECURITY',
+      'تمت إعادة تعيين كلمة المرور',
+      'قام صاحب المحل بإعادة تعيين كلمة المرور. سيُطلب منك تعيين كلمة مرور جديدة عند الدخول.'
+    );
+
+    return res.json({
+      message: 'تم إعادة تعيين كلمة المرور. سلّمها للمستخدم وسيُطلب منه تغييرها عند أول دخول.',
+      temporary_password: temporaryPassword,
+      revoked_sessions: revoked,
+      must_change_password: true,
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء إعادة تعيين كلمة المرور' });
+  }
+}
 
 export function createAccountRequest(req: Request, res: Response) {
   const actor = actorOf(req);

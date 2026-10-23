@@ -21,6 +21,7 @@ import {
   createAccountRequest,
   listAccountRequests,
   decideAccountRequest,
+  resetAccountPassword,
 } from './server/accounts.js';
 import {
   type Role,
@@ -87,7 +88,7 @@ function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   }
 
   const user = db
-    .prepare('SELECT id, name, phone, email, role, created_at FROM users WHERE id = ?')
+    .prepare('SELECT id, name, phone, email, role, created_at, must_change_password FROM users WHERE id = ?')
     .get(tokenRecord.user_id) as any;
 
   if (!user) {
@@ -148,6 +149,23 @@ function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   }
 
   const membershipRole: Role = isRole(membership.role) ? membership.role : 'employee';
+
+  // ── إجبار تغيير كلمة المرور بعد إعادة تعيينها بواسطة صاحب المحل ──
+  // يُسمح فقط بمسارات: معرفة الحساب، تغيير كلمة المرور، تسجيل الخروج.
+  if (Number(user.must_change_password ?? 0) === 1) {
+    const allowedWhileForced = new Set([
+      '/api/auth/me',
+      '/api/auth/change-password',
+      '/api/auth/logout',
+    ]);
+    const requestPath = (req.originalUrl || req.url || '').split('?')[0];
+    if (!allowedWhileForced.has(requestPath)) {
+      return res.status(428).json({
+        error: 'يجب تغيير كلمة المرور قبل استخدام التطبيق (أُعيد تعيينها بواسطة صاحب المحل).',
+        code: 'PASSWORD_CHANGE_REQUIRED',
+      });
+    }
+  }
 
   req.user = user;
   req.project = project;
@@ -573,6 +591,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
         created_at: project.created_at,
       },
       permissions,
+      must_change_password: Number(user.must_change_password ?? 0) === 1,
     });
   } catch (error: any) {
     console.error('Login error:', error);
@@ -601,6 +620,7 @@ app.get('/api/auth/me', authMiddleware, (req: AuthRequest, res: Response) => {
     permissions: req.membership ? req.membership.permissions : [],
     role,
     account_status: accountStatus,
+    must_change_password: Number((req.user as any)?.must_change_password ?? 0) === 1,
   });
 });
 
@@ -642,15 +662,18 @@ app.post('/api/auth/change-password', authMiddleware, (req: AuthRequest, res: Re
       return res.status(400).json({ error: 'تأكيد كلمة المرور غير متطابق' });
     }
 
-    const userRecord = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id) as any;
+    const userRecord = db.prepare('SELECT password_hash, must_change_password FROM users WHERE id = ?').get(req.user.id) as any;
     if (!verifySecret(oldPassword, userRecord.password_hash)) {
       return res.status(400).json({ error: 'كلمة المرور القديمة غير صحيحة' });
     }
 
     const newHash = hashSecret(newPassword);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+    const wasForced = Number((userRecord as any).must_change_password ?? 0) === 1;
+    db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(newHash, req.user.id);
 
-    logActivity(req.project.id, req.user.id, req.user.name, 'PASSWORD_CHANGE', 'تم تغيير كلمة المرور بنجاح', 'USER', req.user.id);
+    logActivity(req.project.id, req.user.id, req.user.name, 'PASSWORD_CHANGE',
+      wasForced ? 'تم تغيير كلمة المرور المفروضة بنجاح بعد إعادة التعيين' : 'تم تغيير كلمة المرور بنجاح',
+      'USER', req.user.id);
     createNotification(req.project.id, req.user.id, 'SECURITY', 'تم تغيير كلمة المرور', 'تم تحديث كلمة المرور الخاصة بحسابك بنجاح.');
 
     return res.json({ message: 'تم تحديث كلمة المرور بنجاح' });
@@ -2422,6 +2445,8 @@ app.post(
 );
 
 app.get('/api/accounts/:membershipId/activity', authMiddleware, requirePermission('manage_users'), getAccountActivity);
+// إعادة تعيين كلمة مرور إجبارية — صاحب المحل فقط (لا يرى كلمة المرور القديمة أبدًا)
+app.post('/api/accounts/:membershipId/reset-password', authMiddleware, requireOwner(), resetAccountPassword);
 
 // ================= EMPLOYEES & PERMISSIONS =================
 

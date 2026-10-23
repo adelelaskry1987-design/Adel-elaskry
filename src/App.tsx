@@ -66,7 +66,7 @@ import {
 import { WifiOff, ShieldAlert, LogIn } from 'lucide-react';
 
 function MainApp() {
-  const { user, isLoading, inactiveAccount, clearInactiveAccount, hasPermission } = useAuth();
+  const { user, isLoading, inactiveAccount, clearInactiveAccount, hasPermission, mustChangePassword } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('reset_token') && params.get('uid')) {
@@ -133,6 +133,18 @@ function MainApp() {
       refreshAllData();
     }
   }, [user]);
+
+  // إعادة تعيين إجبارية من صاحب المحل: لا شاشة إلا شاشة تغيير كلمة المرور
+  useEffect(() => {
+    if (
+      mustChangePassword &&
+      user &&
+      currentScreen !== 'screen-12-change-password' &&
+      currentScreen !== 'screen-8-password-changed-success'
+    ) {
+      setCurrentScreen('screen-12-change-password');
+    }
+  }, [mustChangePassword, user, currentScreen]);
 
   // Screen Navigation Router
   const navigateTo = (screen: ScreenId) => {

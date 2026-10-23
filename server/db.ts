@@ -231,6 +231,8 @@ export function runUserManagementMigrations() {
 
   // 1) أعمدة الحسابات والاعتماد
   if (ensureColumn('users', 'last_login_at', 'TEXT')) addedColumns++;
+  // إجبار تغيير كلمة المرور بعد إعادة تعيينها بواسطة صاحب المحل (0 = لا / 1 = نعم)
+  if (ensureColumn('users', 'must_change_password', 'INTEGER NOT NULL DEFAULT 0')) addedColumns++;
   if (ensureColumn('project_memberships', 'proposed_permissions', 'TEXT')) addedColumns++;
   if (ensureColumn('project_memberships', 'status_changed_at', 'TEXT')) addedColumns++;
   if (ensureColumn('project_memberships', 'status_changed_by', 'TEXT')) addedColumns++;

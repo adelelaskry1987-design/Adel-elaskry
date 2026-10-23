@@ -6,6 +6,7 @@ import {
   setStoredToken,
   removeStoredToken,
   ACCOUNT_STATUS_EVENT,
+  PASSWORD_CHANGE_REQUIRED_EVENT,
   type InactiveAccountDetail,
 } from '../services/api';
 
@@ -26,6 +27,8 @@ interface AuthContextType {
   inactiveAccount: InactiveAccountDetail | null;
   /** مسح رسالة الحساب غير النشط (بعد عرضها للمستخدم) */
   clearInactiveAccount: () => void;
+  /** هل يجب على المستخدم تغيير كلمة المرور قبل أي استخدام؟ (إعادة تعيين إجبارية) */
+  mustChangePassword: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [accountStatus, setAccountStatus] = useState<string | null>(null);
   const [inactiveAccount, setInactiveAccount] = useState<InactiveAccountDetail | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
 
   const clearInactiveAccount = () => setInactiveAccount(null);
 
@@ -54,6 +58,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     window.addEventListener(ACCOUNT_STATUS_EVENT, handler);
     return () => window.removeEventListener(ACCOUNT_STATUS_EVENT, handler);
+  }, []);
+
+  // إجبار تغيير كلمة المرور (إعادة تعيين من صاحب المحل)
+  useEffect(() => {
+    const handler = () => setMustChangePassword(true);
+    window.addEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, handler);
+    return () => window.removeEventListener(PASSWORD_CHANGE_REQUIRED_EVENT, handler);
   }, []);
 
   const refresh = async () => {
@@ -74,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPermissions(data.permissions || []);
       setRole(data.role || 'owner');
       setAccountStatus((data as any).account_status ?? data.user?.account_status ?? 'active');
+      setMustChangePassword(!!(data as any).must_change_password);
       setInactiveAccount(null);
     } catch (err) {
       console.warn('Session expired or invalid, logging out', err);
@@ -155,6 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         accountStatus,
         inactiveAccount,
         clearInactiveAccount,
+        mustChangePassword,
       }}
     >
       {children}
