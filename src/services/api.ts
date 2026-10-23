@@ -262,6 +262,18 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  updateTransaction: (
+    id: string,
+    data: { amount: number; type: string; date: string; time: string; description?: string; reason?: string }
+  ) =>
+    request<{ transaction: Transaction; customer: Customer; message: string; changes: string[] }>(
+      `/api/transactions/${id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }
+    ),
+
   cancelTransaction: (id: string, reason: string) =>
     request<{ transaction: Transaction; customer: Customer; message: string }>(
       `/api/transactions/${id}/cancel`,

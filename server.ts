@@ -1827,6 +1827,103 @@ app.post('/api/transactions', authMiddleware, requirePermission('create_transact
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// تعديل عملية مالية قائمة (تحتاج صلاحية edit_transaction)
+// ملاحظات سلامة:
+//  - لا تُعدَّل العملية الملغاة (يُرفض الطلب) حتى لا تختلط الحالتان.
+//  - العميل لا يتغيّر من هذا المسار (نقل عملية بين عملاء قرار مختلف).
+//  - الأرصدة تُحسب ديناميكيًا من العمليات النشطة، فلا حاجة لإعادة حساب أو ترحيل.
+//  - كل تعديل يُسجَّل في سجل التدقيق بالقيم قبل/بعد والسبب.
+// ─────────────────────────────────────────────────────────────
+app.put('/api/transactions/:id', authMiddleware, requirePermission('edit_transaction'), (req: AuthRequest, res: Response) => {
+  try {
+    const { amount, type, date, time, description, reason } = req.body ?? {};
+
+    const tx = db.prepare(`
+      SELECT t.*, c.name as customer_name
+      FROM transactions t
+      JOIN customers c ON c.id = t.customer_id
+      WHERE t.id = ? AND t.project_id = ?
+    `).get(req.params.id, req.project.id) as any;
+
+    if (!tx) {
+      return res.status(404).json({ error: 'العملية غير موجودة' });
+    }
+    if (tx.status === 'cancelled') {
+      return res.status(409).json({ error: 'لا يمكن تعديل عملية ملغاة. أعد تفعيلها أولًا أو سجّل عملية جديدة.' });
+    }
+
+    const cleanAmount = amount === undefined ? Number(tx.amount) : Number(amount);
+    if (!Number.isFinite(cleanAmount) || cleanAmount <= 0) {
+      return res.status(400).json({ error: 'المبلغ يجب أن يكون رقمًا أكبر من صفر' });
+    }
+
+    const cleanType = type === undefined ? tx.type : String(type);
+    if (cleanType !== 'payment' && cleanType !== 'withdrawal') {
+      return res.status(400).json({ error: 'نوع العملية يجب أن يكون دفع أو سحب' });
+    }
+
+    const cleanDate = date === undefined ? tx.date : String(date).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      return res.status(400).json({ error: 'التاريخ غير صالح (الصيغة المطلوبة YYYY-MM-DD)' });
+    }
+
+    const cleanTime = time === undefined ? tx.time : String(time).trim();
+    const timeMatch = /^(\d{2}):(\d{2})$/.exec(cleanTime);
+    if (!timeMatch || Number(timeMatch[1]) > 23 || Number(timeMatch[2]) > 59) {
+      return res.status(400).json({ error: 'الوقت غير صالح (الصيغة المطلوبة HH:MM خلال 24 ساعة)' });
+    }
+
+    const cleanDescription = description === undefined ? tx.description : String(description).trim();
+    const editReason = reason ? String(reason).trim() : 'تعديل بواسطة المستخدم';
+
+    db.prepare(`
+      UPDATE transactions
+      SET amount = ?, type = ?, date = ?, time = ?, description = ?
+      WHERE id = ? AND project_id = ?
+    `).run(cleanAmount, cleanType, cleanDate, cleanTime, cleanDescription, tx.id, req.project.id);
+
+    const changes: string[] = [];
+    if (Number(tx.amount) !== cleanAmount) changes.push(`amount: ${tx.amount} → ${cleanAmount}`);
+    if (tx.type !== cleanType) changes.push(`type: ${tx.type} → ${cleanType}`);
+    if (tx.date !== cleanDate) changes.push(`date: ${tx.date} → ${cleanDate}`);
+    if (tx.time !== cleanTime) changes.push(`time: ${tx.time} → ${cleanTime}`);
+    if ((tx.description ?? '') !== cleanDescription) changes.push('description');
+
+    logAudit({
+      projectId: req.project.id,
+      actorId: req.user.id,
+      actorName: req.user.name,
+      actorRole: req.membership?.role ?? null,
+      actionType: 'EDIT_TRANSACTION',
+      description: `تم تعديل عملية ${cleanType === 'payment' ? 'دفع' : 'سحب'} للعميل ${tx.customer_name} (${changes.length} تغيير)`,
+      entityType: 'TRANSACTION',
+      entityId: tx.id,
+      result: 'success',
+      reason: `${changes.join(' | ') || 'لا تغيير في القيم'} — ${editReason}`,
+    });
+
+    const updated = db.prepare(`
+      SELECT t.*, c.name as customer_name, c.phone as customer_phone
+      FROM transactions t
+      JOIN customers c ON c.id = t.customer_id
+      WHERE t.id = ? AND t.project_id = ?
+    `).get(tx.id, req.project.id) as any;
+
+    const updatedCustomer = calculateCustomerBalances(req.project.id, tx.customer_id)[0];
+
+    return res.json({
+      message: 'تم تعديل العملية بنجاح',
+      transaction: updated,
+      customer: updatedCustomer,
+      changes,
+    });
+  } catch (error) {
+    console.error('Edit transaction error:', error);
+    return res.status(500).json({ error: 'حدث خطأ أثناء تعديل العملية المالية' });
+  }
+});
+
 app.post('/api/transactions/:id/cancel', authMiddleware, requirePermission('cancel_transaction'), (req: AuthRequest, res: Response) => {
   try {
     const { reason } = req.body;

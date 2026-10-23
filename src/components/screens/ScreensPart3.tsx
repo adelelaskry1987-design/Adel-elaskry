@@ -16,6 +16,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Ban,
+  Edit,
   Database,
   Download,
   Upload,
@@ -247,6 +248,50 @@ export const Screen18AllTransactions: React.FC<{
   onRefresh: () => void;
 }> = ({ transactions, onNavigate, onRefresh }) => {
   const { project, hasPermission } = useAuth();
+  // ── حالة نموذج تعديل العملية (صلاحية edit_transaction) ──
+  const [editModalTx, setEditModalTx] = useState<Transaction | null>(null);
+  const [editForm, setEditForm] = useState({ amount: '', type: 'payment', date: '', time: '', description: '', reason: '' });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editNotice, setEditNotice] = useState<string | null>(null);
+
+  const openEdit = (t: Transaction) => {
+    setEditModalTx(t);
+    setEditError(null);
+    setEditNotice(null);
+    setEditForm({
+      amount: String(t.amount ?? ''),
+      type: (t as any).type ?? 'payment',
+      date: (t as any).date ?? '',
+      time: (t as any).time ?? '',
+      description: (t as any).description ?? '',
+      reason: '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editModalTx) return;
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const res = await api.updateTransaction(editModalTx.id, {
+        amount: Number(editForm.amount),
+        type: editForm.type,
+        date: editForm.date,
+        time: editForm.time,
+        description: editForm.description,
+        reason: editForm.reason || undefined,
+      });
+      setEditNotice(res.message || 'تم تعديل العملية بنجاح');
+      setEditModalTx(null);
+      onRefresh();
+    } catch (err: any) {
+      setEditError(err?.message || 'تعذر تعديل العملية');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [cancelModalTx, setCancelModalTx] = useState<Transaction | null>(null);
@@ -290,6 +335,11 @@ export const Screen18AllTransactions: React.FC<{
     <div className="p-4 max-w-md mx-auto space-y-3.5 pb-24 select-none">
       {/* Banner */}
       <PageTitle title="كل العمليات" />
+      {editNotice && (
+        <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
+          {editNotice}
+        </div>
+      )}
 
       {/* زر المشاركة بعرض الشاشة */}
       <button
@@ -403,15 +453,26 @@ export const Screen18AllTransactions: React.FC<{
                     {isPayment ? '+' : '-'} {t.amount.toLocaleString()} ج.م
                   </div>
 
-                  {!isCancelled && hasPermission('cancel_transaction') && (
-                    <button
-                      onClick={() => setCancelModalTx(t)}
-                      className="mt-2 text-[10px] text-red-600 hover:text-red-800 font-bold flex items-center gap-1"
-                    >
-                      <Ban className="w-3 h-3" />
-                      إلغاء العملية
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2 justify-end">
+                    {!isCancelled && hasPermission('edit_transaction') && (
+                      <button
+                        onClick={() => openEdit(t)}
+                        className="mt-2 text-[10px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1"
+                      >
+                        <Edit className="w-3 h-3" />
+                        تعديل العملية
+                      </button>
+                    )}
+                    {!isCancelled && hasPermission('cancel_transaction') && (
+                      <button
+                        onClick={() => setCancelModalTx(t)}
+                        className="mt-2 text-[10px] text-red-600 hover:text-red-800 font-bold flex items-center gap-1"
+                      >
+                        <Ban className="w-3 h-3" />
+                        إلغاء العملية
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -425,6 +486,106 @@ export const Screen18AllTransactions: React.FC<{
           </div>
         )}
       </div>
+
+      {/* Edit Transaction Modal — يظهر فقط لمن يملك صلاحية تعديل عملية */}
+      {editModalTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl border border-slate-200 space-y-3">
+            <div className="flex items-center gap-2 text-blue-700 font-black text-sm">
+              <Edit className="w-5 h-5" />
+              تعديل العملية المالية
+            </div>
+
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              العميل: <span className="font-bold">{editModalTx.customer_name}</span> — سيُعاد حساب رصيده تلقائيًا
+              بالقيم الجديدة، ويُسجَّل التعديل في سجل التدقيق بالقيم قبل وبعد.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-1">المبلغ (ج.م)</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={editForm.amount}
+                  onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                  className="w-full p-2 border rounded-xl text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-1">النوع</label>
+                <select
+                  value={editForm.type}
+                  onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}
+                  className="w-full p-2 border rounded-xl text-xs font-bold"
+                >
+                  <option value="payment">دفع</option>
+                  <option value="withdrawal">سحب</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-1">التاريخ</label>
+                <input
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                  className="w-full p-2 border rounded-xl text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-1">الوقت</label>
+                <input
+                  type="time"
+                  value={editForm.time}
+                  onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
+                  className="w-full p-2 border rounded-xl text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-700 mb-1">الوصف</label>
+              <input
+                type="text"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                className="w-full p-2 border rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-700 mb-1">سبب التعديل (يُسجَّل في السجل)</label>
+              <input
+                type="text"
+                value={editForm.reason}
+                onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
+                placeholder="مثال: تصحيح مبلغ مُدخل بالخطأ"
+                className="w-full p-2 border rounded-xl text-xs"
+              />
+            </div>
+
+            {editError && (
+              <div className="p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">{editError}</div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveEdit}
+                disabled={editLoading}
+                className="flex-1 py-2 rounded-xl bg-blue-700 text-white font-bold text-xs disabled:opacity-50"
+              >
+                {editLoading ? 'جاري الحفظ...' : 'حفظ التعديل'}
+              </button>
+              <button
+                onClick={() => setEditModalTx(null)}
+                className="flex-1 py-2 rounded-xl theme-btn-secondary font-bold text-xs"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancellation Modal */}
       {cancelModalTx && (

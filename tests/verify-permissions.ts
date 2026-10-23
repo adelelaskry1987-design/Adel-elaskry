@@ -204,7 +204,7 @@ function staticCoverageCheck() {
     unguarded.length === 0,
     unguarded.join(' · ')
   );
-  ok('عدد مسارات الـ API المحمية 29 (20 + 9 إدارة حسابات)', guarded === 29, String(guarded));
+  ok('عدد مسارات الـ API المحمية 30 (21 + 9 إدارة حسابات)', guarded === 30, String(guarded));
   ok('المسارات العامة مسجّلة صراحةً', PUBLIC_ROUTES.size === 10);
 
   // حماية إضافية: لا مسارات لتعديل/حذف سجل التدقيق
