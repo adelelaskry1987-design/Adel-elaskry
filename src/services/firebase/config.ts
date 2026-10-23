@@ -27,6 +27,7 @@ export const firebaseConfig = {
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET ?? '',
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
   appId: env.VITE_FIREBASE_APP_ID ?? '',
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID ?? '',
 };
 
 /** هل إعدادات Firebase مكتملة؟ (بدونها يبقى التطبيق على الوضع المحلي) */
