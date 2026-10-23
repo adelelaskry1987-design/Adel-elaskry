@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Project } from '../types';
+import { isFirebaseConfigured } from '../services/firebase/config';
+import {
+  signInWithGoogle,
+  loadSessionFor,
+  GoogleAuthError,
+  type ShopMember,
+} from '../services/firebase/auth';
 import {
   api,
   getStoredToken,
@@ -33,6 +40,13 @@ interface AuthContextType {
   clearInactiveAccount: () => void;
   /** هل يجب على المستخدم تغيير كلمة المرور قبل أي استخدام؟ (إعادة تعيين إجبارية) */
   mustChangePassword: boolean;
+  /** هل الدخول بحساب Google متاح؟ (يظهر الزر فقط عند ضبط Firebase) */
+  googleAvailable: boolean;
+  /** دخول بحساب Google — يبني جلسة التطبيق من عضوية Firestore */
+  loginWithGoogle: () => Promise<void>;
+  /** بريد الحساب الذي حاول الدخول بلا عضوية (لعرضه مع UID للمالك) */
+  googleDenied: { email: string | null; uid: string | null; reason: string } | null;
+  clearGoogleDenied: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [inactiveAccount, setInactiveAccount] = useState<InactiveAccountDetail | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [mustChangePassword, setMustChangePassword] = useState<boolean>(false);
+  const [googleDenied, setGoogleDenied] = useState<{ email: string | null; uid: string | null; reason: string } | null>(null);
 
   const clearInactiveAccount = () => setInactiveAccount(null);
 
@@ -126,6 +141,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { requiresProjectSelection: false, projects: [] };
   };
 
+  /**
+   * الدخول بحساب Google (Firestore هو مصدر البيانات في هذا الوضع):
+   * هوية Google + عضوية نشطة = جلسة. أي حساب آخر يُرفض ويُعرض UID للمالك.
+   */
+  const loginWithGoogle = async () => {
+    setGoogleDenied(null);
+    const fbUser = await signInWithGoogle();
+    try {
+      const { member, shop } = await loadSessionFor(fbUser);
+      applyGoogleSession(member, shop);
+    } catch (err) {
+      if (err instanceof GoogleAuthError) {
+        setGoogleDenied({ email: fbUser.email ?? null, uid: fbUser.uid, reason: err.message });
+      }
+      throw err;
+    }
+  };
+
+  const applyGoogleSession = (member: ShopMember, shop: { name: string; ownerUid: string }) => {
+    setUser({
+      id: member.uid,
+      name: member.name,
+      phone: member.phone,
+      email: member.email,
+      role: member.role,
+      account_status: 'active',
+      last_login_at: member.lastLoginAt ?? null,
+      created_at: member.createdAt ?? new Date().toISOString(),
+    } as User);
+    setProject({
+      id: 'main',
+      name: shop.name,
+      owner_id: shop.ownerUid,
+      created_at: member.createdAt ?? new Date().toISOString(),
+    } as Project);
+    setPermissions(member.permissions || []);
+    setRole(member.role);
+    setAccountStatus('active');
+    setMustChangePassword(false);
+    setInactiveAccount(null);
+  };
+
   const register = async (payload: any) => {
     const res = await api.register(payload);
     setStoredToken(res.token);
@@ -180,6 +237,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         inactiveAccount,
         clearInactiveAccount,
         mustChangePassword,
+      googleAvailable: isFirebaseConfigured,
+      loginWithGoogle,
+      googleDenied,
+      clearGoogleDenied: () => setGoogleDenied(null),
       }}
     >
       {children}
