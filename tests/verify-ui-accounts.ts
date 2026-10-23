@@ -138,13 +138,28 @@ async function seedSession(page: Page, token: string) {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
   await page.evaluate((t) => localStorage.setItem('ah2_auth_token', t), token);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(3500);
+  // ننتظر جاهزية التطبيق فعليًا (ظهور زر مبدّل الشاشات) بدل مدة ثابتة
+  const ready = await page
+    .locator('button[title*="الشاشات"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 30_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!ready) {
+    // محاولة إضافية: إعادة التحميل مرة أخرى مع انتظار أطول
+    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+    await page.locator('button[title*="الشاشات"]').first().waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {});
+  }
+  await page.waitForTimeout(1200);
 }
 
 /** يسجّل الدخول عبر نموذج الشاشة 4 الحقيقي */
 async function uiLogin(page: Page, identifier: string, password: string): Promise<boolean> {
   await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(3500); // شاشة البداية تنتقل تلقائيًا إلى الدخول
+  // شاشة البداية تنتقل تلقائيًا إلى الدخول — ننتظر ظهور الحقلين
+  await page
+    .waitForFunction(() => document.querySelectorAll('input').length >= 2, undefined, { timeout: 30_000 })
+    .catch(() => {});
   const inputs = page.locator('input');
   if ((await inputs.count()) < 2) return false;
   await inputs.nth(0).fill(identifier);
@@ -154,35 +169,53 @@ async function uiLogin(page: Page, identifier: string, password: string): Promis
   return page.evaluate(() => !!localStorage.getItem('ah2_auth_token'));
 }
 
-/** يفتح شاشة عبر مبدّل الشاشات الموجود في التطبيق (مع البحث) */
+/** يفتح شاشة عبر مبدّل الشاشات الموجود في التطبيق (مع البحث) — مع إعادة محاولة وانتظار صريح */
 async function openScreen(page: Page, query: string): Promise<boolean> {
-  let btn = page.locator('button[title*="الشاشات"]').first();
-  if (!(await btn.count())) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-        break;
-      } catch {
-        await page.waitForTimeout(1500);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let btn = page.locator('button[title*="الشاشات"]').first();
+    if (!(await btn.count())) {
+      for (let go = 0; go < 3; go++) {
+        try {
+          await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+          break;
+        } catch {
+          await page.waitForTimeout(1500);
+        }
       }
+      await page.waitForTimeout(4000);
+      btn = page.locator('button[title*="الشاشات"]').first();
+      if (!(await btn.count())) continue;
     }
-    await page.waitForTimeout(4000);
-    btn = page.locator('button[title*="الشاشات"]').first();
-    if (!(await btn.count())) return false;
-  }
-  await btn.click();
-  await page.waitForTimeout(700);
 
-  const search = page.locator('input').first();
-  if (await search.count()) {
-    await search.fill(query);
-    await page.waitForTimeout(700);
+    await btn.click({ timeout: 15_000 }).catch(() => {});
+    await page.waitForTimeout(500);
+
+    const search = page.locator('input').first();
+    const hasSearch = await search
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (hasSearch) {
+      await search.fill('');
+      await search.fill(query);
+    }
+
+    const item = page.locator('button', { hasText: query }).first();
+    const ready = await item
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!ready) {
+      await page.waitForTimeout(1200);
+      continue;
+    }
+
+    await item.scrollIntoViewIfNeeded().catch(() => {});
+    await item.click({ timeout: 15_000 }).catch(() => {});
+    await page.waitForTimeout(2500);
+    return true;
   }
-  const item = page.locator('button', { hasText: query }).first();
-  if (!(await item.count())) return false;
-  await item.click();
-  await page.waitForTimeout(2000);
-  return true;
+  return false;
 }
 
 async function main() {
@@ -390,9 +423,20 @@ async function main() {
     // ══ 7) الموظف المعطل يُطرد من الواجهة ══
     console.log('\n— الموظف المعطل يفقد الوصول من الواجهة —');
     await empPage.reload({ waitUntil: 'domcontentloaded' });
-    await empPage.waitForTimeout(2500);
+    // ننتظر حتى تُحسم الحالة (طرد إلى الدخول / رسالة تعطيل) بدل انتظار مدة ثابتة
+    const kicked = await empPage
+      .waitForFunction(
+        () => {
+          const t = document.body?.innerText ?? '';
+          return t.includes('الحساب غير نشط') || t.includes('حسابك معطل') || t.includes('تسجيل الدخول');
+        },
+        { timeout: 25_000 }
+      )
+      .then(() => true)
+      .catch(() => false);
+    await empPage.waitForTimeout(500);
     body = await empPage.locator('body').innerText();
-    ok('الموظف المعطل يُمنع/يُطرد', body.includes('الحساب غير نشط') || body.includes('حسابك معطل') || body.includes('تسجيل الدخول'), body.slice(0, 200));
+    ok('الموظف المعطل يُمنع/يُطرد', kicked, body.slice(0, 200));
 
     console.log(`\nالنتيجة: ${pass} ناجح / ${fail} فاشل`);
     process.exitCode = fail === 0 ? 0 : 1;

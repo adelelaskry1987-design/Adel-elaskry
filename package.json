@@ -13,7 +13,7 @@
     "test:migration": "tsx tests/verify-migration.ts",
     "test:auth": "tsx tests/verify-auth.ts",
     "test:permissions": "tsx tests/verify-permissions.ts",
-    "test:all": "tsx tests/verify-migration.ts && tsx tests/verify-auth.ts && tsx tests/verify-permissions.ts && tsx tests/verify-accounts.ts && tsx tests/verify-throttle.ts && tsx tests/verify-edit-transaction.ts && tsx tests/verify-reset-password.ts && tsx tests/verify-audit.ts && tsx tests/verify-ui-accounts.ts && tsx tests/verify-ui-permissions.ts && tsx tests/verify-ui-audit.ts && tsx tests/verify-ui-edit-transaction.ts && tsx tests/verify-ui-reset-password.ts && tsx tests/verify-multi-shop.ts && tsx tests/verify-ui-multi-shop.ts && tsx tests/verify-real-data.ts && tsx tests/verify-final-19.ts",
+    "test:all": "tsx tests/verify-migration.ts && tsx tests/verify-auth.ts && tsx tests/verify-permissions.ts && tsx tests/verify-accounts.ts && tsx tests/verify-throttle.ts && tsx tests/verify-edit-transaction.ts && tsx tests/verify-reset-password.ts && tsx tests/verify-audit.ts && tsx tests/verify-ui-accounts.ts && tsx tests/verify-ui-permissions.ts && tsx tests/verify-ui-audit.ts && tsx tests/verify-ui-edit-transaction.ts && tsx tests/verify-ui-reset-password.ts && tsx tests/verify-multi-shop.ts && tsx tests/verify-ui-multi-shop.ts && tsx tests/verify-real-data.ts && tsx tests/verify-ui-invoice.ts && tsx tests/verify-final-19.ts",
     "test:accounts": "tsx tests/verify-accounts.ts",
     "test:ui": "tsx tests/verify-ui-accounts.ts",
     "test:ui:perms": "tsx tests/verify-ui-permissions.ts",
@@ -27,7 +27,8 @@
     "test:ui:edit-tx": "tsx tests/verify-ui-edit-transaction.ts",
     "test:final": "tsx tests/verify-final-19.ts",
     "test:ui:audit": "tsx tests/verify-ui-audit.ts",
-    "test:real-data": "tsx tests/verify-real-data.ts"
+    "test:real-data": "tsx tests/verify-real-data.ts",
+    "test:ui:invoice": "tsx tests/verify-ui-invoice.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
