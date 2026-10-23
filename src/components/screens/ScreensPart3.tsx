@@ -406,8 +406,8 @@ export const Screen18AllTransactions: React.FC<{
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-xs text-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-slate-800 leading-normal">
                       {t.customer_name || 'عميل'}
                     </span>
                     <span

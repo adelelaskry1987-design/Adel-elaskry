@@ -10,6 +10,7 @@ interface ShopOwnerLogoProps {
   showTitle?: boolean;
   theme?: 'dark' | 'light';
   transparent?: boolean;
+  noBorder?: boolean;
 }
 
 const logoSrc = shopLogoAsset || '/shop_owner_logo.jpg';
@@ -23,6 +24,7 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
   showTitle = false,
   theme,
   transparent = false,
+  noBorder = false,
 }) => {
   // ================= 1. HEADER VARIANT (Emblem on Right without text inside, Name on Left) =================
   if (variant === 'header') {
@@ -148,7 +150,9 @@ export const ShopOwnerLogo: React.FC<ShopOwnerLogoProps> = ({
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
       <div
-        className={`logo-light-frame ${sizeClasses} rounded-2xl overflow-hidden border-2 border-amber-400/90 bg-white shadow-md p-1 flex items-center justify-center`}
+        className={`logo-light-frame ${sizeClasses} rounded-2xl overflow-hidden ${
+          noBorder ? 'border-0' : 'border-2 border-amber-400/90'
+        } bg-white shadow-md p-1 flex items-center justify-center`}
       >
         <img
           src={transparent ? fullLogoSrc : logoSrc}

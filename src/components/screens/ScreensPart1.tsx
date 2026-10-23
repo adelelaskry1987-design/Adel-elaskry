@@ -66,7 +66,7 @@ export const Screen1Splash: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({
       {/* Center Logos: Shop Owner Brand (OM BASMA) & AH2 System Emblem */}
       <div className="my-auto flex flex-col items-center gap-6 bg-[var(--bg-header)] border-2 border-[var(--color-gold)]/70 rounded-3xl p-6 shadow-xl text-white">
         {/* Prominent Shop Owner Identity (On Top) */}
-        <div className="flex flex-col items-center bg-white/5 border-2 border-[#c59a3f]/60 rounded-3xl p-4 shadow-md">
+        <div className="flex flex-col items-center">
           <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
         </div>
 
