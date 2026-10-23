@@ -28,6 +28,11 @@ export const firebaseConfig = {
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
   appId: env.VITE_FIREBASE_APP_ID ?? '',
   measurementId: env.VITE_FIREBASE_MEASUREMENT_ID ?? '',
+  /**
+   * معرّف قاعدة Firestore. الغالب `(default)`، لكن لو القاعدة أُنشئت بمعرّف
+   * صريح مثل `default` (وهو ما حدث في مشروع المحل) يُضبط من البيئة.
+   */
+  databaseId: env.VITE_FIREBASE_DATABASE_ID || '(default)',
 };
 
 /** هل إعدادات Firebase مكتملة؟ (بدونها يبقى التطبيق على الوضع المحلي) */
@@ -44,10 +49,16 @@ export const useFirestoreData = isFirebaseConfigured && env.VITE_DATA_MODE === '
  * لخدمتي Authentication وFirestore.
  */
 export function resolvedFirebaseConfig() {
+  const { databaseId: _db, ...rest } = firebaseConfig;
   return {
-    ...firebaseConfig,
+    ...rest,
     authDomain: firebaseConfig.authDomain || `${firebaseConfig.projectId}.firebaseapp.com`,
   };
+}
+
+/** إعدادات قاعدة Firestore (المعرّف منفصل عن إعدادات التطبيق) */
+export function firestoreConfig() {
+  return { databaseId: firebaseConfig.databaseId };
 }
 
 let app: FirebaseApp | null = null;
@@ -65,7 +76,8 @@ export function firebaseAuth(): Auth {
 }
 
 export function firestoreDb(): Firestore {
-  return getFirestore(firebaseApp());
+  const databaseId = firestoreConfig().databaseId;
+  return getFirestore(firebaseApp(), databaseId);
 }
 
 /** معرّف المحل الوحيد (التطبيق مخصّص لمحل واحد) */
