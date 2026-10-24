@@ -66,6 +66,9 @@ export async function signInWithGoogle(): Promise<FirebaseUser> {
     return cred.user;
   } catch (err: any) {
     const code = String(err?.code ?? '');
+    // نُبقي السبب الحقيقي ظاهرًا في الكونسول — الرسائل العامة تُخفي المشكلة
+    console.error('[GoogleAuth]', code || '(no-code)', err?.message ?? err);
+
     if (code.includes('popup-blocked') || code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) {
       if (code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) {
         throw new GoogleAuthError('POPUP_BLOCKED', 'تم إلغاء تسجيل الدخول بحساب Google');
@@ -74,7 +77,27 @@ export async function signInWithGoogle(): Promise<FirebaseUser> {
       // النتيجة تُلتقط عند إعادة تحميل الصفحة
       throw new GoogleAuthError('POPUP_BLOCKED', 'جارٍ تحويلك إلى Google لإكمال الدخول…');
     }
-    throw new GoogleAuthError('UNKNOWN', 'تعذّر تسجيل الدخول بحساب Google — تحقّق من الاتصال وحاول مرة أخرى');
+
+    // نطاق التطبيق غير مسجَّل في Firebase — أشهر سبب لفشل الدخول بعد النشر
+    if (code.includes('unauthorized-domain')) {
+      throw new GoogleAuthError(
+        'UNKNOWN',
+        `هذا النطاق (${location.hostname}) غير مصرّح به في Firebase. أضِفه في: Authentication ← Settings ← Authorized domains ثم أعد المحاولة. [auth/unauthorized-domain]`
+      );
+    }
+    if (code.includes('operation-not-allowed')) {
+      throw new GoogleAuthError('UNKNOWN', 'تسجيل الدخول بجوجل غير مُفعّل في Firebase Authentication. [auth/operation-not-allowed]');
+    }
+    if (code.includes('operation-not-supported-in-this-environment') || code.includes('web-storage-unsupported')) {
+      throw new GoogleAuthError('UNKNOWN', 'المتصفح يمنع التخزين/النوافذ المطلوبة للدخول — افتح التطبيق في نافذة عادية (لا وضع خاص). [auth/environment]');
+    }
+    if (code.includes('network-request-failed')) {
+      throw new GoogleAuthError('UNKNOWN', 'تعذّر الوصول إلى خوادم Google — تحقّق من الاتصال ثم أعد المحاولة. [auth/network-request-failed]');
+    }
+    throw new GoogleAuthError(
+      'UNKNOWN',
+      `تعذّر تسجيل الدخول بحساب Google — تحقّق من الاتصال وحاول مرة أخرى. [${code || 'unknown'}]`
+    );
   }
 }
 
@@ -99,7 +122,19 @@ export function onGoogleAuthChange(cb: (user: FirebaseUser | null) => void): () 
 
 /** يقرأ وثيقة المحل — إن لم تكن موجودة فالمشروع غير مهيّأ */
 export async function loadShop(): Promise<ShopDoc> {
-  const snap = await getDoc(doc(firestoreDb(), 'shops', SHOP_ID));
+  let snap;
+  try {
+    snap = await getDoc(doc(firestoreDb(), 'shops', SHOP_ID));
+  } catch (e: any) {
+    console.error('[loadShop]', e?.code ?? '', e?.message ?? e);
+    if (String(e?.code ?? '').includes('permission-denied')) {
+      throw new GoogleAuthError(
+        'SHOP_MISSING',
+        'قواعد Firestore منعت قراءة بيانات المحل — تأكّد أن وثيقة shops/main ووثيقة عضويتك منشورتان في القاعدة. [permission-denied]'
+      );
+    }
+    throw e;
+  }
   if (!snap.exists()) {
     throw new GoogleAuthError('SHOP_MISSING', 'لم يتم تهيئة المحل بعد في قاعدة البيانات السحابية');
   }
@@ -112,7 +147,16 @@ export async function loadShop(): Promise<ShopDoc> {
  */
 export async function loadSessionFor(fbUser: FirebaseUser): Promise<{ member: ShopMember; shop: ShopDoc }> {
   const shop = await loadShop();
-  const snap = await getDoc(doc(firestoreDb(), 'shops', SHOP_ID, 'members', fbUser.uid));
+  let snap;
+  try {
+    snap = await getDoc(doc(firestoreDb(), 'shops', SHOP_ID, 'members', fbUser.uid));
+  } catch (e: any) {
+    console.error('[loadSessionFor]', e?.code ?? '', e?.message ?? e);
+    throw new GoogleAuthError(
+      'NO_MEMBERSHIP',
+      'تعذّر التحقّق من عضويتك (منعته قواعد Firestore). راجع صاحب المحل. [permission-denied]'
+    );
+  }
 
   if (!snap.exists()) {
     throw new GoogleAuthError(
