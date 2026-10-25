@@ -52,26 +52,49 @@ export const Screen8PasswordChangedSuccess: React.FC<{ onNavigate: (s: ScreenId)
 // ================= SCREEN 9: APP LOGO =================
 export const Screen9AppLogo: React.FC<{ onNavigate: (s: ScreenId) => void }> = ({ onNavigate }) => {
   return (
-    <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-between p-6 text-[var(--text-primary)] text-center select-none transition-colors duration-200">
+    <div className="min-h-screen bg-[var(--bg-page)] flex flex-col items-center justify-between p-4 sm:p-6 text-[var(--text-primary)] text-center select-none transition-colors duration-200">
       <div className="w-full flex justify-between items-center text-xs text-[var(--text-muted)]">
         <span className="font-mono">10:30</span>
         <span className="text-[11px] bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full border border-amber-300 font-bold">
-          الهوية الرسمية
+          الهوية والأيقونة الرسمية
         </span>
       </div>
 
-      <div className="my-auto flex flex-col items-center gap-6 bg-[var(--bg-header)] border-2 border-[var(--color-gold)]/70 rounded-3xl p-6 shadow-xl text-white">
+      <div className="my-auto w-full max-w-sm flex flex-col items-center gap-5 bg-[var(--bg-header)] border-2 border-[var(--color-gold)]/70 rounded-3xl p-6 shadow-xl text-white">
+        {/* Section 1: Official App Icon (أيقونة التطبيق الرسمية للموبايل) */}
         <div className="flex flex-col items-center">
-          <ShopOwnerLogo variant="default" size="2xl" showTitle={false} />
+          <span className="text-[11px] text-amber-300 font-bold mb-3 tracking-wider uppercase">
+            أيقونة التطبيق للشاشة الرئيسية
+          </span>
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl overflow-hidden border-2 border-amber-400 shadow-2xl shadow-amber-400/20 ring-4 ring-amber-400/30">
+            <img
+              src="/icons/icon-512.png"
+              alt="أيقونة تطبيق AH2"
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <span className="mt-2 text-xs font-bold text-slate-200 tracking-wide">
+            AH2 – إيه إتش تو
+          </span>
         </div>
-        <Ah2Logo variant="splash" size="md" showSubtitle={true} />
-        <p className="mt-2 text-xs text-slate-300 max-w-xs leading-relaxed">
+
+        <div className="w-full h-px bg-white/10 my-1"></div>
+
+        {/* Section 2: Shop Owner Brand Identity */}
+        <div className="flex flex-col items-center">
+          <span className="text-[11px] text-amber-300 font-bold mb-2 tracking-wider">
+            هوية المتجر المعتمدة
+          </span>
+          <ShopOwnerLogo variant="default" size="xl" showTitle={false} />
+        </div>
+
+        <p className="text-xs text-slate-300 max-w-xs leading-relaxed">
           هوية متجر OM BASMA المعتمدة على تطبيق AH2 لإدارة العملاء والعمليات المالية والحسابات
         </p>
 
         <button
           onClick={() => onNavigate('screen-5-home')}
-          className="mt-6 py-3 px-8 rounded-xl theme-btn-gold font-black text-xs shadow-md transition-all active:scale-98"
+          className="mt-2 py-3 px-8 rounded-xl theme-btn-gold font-black text-xs shadow-md transition-all active:scale-98"
         >
           العودة للرئيسية
         </button>

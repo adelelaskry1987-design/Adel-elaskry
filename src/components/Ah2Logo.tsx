@@ -95,7 +95,7 @@ export const Ah2Logo: React.FC<Ah2LogoProps> = ({
     md: 'w-36 h-20 text-2xl',
     lg: 'w-48 h-28 text-3xl',
     xl: 'w-64 h-36 text-5xl',
-  }[size];
+  }[size] || 'w-36 h-20 text-2xl';
 
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
