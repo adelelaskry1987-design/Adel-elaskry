@@ -68,7 +68,7 @@ export const Screen9AppLogo: React.FC<{ onNavigate: (s: ScreenId) => void }> = (
           </span>
           <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl overflow-hidden border-2 border-amber-400 shadow-2xl shadow-amber-400/20 ring-4 ring-amber-400/30">
             <img
-              src="/icons/icon-512.png"
+              src={`${import.meta.env.BASE_URL}icons/icon-512.png`}
               alt="أيقونة تطبيق AH2"
               className="w-full h-full object-cover"
             />
