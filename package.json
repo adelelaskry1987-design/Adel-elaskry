@@ -32,7 +32,8 @@
     "test:rules": "firebase emulators:exec --only firestore --project demo-ah2 \"tsx tests/verify-firestore-rules.ts\"",
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:hosting": "vite build && firebase deploy --only hosting",
-    "test:import": "firebase emulators:exec --only firestore --project demo-ah2-import \"tsx tests/verify-import.ts\""
+    "test:import": "firebase emulators:exec --only firestore --project demo-ah2-import \"tsx tests/verify-import.ts\"",
+    "test:owner-fields": "firebase emulators:exec --only firestore --project demo-ah2-owner-fields \"npx tsx tests/verify-owner-fields.ts\""
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
