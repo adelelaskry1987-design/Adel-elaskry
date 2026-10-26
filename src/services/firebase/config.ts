@@ -16,9 +16,17 @@
  */
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
 
-const env = import.meta.env as Record<string, string | undefined>;
+/**
+ * مصدر متغيّرات البيئة:
+ * - في المتصفح (Vite) تكون `import.meta.env`.
+ * - في الاختبارات (Node/tsx) لا يوجد `import.meta.env`، فنقرأ من
+ *   `globalThis.__AH2_ENV__` — وهذا **لا يؤثر إطلاقًا** على نسخة الإنتاج.
+ */
+const viteEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+const env: Record<string, string | undefined> =
+  viteEnv ?? ((globalThis as unknown as { __AH2_ENV__?: Record<string, string | undefined> }).__AH2_ENV__ ?? {});
 
 export const firebaseConfig = {
   apiKey: env.VITE_FIREBASE_API_KEY ?? '',
@@ -75,9 +83,21 @@ export function firebaseAuth(): Auth {
   return getAuth(firebaseApp());
 }
 
+let emulatorWired = false;
+
+/**
+ * اتصال المحاكي (للاختبارات فقط): يُفعَّل فقط إذا وُضع `globalThis.__AH2_EMULATOR__`.
+ * في نسخة الإنتاج هذا المتغيّر غير موجود — فلا يحدث أي اتصال بمحاكي.
+ */
 export function firestoreDb(): Firestore {
   const databaseId = firestoreConfig().databaseId;
-  return getFirestore(firebaseApp(), databaseId);
+  const db = getFirestore(firebaseApp(), databaseId);
+  const hook = (globalThis as unknown as { __AH2_EMULATOR__?: { host: string; port: number } }).__AH2_EMULATOR__;
+  if (hook && !emulatorWired) {
+    connectFirestoreEmulator(db, hook.host, hook.port);
+    emulatorWired = true;
+  }
+  return db;
 }
 
 /** معرّف المحل الوحيد (التطبيق مخصّص لمحل واحد) */

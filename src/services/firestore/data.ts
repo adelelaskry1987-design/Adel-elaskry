@@ -107,8 +107,50 @@ export interface NewCustomerInput {
   notes?: string;
 }
 
+/**
+ * تطبيع رقم الهاتف للمقارنة فقط (لا يُخزَّن):
+ * يوحّد الأرقام العربية/الهندية، ويحذف المسافات والرموز.
+ */
+export function normalizePhone(raw: string | undefined | null): string {
+  if (!raw) return '';
+  const arabic = '٠١٢٣٤٥٦٧٨٩';
+  const persian = '۰۱۲۳۴۵۶۷۸۹';
+  return String(raw)
+    .split('')
+    .map((ch) => {
+      const a = arabic.indexOf(ch);
+      if (a >= 0) return String(a);
+      const p = persian.indexOf(ch);
+      if (p >= 0) return String(p);
+      return ch;
+    })
+    .join('')
+    .replace(/[\s\-()_.+]/g, '');
+}
+
+/** يمنع تكرار العميل بنفس رقم الهاتف (نفس قاعدة `UNIQUE(project_id, phone)` القديمة) */
+export async function findCustomerByPhone(phone: string): Promise<Customer | null> {
+  const target = normalizePhone(phone);
+  if (!target) return null;
+  const snap = await getDocs(shopCol('customers'));
+  const hit = snap.docs
+    .map((d) => d.data() as unknown as Customer)
+    .find((c) => normalizePhone((c as unknown as { phone?: string }).phone) === target);
+  return hit ?? null;
+}
+
 export async function createCustomer(data: NewCustomerInput, actorId: string): Promise<Customer> {
   if (!data.name || !data.name.trim()) throw new Error('اسم العميل مطلوب');
+
+  // ── منع تكرار الرقم: نفس قاعدة أرقام الهواتف في النظام الحالي ──
+  const phone = (data.phone ?? '').trim();
+  if (phone) {
+    const dup = await findCustomerByPhone(phone);
+    if (dup) {
+      throw new Error(`رقم الهاتف ${phone} مسجّل بالفعل للعميل «${(dup as unknown as { name: string }).name}»`);
+    }
+  }
+
   const id = newId('c');
   const now = new Date().toISOString();
   const payload = {
@@ -165,14 +207,84 @@ export interface NewTransactionInput {
   description?: string;
 }
 
-export async function createTransaction(data: NewTransactionInput, actorId: string): Promise<Transaction> {
+/**
+ * حماية من التكرار (نقر مزدوج أو إعادة محاولة بعد انقطاع الشبكة):
+ * أي عمليتان متطابقتان تمامًا (نفس العميل/النوع/المبلغ/التاريخ/الوقت) خلال ١٥ ثانية
+ * تُعتبران عملية واحدة، ولا تُكتب الثانية. أي عملية مشابهة بعد المهلة تُسجَّل عادي.
+ */
+const DUP_WINDOW_MS = 15_000;
+const inFlightTx = new Map<string, Promise<Transaction>>();
+const recentTx = new Map<string, number>();
+
+function txKey(d: NewTransactionInput, amount: number): string {
+  return [d.customer_id, d.type, amount, d.date, d.time].join('|');
+}
+
+/** قرار منع التكرار — دالة خالصة قابلة للاختبار (نفس ما يستخدمه createTransaction) */
+export function isDuplicateTx(key: string, now: number = Date.now()): boolean {
+  const doneAt = recentTx.get(key);
+  return Boolean(doneAt) && now - (doneAt as number) < DUP_WINDOW_MS;
+}
+
+/** يسجّل وقت النجاح — يُستخدم بعد تأكيد الكتابة فقط */
+export function markTxDone(key: string, now: number = Date.now()): void {
+  recentTx.set(key, now);
+}
+
+/** هل الرقمان نفس العميل؟ (مقارنة بعد التطبيع) */
+export function phoneMatches(a: string | undefined | null, b: string | undefined | null): boolean {
+  const x = normalizePhone(a);
+  const y = normalizePhone(b);
+  return Boolean(x) && x === y;
+}
+
+export async function createTransaction(
+  data: NewTransactionInput,
+  actorId: string,
+  opts?: { clientRequestId?: string }
+): Promise<Transaction> {
   const amount = round2(Number(data.amount));
+  const key = txKey(data, amount);
+
+  // نفس العملية قيد التنفيذ الآن → أعد نفس النتيجة بدل إنشاء نسخة ثانية
+  const running = inFlightTx.get(key);
+  if (running) return running;
+
+  // نُفِّذت بنجاح قبل لحظات → لا تُكرَّر
+  if (isDuplicateTx(key)) {
+    throw new Error('تم تسجيل هذه العملية بالفعل قبل لحظات — لم تُكرَّر لحماية الرصيد');
+  }
+
+  const p = createTransactionOnce({ ...data, amount }, actorId, opts).finally(() => {
+    inFlightTx.delete(key);
+  });
+  inFlightTx.set(key, p);
+  const tx = await p;
+  markTxDone(key);
+  return tx;
+}
+
+async function createTransactionOnce(
+  data: NewTransactionInput & { amount: number },
+  actorId: string,
+  opts?: { clientRequestId?: string }
+): Promise<Transaction> {
+  const amount = data.amount;
   if (!data.customer_id) throw new Error('يجب اختيار العميل');
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('المبلغ يجب أن يكون أكبر من صفر');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error('التاريخ غير صالح');
   if (!/^\d{2}:\d{2}$/.test(data.time)) throw new Error('الوقت غير صالح');
 
-  const id = newId('t');
+  // معرّف ثابت عند وجود مفتاح طلب: إعادة المحاولة بنفس المفتاح تكتب نفس الوثيقة (لا ازدواج)
+  const id = opts?.clientRequestId
+    ? `t_${opts.clientRequestId.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60)}`
+    : newId('t');
+  if (opts?.clientRequestId) {
+    const already = await getDoc(shopDoc('transactions', id));
+    if (already.exists()) {
+      return already.data() as unknown as Transaction;
+    }
+  }
   const payload = {
     id,
     project_id: SHOP_ID,
